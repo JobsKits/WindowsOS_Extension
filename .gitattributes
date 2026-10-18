@@ -9,6 +9,8 @@
 "/JobsAndroidStudioOpener/README.md" filter=jobs-markdown-toc
 "/JobsCodeGraphUpdater/README.md" filter=jobs-markdown-toc
 "/JobsFlutterPubGet/README.md" filter=jobs-markdown-toc
+"/JobsFlutterVersionMgr/README.md" filter=jobs-markdown-toc
+"/JobsFlutterVersionMgr/Scripts/README.md" filter=jobs-markdown-toc
 "/JobsGitEmptyCommitPusher/README.md" filter=jobs-markdown-toc
 "/JobsGitRemoteCopier/README.md" filter=jobs-markdown-toc
 "/JobsGitRemoteOpener/README.md" filter=jobs-markdown-toc

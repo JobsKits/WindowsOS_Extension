@@ -32,6 +32,10 @@
     "Name": "JobsFlutterPubGet"
   },
   {
+    "Id": "flutter-version-manager",
+    "Name": "JobsFlutterVersionMgr"
+  },
+  {
     "Id": "codegraph-bootstrap",
     "Name": "JobsCodeGraphUpdater"
   },

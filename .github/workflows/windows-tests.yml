@@ -55,3 +55,6 @@ jobs:
       - name: Terminal package guardrails and command transport
         shell: powershell
         run: .\Tests\Worker.Tests.ps1
+      - name: Flutter FVM project and offline selection guardrails
+        shell: powershell
+        run: .\Tests\FlutterVersionMgr.Tests.ps1

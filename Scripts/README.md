@@ -32,7 +32,7 @@
 | [Sync-PackageInfrastructure.ps1](./Sync-PackageInfrastructure.ps1) | 对照 `../Infrastructure/` 核对各包内嵌的四份通用模板。 | 默认只检查；显式传入 `-Write` 才覆盖对应模板副本。 |
 | [MarkdownToc.mjs](./MarkdownToc.mjs) | 提供目录过滤器的同源码兼容入口。 | 正式过滤器统一从 `../.jobs-markdown-toc/` 运行，按[目录维护说明](#toc-maintenance)操作。 |
 
-总清单位于 [Extensions.json](../Extensions.json)。包内的 `Extension.json` 声明功能身份与菜单信息；`PackageInstaller.psm1` 承担本包部署、注册、备份和回滚；`Invoke.ps1` 是已安装菜单的运行入口。组合面板保存后按清单逐包执行，一包失败即停止，已完成的包保持结果，失败包由自己的安装器回滚。
+总清单位于 [Extensions.json](../Extensions.json)，包含十一项独立功能；[Flutter SDK 安装/切换包](../JobsFlutterVersionMgr/README.md) 同样只由面板编排，其工具链体检、fzf 选版与项目绑定在本包终端内进行。包内的 `Extension.json` 声明功能身份与菜单信息；`PackageInstaller.psm1` 承担本包部署、注册、备份和回滚；`Invoke.ps1` 是已安装菜单的运行入口。组合面板保存后按清单逐包执行，一包失败即停止，已完成的包保持结果，失败包由自己的安装器回滚。
 
 ## 二、<span id="menu-entry">菜单安装、配置与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 

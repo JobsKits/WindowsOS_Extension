@@ -22,4 +22,4 @@ foreach ($package in $packages) {
     }
 }
 if ($different.Count -gt 0) { throw ('基础设施副本不一致：' + ($different -join ', ')) }
-Write-Host '十个独立包的基础设施副本一致；业务文件未修改。'
+Write-Host '十一个独立包的基础设施副本一致；业务文件未修改。'

@@ -64,8 +64,8 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("Jobs WindowsExtension [中文
 $savedLocalData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
 try {
     $features = @(Get-JobsFeaturePackages -Root $project)
-    Assert-Equal $features.Count 10 '10 项菜单功能均可独立选择'
-    Assert-Equal (@($features.Id | Sort-Object -Unique).Count) 10 '功能标识唯一'
+    Assert-Equal $features.Count 11 '11 项菜单功能均可独立选择'
+    Assert-Equal (@($features.Id | Sort-Object -Unique).Count) 11 '功能标识唯一'
     Assert-True (@($features | Where-Object { $_.DirectoryOnly }).Count -ge 3) '写操作只显示在文件夹上'
 
     $quoteCases = @(
