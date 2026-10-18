@@ -220,7 +220,7 @@ powershell.exe `
 - **Git 远程：** 通过 Git 自身解析工作树与子模块，兼容 `.git` 文件、linked worktree 和上级工作树。优先当前分支关联 remote，再选 `origin`，最后只接受唯一 remote；缺少或存在歧义时停止。复制保留原地址；浏览器转换移除凭据，拒绝本地路径和非网络协议。
 - **IDE：** 查询常规安装位置、PATH，以及 Visual Studio 的 `vswhere.exe`。非标准安装可把真实 IDE 可执行文件目录加入用户 PATH；Android Studio 也支持 `ANDROID_STUDIO_HOME`。缺失时提示并打开官方安装页后结束，不继续打开项目。
 - **Flutter 依赖获取：** 复用项目已有 `.fvm/flutter_sdk` 或 PATH 中健康的 SDK，验证项目后确认执行 `flutter pub get`；不自动下载 SDK，不递归寻找其他工程。
-- **Flutter SDK 安装/切换：** [独立 FVM 包](./JobsFlutterVersionMgr/README.md) 先校验精确项目，健康工具复用；缺 Git / fzf 时经确认用当前用户 WinGet 安装，缺 FVM 时用官方架构 ZIP 并校验 SHA-256。查询官方历史与最新版本后用 fzf 单选，离线只列就绪缓存；最终回车跳过、任意字符执行。项目外备份后只绑定当前根，保留配置字段并关闭父 Melos 同步，复核实际 SDK 版本；不设全局版本、不自动获取 pub 依赖。
+- **Flutter SDK 安装/切换：** [独立 FVM 包](./JobsFlutterVersionMgr/README.md) 先校验精确项目，健康工具复用；缺 Git / fzf 时经确认用当前用户 WinGet 安装，缺 FVM 时用官方架构 ZIP 并校验 SHA-256。查询官方历史与最新版本后用 fzf 单选，离线只列就绪缓存；最终直接回车执行安装/切换、任意非空输入取消。项目外备份后只绑定当前根，保留配置字段并关闭父 Melos 同步，复核实际 SDK 版本；不设全局版本、不自动获取 pub 依赖。
 - **CodeGraph：** 固定使用已核对命令行为的 `1.6.2`，兼容 Windows x64 / ARM64，复用该版本的健康工具。缺少 [**Node.js**](https://nodejs.org/) / [**npm**](https://docs.npmjs.com/) 时提示安装官方工具链；缺少匹配版本时显示[官方 npm 包来源](https://www.npmjs.com/package/@colbymchenry/codegraph/v/1.6.2)，经确认安装到本工具的私有前缀，不替换已有的其他版本。不主动升级健康工具，不写全局 PATH，不启动 watcher / server，不安装 Git hooks。在调用 CLI 前以随包运行时只读检查当前目录的 [**SQLite**](https://sqlite.org/) 数据库；拒绝损坏、缺少节点表或指向其他位置的 `.codegraph`，不回退父目录建图。
 - **空白提交：** 暂存区非空、detached HEAD、没有明确上游或推送配置不明确时停止。允许未暂存 / 未跟踪文件存在，禁止 `git add`、强推或全分支推送。只有在确认前置条件并输入 `YES` 后才会创建和推送空白提交；推送失败保留该提交并明确提示，不能盲目重试整个操作。
   - 推送固定使用已核对的提交 SHA 和确认过的目标地址，避免并行操作改变 `HEAD` 或 remote 后推送其他内容。Git hooks 按仓库原配置运行；若 hooks 改变提交树，停止推送并保留本地现场。

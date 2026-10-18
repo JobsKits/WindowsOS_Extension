@@ -33,7 +33,8 @@
 | 选择尚未缓存的具体版本 | 确认并备份后，通过 FVM 下载、初始化并绑定该 SDK。 |
 | 选择已经初始化的缓存版本 | 通过 FVM 切换当前项目，不重复安装 SDK。 |
 | 官方版本源不可用 | 仅列出已经初始化的本机 SDK，标注“离线（最新未知）”；无可用缓存则停止。 |
-| fzf 中按 Esc，或最终确认直接回车 | 取消或跳过，项目配置不写入；此前经单独确认安装的工具会保留。 |
+| fzf 中按 Esc，或最终确认输入任意字符后回车 | 取消，项目配置不写入；此前经单独确认安装的工具会保留。 |
+| 最终确认直接回车 | 先备份，再为当前项目安装或切换已选版本，并复核实际 SDK。 |
 | 右键普通目录、仅有 `flutter_test` 或描述文字的目录 | 终端立即拒绝，尚未调用工具体检、安装或 SDK 下载。 |
 
 静态注册表菜单无法在弹出时解析项目文件，所以目录菜单可能显示在普通文件夹中；**只有通过运行时项目门禁的目录才会继续。Windows 11 请打开“显示更多选项”或按 `Shift+F10`。**
@@ -63,7 +64,7 @@ FVM 独立包来自官方 [`btwld/fvm` release](https://github.com/btwld/fvm/rel
 - 查询 Flutter 官方 [`releases_windows.json`](https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json)，展示 stable / beta / dev 的具体历史版本、发布日期、各渠道最新版本、当前 `.fvmrc` 绑定及缓存是否就绪；master 浮动分支不列为具体版本。
 - 在项目外建立本次私有体检目录，复制目标自身的当前/旧版配置（没有则写入空对象），屏蔽祖先配置后，通过 `fvm api context` 与 `fvm api list --compress --skip-size-calculation` 读取目标将采用的 FVM 实际缓存；尊重已有 FVM 缓存配置，不猜测固定缓存目录。项目 `cachePath`、`FVM_CACHE_PATH` 及最终有效缓存位置必须是绝对路径，相对路径会在工具安装前停止，要求先明确原缓存位置。只有 FVM 标为已初始化且 Flutter / Dart 可执行文件齐全的缓存才支持离线切换。
 - fzf 内输入搜索，方向键选中，Enter 确认一项，Esc 取消；不继承可能执行其他命令的用户 `FZF_DEFAULT_OPTS` 或选项文件。
-- 最终展示“原版本 → 新版本”、缓存状态、写入范围和下载来源。**这一步回车跳过，任意字符执行。**
+- 最终展示“原版本 → 新版本”、缓存状态、写入范围和下载来源。**这一步直接回车执行安装/切换；输入任意字符后回车取消，空格也算非空输入。**
 - 复核项目与写入路径，再备份配置，在精确工程根创建或合并 `.fvmrc`。优先读取当前根 `.fvmrc`，缺失时从本层旧 `.fvm/fvm_config.json` 迁移（包括 flavors、缓存、源和 IDE 策略）；保留其他配置字段，设置 `flutter` 为具体版本，并设置 `updateMelosSettings: false`，避免影响祖先 `.fvmrc` 或 `melos.yaml`。
 - 根配置建立后再次比较有效 FVM 缓存目录与 SDK 来源，若因原先继承父配置而变化则在 SDK 操作前停止，要求重新选版；已写配置可按备份恢复。缓存未就绪时执行 `fvm install <version> --skip-pub-get`；再执行 `fvm use <version> --skip-pub-get --skip-setup`。不设置全局版本，也不自动安装项目 pub 依赖。
 - 补回上游 FVM 序列化时省略的原有扩展配置字段。成功后核对 `.fvmrc`、`.fvm/flutter_sdk` 链接及 `fvm flutter --version --machine` 的实际版本。任何一步失败就停止，不将部分完成报告为成功；窗口保留到回车关闭。

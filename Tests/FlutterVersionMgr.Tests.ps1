@@ -164,13 +164,16 @@ try {
     Assert-Fvm ($usedInspection -cne $project -and -not [IO.Directory]::Exists($usedInspection)) 'API缓存体检使用项目外影子目录且退出精确清理'
     & $module {
         function script:Select-JobsFlutterVersion { param($Fzf, $Choices, $Directory) return $Choices[0] }
-        function script:Read-Host { param($Prompt) return '' }
+        function script:Read-Host { param($Prompt) return $script:FinalConfirmationInput }
     }
-    & $module { param($Project) Invoke-JobsFlutterVersionAction $Project } $project
-    Assert-Fvm ((Get-FileHash -LiteralPath (Join-Path $project '.fvmrc')).Hash -ceq $hashBefore) '最终回车跳过不写项目'
+    foreach ($cancelInput in @('go', ' ', '取消')) {
+        & $module { param($InputText) $script:FinalConfirmationInput = $InputText } $cancelInput
+        & $module { param($Project) Invoke-JobsFlutterVersionAction $Project } $project
+        Assert-Fvm ((Get-FileHash -LiteralPath (Join-Path $project '.fvmrc')).Hash -ceq $hashBefore) ('最终非空输入取消不写项目：[' + $cancelInput + ']')
+    }
     & $module {
         $script:Commands = @()
-        function script:Read-Host { param($Prompt) return 'go' }
+        function script:Read-Host { param($Prompt) return '' }
         function script:Assert-JobsFvmSymlinkSupport { param($Directory) }
         function script:Invoke-JobsFvmTool {
             param($File, $Arguments, $Directory, [switch]$Visible, $TimeoutSeconds)
@@ -194,7 +197,7 @@ try {
     }
     & $module { param($Project) Invoke-JobsFlutterVersionAction $Project } $project
     $commands = @(& $module { $script:Commands })
-    Assert-Fvm ($commands.Count -eq 3 -and $commands[0] -ceq 'api context --compress' -and $commands[1] -ceq 'use 3.22.0 --skip-pub-get --skip-setup' -and $commands[2] -ceq 'flutter --version --machine') '离线缓存上下文复检后仅切换并复核，不安装/联网pub'
+    Assert-Fvm ($commands.Count -eq 3 -and $commands[0] -ceq 'api context --compress' -and $commands[1] -ceq 'use 3.22.0 --skip-pub-get --skip-setup' -and $commands[2] -ceq 'flutter --version --machine') '最终回车执行离线缓存切换并复核，不安装/联网pub'
     $finalConfig = Get-Content -LiteralPath (Join-Path $project '.fvmrc') -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-Fvm ($finalConfig.custom.nested.keep -ceq 'retained' -and $finalConfig.flavors.staging -ceq '3.16.0') 'FVM序列化丢弃的原有字段已补回'
     Assert-Fvm (@($commands | Where-Object { $_ -match '^global|pub get' }).Count -eq 0) '不设置全局版本或获取项目依赖'
@@ -205,7 +208,7 @@ try {
     }
     & $module { param($Project) Invoke-JobsFlutterVersionAction $Project } $project
     $installCommands = @(& $module { $script:Commands })
-    Assert-Fvm ($installCommands.Count -eq 4 -and $installCommands[1] -ceq 'install 3.22.0 --skip-pub-get' -and $installCommands[2] -ceq 'use 3.22.0 --skip-pub-get --skip-setup') '未缓存路径先安装再绑定精确版本'
+    Assert-Fvm ($installCommands.Count -eq 4 -and $installCommands[1] -ceq 'install 3.22.0 --skip-pub-get' -and $installCommands[2] -ceq 'use 3.22.0 --skip-pub-get --skip-setup') '最终回车执行未缓存版本安装后绑定精确版本'
     $beforeConcurrent = (Get-FileHash -LiteralPath (Join-Path $project '.fvmrc')).Hash
     & $module {
         $script:Commands = @()
