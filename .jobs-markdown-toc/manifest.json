@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "files": [
+    ".jobs-markdown-toc/README.md",
+    "JobsAndroidStudioOpener/README.md",
+    "JobsCodeGraphUpdater/README.md",
+    "JobsFlutterPubGet/README.md",
+    "JobsGitEmptyCommitPusher/README.md",
+    "JobsGitRemoteCopier/README.md",
+    "JobsGitRemoteOpener/README.md",
+    "JobsPathCopier/README.md",
+    "JobsTerminalOpener/README.md",
+    "JobsVSCodeOpener/README.md",
+    "JobsVisualStudioOpener/README.md",
+    "README.md",
+    "Scripts/README.md"
+  ]
+}

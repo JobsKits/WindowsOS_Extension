@@ -3,3 +3,19 @@
 *.cmd text eol=crlf
 *.md text eol=lf
 /README.md filter=jobs-markdown-toc
+
+# jobs-markdown-toc:start
+"/.jobs-markdown-toc/README.md" filter=jobs-markdown-toc
+"/JobsAndroidStudioOpener/README.md" filter=jobs-markdown-toc
+"/JobsCodeGraphUpdater/README.md" filter=jobs-markdown-toc
+"/JobsFlutterPubGet/README.md" filter=jobs-markdown-toc
+"/JobsGitEmptyCommitPusher/README.md" filter=jobs-markdown-toc
+"/JobsGitRemoteCopier/README.md" filter=jobs-markdown-toc
+"/JobsGitRemoteOpener/README.md" filter=jobs-markdown-toc
+"/JobsPathCopier/README.md" filter=jobs-markdown-toc
+"/JobsTerminalOpener/README.md" filter=jobs-markdown-toc
+"/JobsVSCodeOpener/README.md" filter=jobs-markdown-toc
+"/JobsVisualStudioOpener/README.md" filter=jobs-markdown-toc
+"/README.md" filter=jobs-markdown-toc
+"/Scripts/README.md" filter=jobs-markdown-toc
+# jobs-markdown-toc:end

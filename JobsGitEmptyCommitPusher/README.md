@@ -2,11 +2,26 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-[toc]
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [🔥 前言](#jobs-toc-heading-1)
+- [一、适用范围与前提](#jobs-toc-heading-2)
+- [二、安装与卸载](#jobs-toc-heading-3)
+  - [Install.cmd](#jobs-toc-heading-4)
+  - [Uninstall.cmd](#jobs-toc-heading-5)
+- [三、功能行为与风险](#jobs-toc-heading-6)
+- [四、目录与状态](#jobs-toc-heading-7)
+- [五、排查与验证](#jobs-toc-heading-8)
+
+</details>
+<!-- jobs-toc:end -->
 
 ---
 
-## 🔥 <font id=前言>前言</font>
+## <span id="jobs-toc-heading-1" data-jobs-toc="v2">🔥 <font id=前言>前言</font></span><!-- jobs-toc:heading-end -->
 
 **右键功能：空白 Commit 并 Push。** 在确认工作树和推送目标后，为当前 [**Git**](https://git-scm.com/) 分支创建空白提交并推送。
 
@@ -18,7 +33,7 @@
 | 单独运行包内 `Install.cmd` | 仅安装或更新 `git-empty-commit-push`。 |
 | 单独运行包内 `Uninstall.cmd` | 仅移除本包菜单，保留其他包。 |
 
-## 一、适用范围与前提 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、适用范围与前提 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 - 系统为 Windows 10 / 11，系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1` Desktop、系统 .NET 与图形桌面可用。
 - 仅文件夹及文件夹空白处；目标和父目录必须为普通目录。
@@ -26,9 +41,9 @@
 - 菜单按单选设计，多选批量操作不在支持范围内。**Windows 11 需要进入“显示更多选项”或使用 `Shift+F10` 打开经典菜单。**
 - 安装作用于当前用户，不需要管理员权限；不修改系统菜单样式、默认关联或永久执行策略。
 
-## 二、安装与卸载 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装与卸载 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-### [Install.cmd](./Install.cmd)
+### <span id="jobs-toc-heading-4" data-jobs-toc="v2">[Install.cmd](./Install.cmd)</span><!-- jobs-toc:heading-end -->
 
 > **目的：** 只安装或更新“空白 Commit 并 Push”。
 
@@ -37,7 +52,7 @@
 - 只写本包菜单和配置；遇到同名但无本工具归属标记的注册表键则停止。
 - 本包提交失败时回滚本包菜单与配置；完成后重新右键查看，不强制重启资源管理器。
 
-### [Uninstall.cmd](./Uninstall.cmd)
+### <span id="jobs-toc-heading-5" data-jobs-toc="v2">[Uninstall.cmd](./Uninstall.cmd)</span><!-- jobs-toc:heading-end -->
 
 > **目的：** 只移除“空白 Commit 并 Push”，保留可追溯数据。
 
@@ -48,14 +63,14 @@
 
 入口从自身位置查找脚本，不依赖启动目录。`-ExecutionPolicy Bypass` 仅作用于本次进程。企业执行策略或应用控制仍可能限制未签名脚本，应遵循设备管理策略。
 
-## 三、功能行为与风险 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-6" data-jobs-toc="v2">三、功能行为与风险 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 - 暂存区非空、detached HEAD、没有明确上游或推送配置不明确时停止。允许未暂存 / 未跟踪文件存在。
 - 禁止 `git add`、强推和全分支推送；只有输入精确 `YES` 后才创建与推送空白提交。
 - 推送使用已核对的提交 SHA 和确认过的目标地址；Git hooks 按仓库配置运行，hooks 改变提交树时停止推送。
 - 推送失败保留本地提交并明确提示；先核对现场再处理，不能盲目重试整个操作以免再创建空白提交。
 
-## 四、目录与状态 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-7" data-jobs-toc="v2">四、目录与状态 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 ```text
 JobsGitEmptyCommitPusher/
@@ -79,7 +94,7 @@ JobsGitEmptyCommitPusher/
 
 旧版整体安装仅按本项迁移：新包状态优先；尚无本包状态时才读取旧总配置的本项选择。安装或卸载本包不改变其他尚未迁移功能，旧运行目录和备份保留。
 
-## 五、排查与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-8" data-jobs-toc="v2">五、排查与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 此功能会写入提交历史并访问远程。失败时查看本包日志和当前分支，确认是否已创建提交；菜单卸载不会撤销已创建或推送的提交。
 

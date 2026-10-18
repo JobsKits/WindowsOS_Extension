@@ -3,6 +3,7 @@
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
 <!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
 <details>
 <summary>📚 目录（点击展开 / 收起）</summary>
 
@@ -17,7 +18,7 @@
 - [四、命令执行与失败处理](#behavior)
 - [五、验证与验收](#verification)
 - [六、README 自动折叠目录](#markdown-toc)
-  - [MarkdownToc.mjs](#markdown-toc-tool)
+  - [MarkdownToc.mjs 兼容入口](#markdown-toc-tool)
 
 </details>
 <!-- jobs-toc:end -->
@@ -139,8 +140,10 @@ Windows@Extension/
 ├── Install.cmd / Configure.cmd  十项复选框组合安装入口
 ├── Uninstall.cmd               已安装包的选择卸载入口
 ├── Extensions.json             包名与功能标识清单
-├── Scripts/                    总面板、清单校验、逐包编排与 README 目录过滤器
-│   └── MarkdownToc.mjs         本地保留 [toc]，暂存时生成折叠目录
+├── Scripts/                    总面板、清单校验、逐包编排与维护入口
+│   ├── README.md               脚本目录职责、入口与依赖说明
+│   └── MarkdownToc.mjs         目录过滤器的兼容入口
+├── .jobs-markdown-toc/          本仓自包含文档目录过滤器、清单与说明
 ├── Infrastructure/             纯通用基础代码的维护模板
 ├── JobsGitRemoteOpener/         打开 Git 远程地址
 ├── JobsGitRemoteCopier/         复制 Git 远程地址
@@ -272,7 +275,7 @@ powershell.exe `
 
 ## 六、<span id="markdown-toc">README 自动折叠目录</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-本仓根 `README.md` 使用 [**Typora**](https://typora.io/) 编写时保留独占一行的 `[toc]`；安装本仓过滤器后，正常整文件暂存会根据当次正文生成默认收起的目录，不需要手工维护链接。规则只匹配根 `README.md`，不处理功能包文档。过滤器需要 [**Node.js**](https://nodejs.org/) 20 或更新版本及 Git，不依赖 npm 包，不联网安装工具，也不是 Windows 菜单功能的运行依赖。
+本仓含有效 `[toc]` 的文档使用 [**Typora**](https://typora.io/) 编写时保留本地标签；安装过滤器后，正常整文件暂存会根据当次正文生成默认收起的目录，不需要手工维护链接。规则按 [manifest.json](./.jobs-markdown-toc/manifest.json) 逐文件登记，覆盖本仓含标签的根说明、功能包文档及脚本目录说明，不接管无标签文档。正式工具与完整用法见 [.jobs-markdown-toc/README.md](./.jobs-markdown-toc/README.md)，脚本目录职责见 [Scripts/README.md](./Scripts/README.md)。过滤器需要 [**Node.js**](https://nodejs.org/) 20 或更新版本及 Git，不依赖 npm 包，不联网安装工具，也不是 Windows 菜单功能的运行依赖。
 
 | 环节 | 实际内容与行为 |
 | --- | --- |
@@ -283,41 +286,45 @@ powershell.exe `
 | 新电脑、新克隆或更新 Node 路径后 | 每个本地克隆运行一次 `install`；Git 不会从仓库自动信任或安装过滤器命令。 |
 | 只暂存部分行、网页直接改标题或其他未安装环境 | 可能生成过期目录；`check` 与仓库 CI 校验会报错，不自动提交或回写。 |
 
-目录包含正文二至六级标题，保留层级；已有标题中的语义 `id` 优先作为跳转目标，普通标题使用 GitHub 风格的标题锚点，重复标题自动编号。支持 ATX（`## 标题`）及单行 Setext 标题，忽略代码围栏、缩进代码、注释、YAML 头和 `pre / script / style / textarea` 示例区；这是本仓文档工具，不是完整 CommonMark 解析器。跨平台使用复杂标点或特殊标题时，优先沿用本仓 `<span id="...">标题</span>` 的明确锚点写法。GitHub、GitLab 的折叠语法已有官方说明，Gitee 当前网页折叠效果仍待实际验收。
+目录包含正文二至六级标题，保留层级；已有唯一且可靠的语义 `id` 优先作为跳转目标，其余标题在发布形态使用可逆的非空 `span` 锚点，检出会撤销包装。多个合法目录标签及大小写原样保留。支持 ATX（`## 标题`）及单行 Setext 标题，忽略代码围栏、缩进代码、注释、YAML 头和 `pre / script / style / textarea` 示例区；这是本仓文档工具，不是完整 CommonMark 解析器。GitHub、GitLab 的折叠语法已有官方说明，Gitee 当前网页折叠效果仍待实际验收。
 
-### <span id="markdown-toc-tool">[MarkdownToc.mjs](./Scripts/MarkdownToc.mjs)</span>
+### <span id="markdown-toc-tool">[MarkdownToc.mjs 兼容入口](./Scripts/MarkdownToc.mjs)</span>
 
-> **目的：** 安装、检查或停用本仓 README 目录过滤器，保留 Typora 的动态目录编辑体验。
+> **目的：** 保留仓内已有脚本调用方式；正式安装使用 `.jobs-markdown-toc/MarkdownToc.mjs`，统一管理清单内文档的目录转换。
 
 - `install` 核对脚本所属 Git 根与属性规则，拒绝覆盖未知同名过滤器或 `process` 配置。
   - 只配置本仓 `filter.jobs-markdown-toc.clean / smudge / required`，记录当前 Node 可执行文件路径；脚本路径相对仓库根定位，兼容仓库改名或移动。
   - 恢复记录保存在本仓实际 Git 元数据目录的 `jobs-markdown-toc.json`；安装器会将本工具生成的目录还原成 `[toc]`，保留正文和其他折叠块。
-- 日常只改正文标题，保存后将 `README.md` **整文件暂存**；在 Sourcetree 选择整个文件，避免对 README 使用“暂存选中行 / 区块”。
-  - `check` 读取暂存区原始内容，发现目录缺失或与已暂存标题不符时失败；它不读取工作区来冒充检查结果，也不把未暂存修改加入索引。
+- 日常修改正文或标题，保存后将改过的受控文档**整文件暂存**；在 Sourcetree 选择整个文件，避免使用“暂存选中行 / 区块”。
+  - `check` 读取清单内所有文档的原始暂存内容，发现目录缺失或与已暂存标题不符时失败；它不读取工作区来冒充检查结果，也不把未暂存修改加入索引。
   - Git 差异视图可能显示生成后的目录；磁盘上的实际 README 仍保留 `[toc]`。
-- `status` 显示本仓过滤器与 README 属性；`preview` 将当前正文的发布版 Markdown 输出到标准输出，不改文件。
+- `status` 显示本仓过滤器配置、受控文档数与清单路径；`preview` 将当前正文的发布版 Markdown 输出到标准输出，不改文件。
 - `uninstall` 在本工具配置未被其他操作改动时恢复安装前配置，并把工作区 `[toc]` 展开成最新目录。
   - 不改全局 Git 配置、hooks、远端、分支或暂存区，不创建提交、不推送；停用后目录不再自动更新。命令结果显示在终端，错误写入标准错误，过滤器标准输出只包含文档。
 
 从仓库根安装并查看状态：
 
 ```shell
-node Scripts/MarkdownToc.mjs install
-node Scripts/MarkdownToc.mjs status
+node .jobs-markdown-toc/MarkdownToc.mjs install
+node .jobs-markdown-toc/MarkdownToc.mjs status
 ```
 
-修改正文并保存后，正常整文件暂存，再只读检查：
+仓库首次接入时，先在 Sourcetree 审查差异，再按[首次提交步骤](./.jobs-markdown-toc/README.md#first-adoption)将清单内**全部文档整文件暂存**，并把根 `.gitattributes`、完整 `.jobs-markdown-toc/` 工具目录及本仓实际改动的兼容脚本、测试和 CI 文件一并纳入待发布提交，再运行全清单 `check`。工具不会自动暂存，已有提交和暂存内容不会因安装而更新。
+
+首次接入完成后，日常只改根 `README.md` 时可按下例操作；其它受控文档改动也分别整文件暂存：
 
 ```shell
 git add -- README.md
-node Scripts/MarkdownToc.mjs check
+node .jobs-markdown-toc/MarkdownToc.mjs check
 ```
+
+新增或移动含标签文档时，先更新清单和根 `.gitattributes` 的精确路径，再运行 `install` 与 `verify`；将文档及对应清单、属性改动正常暂存后运行 `check`。已接入仓库的新克隆安装一次后按日常流程使用。
 
 预览输出与停用分别使用：
 
 ```shell
-node Scripts/MarkdownToc.mjs preview
-node Scripts/MarkdownToc.mjs uninstall
+node .jobs-markdown-toc/MarkdownToc.mjs preview
+node .jobs-markdown-toc/MarkdownToc.mjs uninstall
 ```
 
 回归验证使用 `node --test Tests/MarkdownToc.Tests.mjs`，只在临时 Git 仓库中测试暂存、检出和配置恢复，不操作本仓真实索引。CI 使用同一回归及 `check` 校验已提交目录，只有获得正常提交、推送后才会在远端执行；CI 不自动修复网页编辑产生的过期目录。过滤器机制依据 [Git 官方文档](https://git-scm.com/docs/gitattributes#_filter)，折叠写法见 [GitHub](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-collapsed-sections) 与 [GitLab](https://docs.gitlab.com/user/markdown/#collapsible-section) 官方说明。

@@ -2,11 +2,26 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-[toc]
+<!-- jobs-toc:start -->
+<!-- jobs-toc:source {"v":2,"token":"[toc]"} -->
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [🔥 前言](#jobs-toc-heading-1)
+- [一、适用范围与前提](#jobs-toc-heading-2)
+- [二、安装与卸载](#jobs-toc-heading-3)
+  - [Install.cmd](#jobs-toc-heading-4)
+  - [Uninstall.cmd](#jobs-toc-heading-5)
+- [三、功能行为与风险](#jobs-toc-heading-6)
+- [四、目录与状态](#jobs-toc-heading-7)
+- [五、排查与验证](#jobs-toc-heading-8)
+
+</details>
+<!-- jobs-toc:end -->
 
 ---
 
-## 🔥 <font id=前言>前言</font>
+## <span id="jobs-toc-heading-1" data-jobs-toc="v2">🔥 <font id=前言>前言</font></span><!-- jobs-toc:heading-end -->
 
 **右键功能：用终端打开。** 在所选目录或文件父目录打开开发终端。优先使用 [**Windows Terminal**](https://learn.microsoft.com/windows/terminal/)。
 
@@ -18,7 +33,7 @@
 | 单独运行包内 `Install.cmd` | 仅安装或更新 `open-terminal`。 |
 | 单独运行包内 `Uninstall.cmd` | 仅移除本包菜单，保留其他包。 |
 
-## 一、适用范围与前提 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、适用范围与前提 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 - 系统为 Windows 10 / 11，系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1` Desktop、系统 .NET 与图形桌面可用。
 - 单个文件、文件夹、磁盘根目录和文件夹空白处；选中文件时使用父目录。
@@ -26,9 +41,9 @@
 - 菜单按单选设计，多选批量操作不在支持范围内。**Windows 11 需要进入“显示更多选项”或使用 `Shift+F10` 打开经典菜单。**
 - 安装作用于当前用户，不需要管理员权限；不修改系统菜单样式、默认关联或永久执行策略。
 
-## 二、安装与卸载 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装与卸载 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-### [Install.cmd](./Install.cmd)
+### <span id="jobs-toc-heading-4" data-jobs-toc="v2">[Install.cmd](./Install.cmd)</span><!-- jobs-toc:heading-end -->
 
 > **目的：** 只安装或更新“用终端打开”。
 
@@ -37,7 +52,7 @@
 - 只写本包菜单和配置；遇到同名但无本工具归属标记的注册表键则停止。
 - 本包提交失败时回滚本包菜单与配置；完成后重新右键查看，不强制重启资源管理器。
 
-### [Uninstall.cmd](./Uninstall.cmd)
+### <span id="jobs-toc-heading-5" data-jobs-toc="v2">[Uninstall.cmd](./Uninstall.cmd)</span><!-- jobs-toc:heading-end -->
 
 > **目的：** 只移除“用终端打开”，保留可追溯数据。
 
@@ -48,13 +63,13 @@
 
 入口从自身位置查找脚本，不依赖启动目录。`-ExecutionPolicy Bypass` 仅作用于本次进程。企业执行策略或应用控制仍可能限制未签名脚本，应遵循设备管理策略。
 
-## 三、功能行为与风险 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-6" data-jobs-toc="v2">三、功能行为与风险 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 - 目标工作目录作为路径数据传递，不把它拼成可执行表达式。
 - 只打开终端，不附带 Flutter、CodeGraph 或 Git 写操作。
 - Flutter 依赖、代码地图和空白提交各由独立包提供，卸载本包不会卸载它们。
 
-## 四、目录与状态 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-7" data-jobs-toc="v2">四、目录与状态 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 ```text
 JobsTerminalOpener/
@@ -78,7 +93,7 @@ JobsTerminalOpener/
 
 旧版整体安装仅按本项迁移：新包状态优先；尚无本包状态时才读取旧总配置的本项选择。安装或卸载本包不改变其他尚未迁移功能，旧运行目录和备份保留。
 
-## 五、排查与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+## <span id="jobs-toc-heading-8" data-jobs-toc="v2">五、排查与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 未安装 Windows Terminal 时可直接使用系统 PowerShell 回退；若无法打开，先确认目标目录存在且当前用户可以访问。
 
