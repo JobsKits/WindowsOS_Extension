@@ -2,11 +2,26 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
-[toc]
+<details>
+<summary>📚 目录（点击展开 / 收起）</summary>
+
+- [前言](#前言)
+  - [仓库与父仓关联](#repository-link)
+- [一、功能对照](#features)
+- [二、安装、配置与卸载](#installation)
+  - [Install.cmd](#install)
+  - [Configure.cmd](#configure)
+  - [Uninstall.cmd](#uninstall)
+- [三、目录结构与安装状态](#structure)
+  - [Sync-PackageInfrastructure.ps1](#sync-package-infrastructure)
+- [四、命令执行与失败处理](#behavior)
+- [五、验证与验收](#verification)
+
+</details>
 
 ---
 
-## 🔥 <font id=前言>前言</font>
+## 🔥 <span id="前言">前言</span>
 
 为 [**Windows**](https://www.microsoft.com/windows) 开发人员提供资源管理器右键菜单，与同级 [`MacOS@Extension`](../MacOS@Extension/README.md) 对齐日常开发操作。提供 **10 个独立功能包**：每包自带功能源码、安装、卸载和运行模块，可以只复制其中一个包使用；根入口提供 **10 项复选框组合安装面板**。使用系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1`，不需要编译、不需要管理员权限。
 
@@ -22,7 +37,27 @@
 | 单包卸载 | 只移除该包菜单，保存 `Enabled=false`，保留运行文件、日志、备份和工具依赖。 |
 | 总面板中一包失败 | 停止后续操作，列出已完成和失败的包；已完成的包保持其结果。 |
 
-导航：[功能对照](#features) · [安装配置](#installation) · [目录结构](#structure) · [运行边界](#behavior) · [验证](#verification)
+<strong id="repository-link">仓库与父仓关联</strong>
+
+本仓独立维护 `main`，由父仓 [`JobsGenesis`](../README.md) 的 [`.gitmodules`](../.gitmodules) 登记为子模块：
+
+```ini
+[submodule "Windows@Extension"]
+    path = Windows@Extension
+    url = ../WindowsOS_Extension.git
+    branch = main
+```
+
+`path` 是本地目录名，`url` 使用真实远端仓名 `WindowsOS_Extension`。父仓当前两条线路的相对地址解析如下：
+
+| 父仓 remote | 父仓地址 | 子仓解析地址 |
+| --- | --- | --- |
+| `origin` | `ssh://git@github.com/JobsKits/JobsGenesis.git` | `ssh://git@github.com/JobsKits/WindowsOS_Extension.git` |
+| `gitee` | `git@gitee.com:JobsGo/JobsGenesis.git` | `git@gitee.com:JobsGo/WindowsOS_Extension.git` |
+
+本仓自身的 `origin` 保留 [**GitHub**](https://github.com/JobsKits/WindowsOS_Extension) HTTPS 地址，新增的 `gitee` 使用 [**Gitee**](https://gitee.com/JobsGo/WindowsOS_Extension) HTTPS 地址；本地 `main` 继续跟踪 `origin/main`，向 Gitee 显式推送 `main`。父仓标准下载入口会把 Gitee 的标准 SSH 解析地址转换为 HTTPS；只增加 remote 不会自动切换默认线路。两平台必须都有父仓 gitlink 引用的固定提交，`branch = main` 不能代替该提交；父仓关联须提交并推送后才会随远端克隆分发。
+
+导航：[仓库关联](#repository-link) · [功能对照](#features) · [安装配置](#installation) · [目录结构](#structure) · [运行边界](#behavior) · [验证](#verification)
 
 ## 一、<span id="features">功能对照</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
@@ -47,7 +82,7 @@ macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 
 
 系统前提：Windows 10 / 11，Windows PowerShell `5.1` Desktop、系统 .NET 与图形桌面可用。各功能只在执行时检查自己的 Git、IDE 或 SDK 依赖；安装菜单本身不下载软件。企业执行策略、应用控制或杀毒策略可能阻止未签名脚本，须遵循设备管理策略处理。
 
-### [Install.cmd](./Install.cmd)
+### <span id="install">[Install.cmd](./Install.cmd)</span>
 
 > **目的：** 打开组合安装面板，按勾选结果调用各包自己的安装或卸载逻辑。
 
@@ -61,7 +96,7 @@ macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 
 - 各包创建自己的开始菜单卸载入口，通知资源管理器刷新关联。
   - 不强制重启资源管理器；重新打开右键菜单查看结果。
 
-### [Configure.cmd](./Configure.cmd)
+### <span id="configure">[Configure.cmd](./Configure.cmd)</span>
 
 > **目的：** 重新打开同一个组合安装面板，对十项功能分别勾选、关闭、全选或全不选。
 
@@ -70,7 +105,7 @@ macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 
 - 组合配置需要保留完整源码总目录，再运行根目录 `Configure.cmd`。
   - 已安装菜单使用各包自己的部署副本，不依赖源码位置；单包仍可独立重装或通过自己的卸载入口移除。
 
-### [Uninstall.cmd](./Uninstall.cmd)
+### <span id="uninstall">[Uninstall.cmd](./Uninstall.cmd)</span>
 
 > **目的：** 打开卸载面板，只移除选中的已安装功能包，保留可追溯数据和正在执行的会话。
 
@@ -140,9 +175,9 @@ Windows@Extension/
 
 注册范围只包含 `HKCU\Software\Classes` 下 `*`、`Directory`、`Directory\Background`、`Drive` 的 `shell\Jobs.WindowsExtension.<功能ID>`。不修改文件默认关联、不占用其他软件的菜单键、不写 `HKLM`。
 
-当前是 `JobsGenesis` 下与 `MacOS@Extension` 平行的源码目录，尚未登记为独立 Git 子模块，也没有创建远端。父仓 `.gitmodules` 没有对应条目，不虚构远端地址或固定提交；因此未提供子仓下载、提交或推送脚本。
+本目录与 `MacOS@Extension` 平行，作为独立 Git 子仓由 `JobsGenesis` 管理；十个功能包仍是本仓源码目录，未分别登记子模块。父仓登记、两平台地址和分支关系见[仓库关联](#repository-link)；子仓根部 `.git` 为指针文件，元数据由父仓实际 Git 目录下的 `modules/Windows@Extension` 管理。
 
-### [Sync-PackageInfrastructure.ps1](./Scripts/Sync-PackageInfrastructure.ps1)
+### <span id="sync-package-infrastructure">[Sync-PackageInfrastructure.ps1](./Scripts/Sync-PackageInfrastructure.ps1)</span>
 
 > **目的：** 在开发维护时核对或显式同步各独立包内嵌的纯通用基础代码。
 

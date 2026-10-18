@@ -1,0 +1,51 @@
+name: Windows PowerShell validation
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Parse all scripts with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Get-ChildItem -Recurse -File | Where-Object { $_.Extension -in '.ps1', '.psm1' } | ForEach-Object {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors)
+            if ($errors) { throw ($errors | Out-String) }
+            $bytes = [IO.File]::ReadAllBytes($_.FullName)
+            if ($bytes[0] -ne 239 -or $bytes[1] -ne 187 -or $bytes[2] -ne 191) { throw "Missing UTF-8 BOM: $($_.Name)" }
+          }
+      - name: Core behavior
+        shell: powershell
+        run: .\Tests\Core.Tests.ps1
+      - name: Independent package contents and orchestration
+        shell: powershell
+        run: .\Tests\Architecture.Tests.ps1
+      - name: Infrastructure copies stay in sync
+        shell: powershell
+        run: .\Scripts\Sync-PackageInfrastructure.ps1
+      - name: Per-package registry commands
+        shell: powershell
+        run: .\Tests\Installer.Tests.ps1
+      - name: Isolated package registry transactions
+        shell: powershell
+        run: .\Tests\PackageInstaller.Tests.ps1
+      - name: Independent business module entry points
+        shell: powershell
+        run: .\Tests\ActionModules.Tests.ps1
+      - name: Windows PowerShell 5.1 catalog compatibility
+        shell: powershell
+        run: .\Tests\Catalog.Tests.ps1
+      - name: Terminal package guardrails and command transport
+        shell: powershell
+        run: .\Tests\Worker.Tests.ps1
