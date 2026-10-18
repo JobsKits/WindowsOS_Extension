@@ -2,11 +2,11 @@
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
+<!-- jobs-toc:start -->
 <details>
 <summary>📚 目录（点击展开 / 收起）</summary>
 
-- [前言](#前言)
-  - [仓库与父仓关联](#repository-link)
+- [🔥 前言](#%E5%89%8D%E8%A8%80)
 - [一、功能对照](#features)
 - [二、安装、配置与卸载](#installation)
   - [Install.cmd](#install)
@@ -16,8 +16,11 @@
   - [Sync-PackageInfrastructure.ps1](#sync-package-infrastructure)
 - [四、命令执行与失败处理](#behavior)
 - [五、验证与验收](#verification)
+- [六、README 自动折叠目录](#markdown-toc)
+  - [MarkdownToc.mjs](#markdown-toc-tool)
 
 </details>
+<!-- jobs-toc:end -->
 
 ---
 
@@ -136,7 +139,8 @@ Windows@Extension/
 ├── Install.cmd / Configure.cmd  十项复选框组合安装入口
 ├── Uninstall.cmd               已安装包的选择卸载入口
 ├── Extensions.json             包名与功能标识清单
-├── Scripts/                    总面板、清单校验和逐包编排
+├── Scripts/                    总面板、清单校验、逐包编排与 README 目录过滤器
+│   └── MarkdownToc.mjs         本地保留 [toc]，暂存时生成折叠目录
 ├── Infrastructure/             纯通用基础代码的维护模板
 ├── JobsGitRemoteOpener/         打开 Git 远程地址
 ├── JobsGitRemoteCopier/         复制 Git 远程地址
@@ -265,5 +269,57 @@ powershell.exe `
 交付验证在 macOS 上通过便携 PowerShell 运行语法及可跨平台行为检查；**Windows 真实桌面的菜单显示、剪贴板、IDE、终端和注册表回归仍须在 Windows 验收**。推荐依次验证首次组合安装、取消配置、部分选择、单独复制一包安装、卸载一包而保留其他包、目录空白处、磁盘根目录、中文特殊路径、依赖缺失提示及旧版逐项迁移。
 
 官方实现依据：[当前用户菜单注册](https://learn.microsoft.com/windows/win32/shell/context-menu-handlers)、[Windows 11 经典菜单兼容入口](https://blogs.windows.com/blog/2021/07/19/extending-the-context-menu-and-share-dialog-in-windows-11/)。
+
+## 六、<span id="markdown-toc">README 自动折叠目录</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+
+本仓根 `README.md` 使用 [**Typora**](https://typora.io/) 编写时保留独占一行的 `[toc]`；安装本仓过滤器后，正常整文件暂存会根据当次正文生成默认收起的目录，不需要手工维护链接。规则只匹配根 `README.md`，不处理功能包文档。过滤器需要 [**Node.js**](https://nodejs.org/) 20 或更新版本及 Git，不依赖 npm 包，不联网安装工具，也不是 Windows 菜单功能的运行依赖。
+
+| 环节 | 实际内容与行为 |
+| --- | --- |
+| 本地编辑 | Typora 继续识别 `[toc]`，随正文标题动态更新。 |
+| 整文件暂存 | `clean` 只读取 Git 传入的正文，生成带 `jobs-toc` 注释标记的 `<details>` 目录；工作区仍是 `[toc]`。 |
+| 提交与推送 | 保存的是已经生成的目录，网页无需运行脚本；单独执行 push 不会重新生成旧提交。 |
+| 检出与首次安装 | `smudge` 把本工具标记的目录还原成 `[toc]`；其他手写折叠块保留。 |
+| 新电脑、新克隆或更新 Node 路径后 | 每个本地克隆运行一次 `install`；Git 不会从仓库自动信任或安装过滤器命令。 |
+| 只暂存部分行、网页直接改标题或其他未安装环境 | 可能生成过期目录；`check` 与仓库 CI 校验会报错，不自动提交或回写。 |
+
+目录包含正文二至六级标题，保留层级；已有标题中的语义 `id` 优先作为跳转目标，普通标题使用 GitHub 风格的标题锚点，重复标题自动编号。支持 ATX（`## 标题`）及单行 Setext 标题，忽略代码围栏、缩进代码、注释、YAML 头和 `pre / script / style / textarea` 示例区；这是本仓文档工具，不是完整 CommonMark 解析器。跨平台使用复杂标点或特殊标题时，优先沿用本仓 `<span id="...">标题</span>` 的明确锚点写法。GitHub、GitLab 的折叠语法已有官方说明，Gitee 当前网页折叠效果仍待实际验收。
+
+### <span id="markdown-toc-tool">[MarkdownToc.mjs](./Scripts/MarkdownToc.mjs)</span>
+
+> **目的：** 安装、检查或停用本仓 README 目录过滤器，保留 Typora 的动态目录编辑体验。
+
+- `install` 核对脚本所属 Git 根与属性规则，拒绝覆盖未知同名过滤器或 `process` 配置。
+  - 只配置本仓 `filter.jobs-markdown-toc.clean / smudge / required`，记录当前 Node 可执行文件路径；脚本路径相对仓库根定位，兼容仓库改名或移动。
+  - 恢复记录保存在本仓实际 Git 元数据目录的 `jobs-markdown-toc.json`；安装器会将本工具生成的目录还原成 `[toc]`，保留正文和其他折叠块。
+- 日常只改正文标题，保存后将 `README.md` **整文件暂存**；在 Sourcetree 选择整个文件，避免对 README 使用“暂存选中行 / 区块”。
+  - `check` 读取暂存区原始内容，发现目录缺失或与已暂存标题不符时失败；它不读取工作区来冒充检查结果，也不把未暂存修改加入索引。
+  - Git 差异视图可能显示生成后的目录；磁盘上的实际 README 仍保留 `[toc]`。
+- `status` 显示本仓过滤器与 README 属性；`preview` 将当前正文的发布版 Markdown 输出到标准输出，不改文件。
+- `uninstall` 在本工具配置未被其他操作改动时恢复安装前配置，并把工作区 `[toc]` 展开成最新目录。
+  - 不改全局 Git 配置、hooks、远端、分支或暂存区，不创建提交、不推送；停用后目录不再自动更新。命令结果显示在终端，错误写入标准错误，过滤器标准输出只包含文档。
+
+从仓库根安装并查看状态：
+
+```shell
+node Scripts/MarkdownToc.mjs install
+node Scripts/MarkdownToc.mjs status
+```
+
+修改正文并保存后，正常整文件暂存，再只读检查：
+
+```shell
+git add -- README.md
+node Scripts/MarkdownToc.mjs check
+```
+
+预览输出与停用分别使用：
+
+```shell
+node Scripts/MarkdownToc.mjs preview
+node Scripts/MarkdownToc.mjs uninstall
+```
+
+回归验证使用 `node --test Tests/MarkdownToc.Tests.mjs`，只在临时 Git 仓库中测试暂存、检出和配置恢复，不操作本仓真实索引。CI 使用同一回归及 `check` 校验已提交目录，只有获得正常提交、推送后才会在远端执行；CI 不自动修复网页编辑产生的过期目录。过滤器机制依据 [Git 官方文档](https://git-scm.com/docs/gitattributes#_filter)，折叠写法见 [GitHub](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-collapsed-sections) 与 [GitLab](https://docs.gitlab.com/user/markdown/#collapsible-section) 官方说明。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

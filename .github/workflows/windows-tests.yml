@@ -13,6 +13,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: Markdown TOC filter regression
+        shell: powershell
+        run: node --test Tests/MarkdownToc.Tests.mjs
+      - name: Committed README table of contents matches its headings
+        shell: powershell
+        run: node Scripts/MarkdownToc.mjs check
       - name: Parse all scripts with Windows PowerShell 5.1
         shell: powershell
         run: |
