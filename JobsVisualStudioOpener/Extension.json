@@ -1,0 +1,8 @@
+{
+  "Id": "open-visual-studio",
+  "Name": "JobsVisualStudioOpener",
+  "Label": "用 Visual Studio 打开项目",
+  "Description": "打开当前层级解决方案或项目。",
+  "DirectoryOnly": false,
+  "Console": false
+}

@@ -1,0 +1,8 @@
+{
+  "Id": "open-terminal",
+  "Name": "JobsTerminalOpener",
+  "Label": "用终端打开",
+  "Description": "优先 Windows Terminal，否则系统 PowerShell。",
+  "DirectoryOnly": false,
+  "Console": false
+}

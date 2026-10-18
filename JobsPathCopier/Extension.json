@@ -1,0 +1,8 @@
+{
+  "Id": "copy-path",
+  "Name": "JobsPathCopier",
+  "Label": "复制绝对路径",
+  "Description": "复制文件或文件夹的绝对路径。",
+  "DirectoryOnly": false,
+  "Console": false
+}

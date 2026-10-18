@@ -1,0 +1,8 @@
+{
+  "Id": "git-empty-commit-push",
+  "Name": "JobsGitEmptyCommitPusher",
+  "Label": "空白 Commit 并 Push",
+  "Description": "校验分支、暂存区和上游后确认推送。",
+  "DirectoryOnly": true,
+  "Console": true
+}

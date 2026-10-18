@@ -1,0 +1,8 @@
+{
+  "Id": "open-android-studio",
+  "Name": "JobsAndroidStudioOpener",
+  "Label": "用 Android Studio 打开项目",
+  "Description": "打开目标项目目录。",
+  "DirectoryOnly": false,
+  "Console": false
+}

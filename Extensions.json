@@ -1,0 +1,42 @@
+[
+  {
+    "Id": "open-git-remote",
+    "Name": "JobsGitRemoteOpener"
+  },
+  {
+    "Id": "copy-git-remote",
+    "Name": "JobsGitRemoteCopier"
+  },
+  {
+    "Id": "copy-path",
+    "Name": "JobsPathCopier"
+  },
+  {
+    "Id": "open-visual-studio",
+    "Name": "JobsVisualStudioOpener"
+  },
+  {
+    "Id": "open-vscode",
+    "Name": "JobsVSCodeOpener"
+  },
+  {
+    "Id": "open-android-studio",
+    "Name": "JobsAndroidStudioOpener"
+  },
+  {
+    "Id": "open-terminal",
+    "Name": "JobsTerminalOpener"
+  },
+  {
+    "Id": "flutter-pub-get",
+    "Name": "JobsFlutterPubGet"
+  },
+  {
+    "Id": "codegraph-bootstrap",
+    "Name": "JobsCodeGraphUpdater"
+  },
+  {
+    "Id": "git-empty-commit-push",
+    "Name": "JobsGitEmptyCommitPusher"
+  }
+]
