@@ -19,6 +19,15 @@
 - [五、验证与验收](#verification)
 - [六、README 自动折叠目录](#markdown-toc)
   - [MarkdownToc.mjs 兼容入口](#markdown-toc-tool)
+- [七、项目统计与复核口径](#project-statistics)
+  - [7.1、工具链与锁文件](#jobs-toc-heading-14)
+  - [7.2、建库与提交历史](#jobs-toc-heading-15)
+  - [7.3、界面、功能与后端规模](#jobs-toc-heading-16)
+  - [7.4、模块依赖与核心流程](#jobs-toc-heading-17)
+  - [7.5、功能实现清单](#jobs-toc-heading-18)
+  - [7.6、业务代码占比](#jobs-toc-heading-19)
+- [八、直接依赖与风险](#direct-dependencies)
+- [九、运行环境与常见问题补充](#runtime-environments)
 
 </details>
 <!-- jobs-toc:end -->
@@ -27,7 +36,9 @@
 
 ## 🔥 <span id="前言">前言</span>
 
-为 [**Windows**](https://www.microsoft.com/windows) 开发人员提供资源管理器右键菜单，与同级 [`MacOS@Extension`](../MacOS@Extension/README.md) 对齐日常开发操作。提供 **11 个独立功能包**：每包自带功能源码、安装、卸载和运行模块，可以只复制其中一个包使用；根入口提供 **11 项复选框组合安装面板**。使用系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1`，不需要编译、不需要管理员权限。
+**项目定位：** 面向 Windows 开发人员的独立右键功能包集合。**状态：维护中，Windows 桌面验收待完成**；负责人 **Jobs** / [**JobsKits**](https://github.com/JobsKits)，未登记其他维护团队。功能数与统计章统一核验于 **2026-10-19**。
+
+为 [**Windows**](https://www.microsoft.com/windows) 开发人员提供资源管理器右键菜单，与同级 [`MacOS@Extension`](../MacOS@Extension/README.md) 对齐日常开发操作。提供 **13 个独立功能包**：每包自带功能源码、安装、卸载和运行模块，可以只复制其中一个包使用；根入口提供 **13 项复选框组合安装面板**。使用系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1`，不需要编译、不需要管理员权限。
 
 **快速开始：** 将整个 `Windows@Extension` 文件夹复制到 Windows，双击 [`Install.cmd`](./Install.cmd)，在原生复选框窗口选择功能并保存。只需一项功能时，也可单独复制对应包，双击包内 `Install.cmd`；例如 [`JobsPathCopier/Install.cmd`](./JobsPathCopier/Install.cmd) 只安装复制绝对路径。重新右键文件、文件夹、磁盘或文件夹空白处即可；**Windows 11 需要点击“显示更多选项”**，也可使用 `Shift+F10` 打开经典菜单。
 
@@ -36,7 +47,7 @@
 | 右键 `D:\项目\Demo` → 复制绝对路径 | 剪贴板得到 `D:\项目\Demo`，无额外引号。 |
 | 右键源文件 → 用终端打开 | 在源文件的父目录启动终端。 |
 | 总面板保存时取消勾选某一已安装功能 | 调用该包自己的卸载逻辑；已选功能逐包安装或更新。 |
-| 只复制 `JobsPathCopier` 并运行包内 `Install.cmd` | 只部署复制路径包，不需要总目录或其他十个包。 |
+| 只复制 `JobsPathCopier` 并运行包内 `Install.cmd` | 只部署复制路径包，不需要总目录或其他十三个包。 |
 | 在 Windows 11 找不到菜单 | 进入“显示更多选项”；不修改系统菜单样式。 |
 | 单包卸载 | 只移除该包菜单，保存 `Enabled=false`，保留运行文件、日志、备份和工具依赖。 |
 | 总面板中一包失败 | 停止后续操作，列出已完成和失败的包；已完成的包保持其结果。 |
@@ -78,8 +89,10 @@
 | [JobsFlutterVersionMgr](./JobsFlutterVersionMgr/README.md) | Flutter SDK 安装/切换（FVM）；严格识别目标根 Flutter 项目，在终端体检工具链、用 fzf 选择历史/最新或离线缓存版本，经确认后备份并安装/切换指定 SDK。 |
 | [JobsCodeGraphUpdater](./JobsCodeGraphUpdater/README.md) | 更新代码地图（.codegraph）；仅文件夹，当前层无图时创建、有图时同步 [**CodeGraph**](https://github.com/colbymchenry/codegraph)，检查结果指向精确目标。 |
 | [JobsGitEmptyCommitPusher](./JobsGitEmptyCommitPusher/README.md) | 空白 Commit 并 Push；仅文件夹，检查工作树、当前分支、暂存区和上游，输入 `YES` 后创建空白提交并推送。 |
+| [JobsFlutterDependencyExtractor](./JobsFlutterDependencyExtractor/README.md) | 提取 Flutter 第三方依赖；联合锁文件与包配置复制已解析的直接、间接和开发依赖源码及许可证，输入或拖入输出父目录，回车默认系统桌面。 |
+| [JobsGitPuller](./JobsGitPuller/README.md) | 拉取 Git 到最新；非 Git 静默返回，有改动时回车确认；保护 index / 工作文件后整合当前分支 upstream，冲突时恢复、确认放弃改动或输入可为空的信息提交后重试。 |
 
-macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 Visual Studio 项目入口承接；[**CocoaPods**](https://cocoapods.org/) 的安装 / 升级入口属于 macOS 工具链，Windows 版不提供。两端当前分别是 12 项和 11 项。
+macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 Visual Studio 项目入口承接；[**CocoaPods**](https://cocoapods.org/) 的安装 / 升级入口属于 macOS 工具链，Windows 版不提供。两端当前分别是 14 项和 13 项。
 
 每项功能拥有独立源码包、运行目录、菜单注册、配置、日志及卸载入口；包内运行代码不引用总目录或其他包。通用基础代码在维护时同步到各包，安装后不需要共享运行模块。经典静态菜单无法在打开菜单时运行完整项目检测；启用的目录操作会显示在普通目录菜单中，点击后再校验并给出具体错误，非法目标不会运行依赖或提交命令。菜单按单选设计，多选批量操作不在支持范围内。
 
@@ -103,7 +116,7 @@ macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 
 
 ### <span id="configure">[Configure.cmd](./Configure.cmd)</span>
 
-> **目的：** 重新打开同一个组合安装面板，对十一项功能分别勾选、关闭、全选或全不选。
+> **目的：** 重新打开同一个组合安装面板，对十三项功能分别勾选、关闭、全选或全不选。
 
 - 读取各包的现有状态并勾选已启用项。
 - 保存时逐包安装或更新已选项，卸载取消勾选的已安装项；取消保持原选择。
@@ -138,7 +151,7 @@ powershell.exe `
 
 ```text
 Windows@Extension/
-├── Install.cmd / Configure.cmd  十一项复选框组合安装入口
+├── Install.cmd / Configure.cmd  十三项复选框组合安装入口
 ├── Uninstall.cmd               已安装包的选择卸载入口
 ├── Extensions.json             包名与功能标识清单
 ├── Scripts/                    总面板、清单校验、逐包编排与维护入口
@@ -157,6 +170,8 @@ Windows@Extension/
 ├── JobsFlutterVersionMgr/  Flutter SDK 安装与切换（FVM）
 ├── JobsCodeGraphUpdater/        创建或更新代码地图
 ├── JobsGitEmptyCommitPusher/    空白提交并推送
+├── JobsFlutterDependencyExtractor/ 提取已解析 Pub 第三方源码与许可证
+├── JobsGitPuller/               拉取当前分支 upstream 与冲突恢复
 ├── Tests/                      架构、独立包与行为回归
 └── .github/workflows/          Windows PowerShell 5.1 验证入口
 ```
@@ -184,13 +199,13 @@ Windows@Extension/
 
 注册范围只包含 `HKCU\Software\Classes` 下 `*`、`Directory`、`Directory\Background`、`Drive` 的 `shell\Jobs.WindowsExtension.<功能ID>`。不修改文件默认关联、不占用其他软件的菜单键、不写 `HKLM`。
 
-本目录与 `MacOS@Extension` 平行，作为独立 Git 子仓由 `JobsGenesis` 管理；十一个功能包仍是本仓源码目录，未分别登记子模块。父仓登记、两平台地址和分支关系见[仓库关联](#repository-link)；子仓根部 `.git` 为指针文件，元数据由父仓实际 Git 目录下的 `modules/Windows@Extension` 管理。
+本目录与 `MacOS@Extension` 平行，作为独立 Git 子仓由 `JobsGenesis` 管理；十三个功能包仍是本仓源码目录，未分别登记子模块。父仓登记、两平台地址和分支关系见[仓库关联](#repository-link)；子仓根部 `.git` 为指针文件，元数据由父仓实际 Git 目录下的 `modules/Windows@Extension` 管理。
 
 ### <span id="sync-package-infrastructure">[Sync-PackageInfrastructure.ps1](./Scripts/Sync-PackageInfrastructure.ps1)</span>
 
 > **目的：** 在开发维护时核对或显式同步各独立包内嵌的纯通用基础代码。
 
-- 默认只检查 `Infrastructure/` 中的 `Common.psm1`、`Invoke.ps1`、`Manage.ps1`、`PackageInstaller.psm1` 与十一个包的副本是否一致，有差异时报告并失败，不写文件。
+- 默认只检查 `Infrastructure/` 中的 `Common.psm1`、`Invoke.ps1`、`Manage.ps1`、`PackageInstaller.psm1` 与十三个包的副本是否一致，有差异时报告并失败，不写文件。
 - 显式传入 `-Write` 才同步这四份模板到各包；不修改 `Action.psm1`、`Extension.json` 或包的业务配置。
 - 修改模板后先同步，再执行回归；CI 使用默认只检查模式，防止维护副本漂移。
 
@@ -224,8 +239,10 @@ powershell.exe `
 - **CodeGraph：** 固定使用已核对命令行为的 `1.6.2`，兼容 Windows x64 / ARM64，复用该版本的健康工具。缺少 [**Node.js**](https://nodejs.org/) / [**npm**](https://docs.npmjs.com/) 时提示安装官方工具链；缺少匹配版本时显示[官方 npm 包来源](https://www.npmjs.com/package/@colbymchenry/codegraph/v/1.6.2)，经确认安装到本工具的私有前缀，不替换已有的其他版本。不主动升级健康工具，不写全局 PATH，不启动 watcher / server，不安装 Git hooks。在调用 CLI 前以随包运行时只读检查当前目录的 [**SQLite**](https://sqlite.org/) 数据库；拒绝损坏、缺少节点表或指向其他位置的 `.codegraph`，不回退父目录建图。
 - **空白提交：** 暂存区非空、detached HEAD、没有明确上游或推送配置不明确时停止。允许未暂存 / 未跟踪文件存在，禁止 `git add`、强推或全分支推送。只有在确认前置条件并输入 `YES` 后才会创建和推送空白提交；推送失败保留该提交并明确提示，不能盲目重试整个操作。
   - 推送固定使用已核对的提交 SHA 和确认过的目标地址，避免并行操作改变 `HEAD` 或 remote 后推送其他内容。Git hooks 按仓库原配置运行；若 hooks 改变提交树，停止推送并保留本地现场。
+- **Git 拉取：** [独立拉取包](./JobsGitPuller/README.md) 对非 Git 目录静默返回；有未提交内容时列出改动、空行确认。fetch 成功后保存 HEAD / index / 含未跟踪文件的快照，再 merge 唯一 upstream；冲突时可恢复、精确 `YES` 后放弃本轮改动，或输入允许为空的信息提交后重试。新提交和已确认放弃结果成为下一轮基线；保留原恢复锚点、不清除用户 stash、不递归子模块、不清理忽略文件或嵌套仓库。
+- **Flutter 依赖提取：** [独立提取包](./JobsFlutterDependencyExtractor/README.md) 严格校验所选项目，终端自述回车后接受输出父目录，空行默认系统桌面；复用项目 FVM、Flutter 内置或 PATH 的健康原生 Dart，不下载工具。锁文件和包配置联合解析直接、间接与开发用非 SDK Pub 包，复制源码及许可证；缺少或过期记录时提示手动 `flutter pub get` 后重试。不会自动获取依赖，不包含单独解析的 CocoaPods/Gradle 依赖，不修改原项目或缓存。
 - **日志：** 安装管理和业务终端分别保留日志。Git 远程可能包含凭据；不把原始凭据地址写入日志，复制动作仍按需求保留原地址。终端命令失败返回错误并停止当前流程，窗口保留到回车关闭。
-  - Flutter 两项功能、CodeGraph 和空白提交各自在可见的交互终端中运行本包业务，确认提示和执行结果保持可见。
+  - Flutter 三项功能、CodeGraph、空白提交和 Git 拉取各自在可见的交互终端中运行本包业务，确认提示和执行结果保持可见。
 
 注册表快照用于排查和恢复本工具菜单状态，保存在安装器输出的精确文件位置；不是整个注册表的备份。旧版本目录默认保留，正在运行的会话继续使用自己的版本文件。
 
@@ -273,9 +290,19 @@ powershell.exe `
   -NoProfile `
   -ExecutionPolicy Bypass `
   -File .\Tests\FlutterVersionMgr.Tests.ps1
+
+powershell.exe `
+  -NoProfile `
+  -ExecutionPolicy Bypass `
+  -File .\Tests\GitPuller.Tests.ps1
+
+powershell.exe `
+  -NoProfile `
+  -ExecutionPolicy Bypass `
+  -File .\Tests\FlutterDependencyExtractor.Tests.ps1
 ```
 
-核心回归覆盖独立包的参数转义、路径处理、远程网页转换、进程树超时清理和临时真实 Git 工作树。总安装器回归核对逐包操作计划和失败停止；独立包安装器回归核对隔离注册、卸载、冲突保护、配置提交与事务回滚。架构回归将功能包单独复制到临时目录，检查包内容完整、功能业务归属和不依赖总目录的边界。业务模块回归覆盖各包独立导入与调用、项目门禁、Git 推送计划、暂存区保护及数据库只读检查，不运行真实安装入口或实际推送。FVM 选版回归另覆盖严格 pubspec、离线只选就绪缓存、取消不写项目、配置字段保留、备份与父项目保护，全部采用临时夹具。仓库附带 Windows CI 配置，包含基础模板一致性检查及上述回归；但未推送触发，不能将其视为已通过的远程结果。
+核心回归覆盖独立包的参数转义、路径处理、远程网页转换、进程树超时清理和临时真实 Git 工作树。总安装器回归核对逐包操作计划和失败停止；独立包安装器回归核对隔离注册、卸载、冲突保护、配置提交与事务回滚。架构回归将功能包单独复制到临时目录，检查包内容完整、功能业务归属和不依赖总目录的边界。业务模块回归覆盖各包独立导入与调用、项目门禁、Git 推送计划、暂存区保护及数据库只读检查，不运行真实安装入口或实际推送。FVM 选版回归另覆盖严格 pubspec、离线只选就绪缓存、取消不写项目、配置字段保留、备份与父项目保护，全部采用临时夹具。Git 拉取回归使用临时裸远端覆盖暂存 / 未暂存 / 未跟踪恢复、三选项重试、空提交信息、已有 stash 保护和失败停止。Flutter 依赖提取回归以临时夹具核对根项目门禁、路径不求值、系统桌面默认、健康 Dart 发现及 release 包内引擎完整性。仓库附带 Windows CI 配置，包含基础模板一致性检查及上述回归；但未推送触发，不能将其视为已通过的远程结果。
 
 交付验证在 macOS 上通过便携 PowerShell 运行语法及可跨平台行为检查；**Windows 真实桌面的菜单显示、剪贴板、IDE、终端和注册表回归仍须在 Windows 验收**。推荐依次验证首次组合安装、取消配置、部分选择、单独复制一包安装、卸载一包而保留其他包、目录空白处、磁盘根目录、中文特殊路径、依赖缺失提示及旧版逐项迁移。
 
@@ -336,5 +363,168 @@ node .jobs-markdown-toc/MarkdownToc.mjs uninstall
 ```
 
 回归验证使用 `node --test Tests/MarkdownToc.Tests.mjs`，只在临时 Git 仓库中测试暂存、检出和配置恢复，不操作本仓真实索引。CI 使用同一回归及 `check` 校验已提交目录，只有获得正常提交、推送后才会在远端执行；CI 不自动修复网页编辑产生的过期目录。过滤器机制依据 [Git 官方文档](https://git-scm.com/docs/gitattributes#_filter)，折叠写法见 [GitHub](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-collapsed-sections) 与 [GitLab](https://docs.gitlab.com/user/markdown/#collapsible-section) 官方说明。
+
+## 七、<span id="project-statistics">项目统计与复核口径</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+
+本章所有数量的统一统计日期为 **2026-10-19（Asia/Shanghai）**。规模统计使用当前磁盘工作树，包含已存在的未提交新增功能；提交历史使用本仓 `HEAD`。根目录无 `.codegraph/`，直接核对清单、源码、测试和 CI 配置，未建立索引。功能、依赖或目录变化时同步更新本章；超过一个迭代周期须重新复核。
+
+### <span id="jobs-toc-heading-14" data-jobs-toc="v2">7.1、工具链与锁文件 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+
+| 类别 | 名称 / 版本 | 依据 / 锁定状态 |
+| --- | --- | --- |
+| 语言 / 运行时 | Windows PowerShell `5.1` Desktop、系统 .NET / WinForms | `Scripts/Manage.ps1` 启动门禁与 `Scripts/Installer.psm1`；不是 PowerShell 7 运行入口。系统 .NET 精确版本未锁定。 |
+| 最低系统 | Windows `10 / 11` 图形桌面 | 根运行文档与 Win32NT / Desktop 检测；最低具体 Windows build 未在源码强制，待实机矩阵核实。 |
+| 构建 | 无编译步骤；部署 `.cmd` / `.ps1` / `.psm1` 与自有 Dart 引擎 | 包安装器逐文件校验、复制 release；无需为了安装菜单下载 SDK。 |
+| Dart | 复用项目 FVM / Flutter / PATH 的健康原生运行时，未锁精确版本 | `JobsFlutterDependencyExtractor/Scripts/Action.psm1` 及 `ExtractFlutterDependencies.dart`；最低 Dart 版本待矩阵核实。 |
+| Node.js | 文档工具 `20+`；CI 为 `24` | `.jobs-markdown-toc/README.md`、`.github/workflows/windows-tests.yml`；仅工具 / CI 依赖，菜单安装不依赖 Node。 |
+| 功能工具 | Git、IDE、Flutter、FVM、fzf、CodeGraph 按功能检查 | CodeGraph 精确限制 `1.6.2`；其它版本来源见[依赖表](#direct-dependencies)。 |
+| 锁文件 | 无已入库 npm / Pub / NuGet / PowerShell 包锁文件 | `git ls-files` 与当前新增包核对；没有外部 PowerShell 模块安装依赖。目标项目自己的锁文件是操作数据，不算扩展锁文件。 |
+
+### <span id="jobs-toc-heading-15" data-jobs-toc="v2">7.2、建库与提交历史 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+
+| 项目 | 结果 | 口径 / 依据（2026-10-19） |
+| --- | --- | --- |
+| 平台建库时间 | 待核实 | 本地 Git 不能证明 GitHub / Gitee 创建时间。 |
+| 首次提交 | `2026-10-18 20:18:01 +08:00`，`cf7c44b50d761ca301611dcf7a49f876a56c08ac` | `git log --reverse --format='%aI %H'` 首行。 |
+| 最近提交 | `2026-10-19 02:31:07 +08:00`，`8647fb0da76269fc103ebaa48ddc321f0835f30f` | `git log -1 --format='%aI %H'`；不含未提交更改。 |
+| 提交数 | `6` | `git rev-list --count HEAD`，仅当前分支可达提交。 |
+| 贡献者数 | `1` | `git shortlog -sn --all` 按作者身份行数，不当作团队人数。 |
+| 历史完整性 | 非浅克隆 | `git rev-parse --is-shallow-repository` 为 `false`；只代表本地已取得历史。 |
+
+复核命令可在根目录逐行运行：
+
+```shell
+git log --reverse --format='%aI %H %an'
+git log -1 --format='%aI %H %an'
+git rev-list --count HEAD
+git shortlog -sn --all
+git rev-parse --is-shallow-repository
+```
+
+### <span id="jobs-toc-heading-16" data-jobs-toc="v2">7.3、界面、功能与后端规模 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+
+| 端 / 计数单位 | 页面数 | 子页面数 | 路由数 | 依据与边界（2026-10-19） |
+| --- | --- | --- | --- | --- |
+| Windows / 页面组件（WinForms Form） | `1` | `0` | `0` | `Scripts/Installer.psm1` 的 `Show-JobsFeatureSelection` 创建单一 Form；安装、配置、卸载复用同一组件，按组件去重。 |
+| iOS / Android / Web | 不适用 | 不适用 | 不适用 | 本仓未交付这些平台应用；无 H5 / 跨端容器。消息框、文件选择、fzf、交互终端与外部 IDE 不计页面。 |
+
+`Extensions.json` 的功能 `Id` 去重数为 `13`，对应十三个独立包，**不是十三个页面或接口**；这些包当前没有各自独立 Git 元数据或 `.gitmodules`，按本仓普通目录聚合。注册表 `shell` 菜单与 PowerShell 方法是本地入口，不作为 Web 路由或后端 RPC。
+
+| 后端统计项 | 结果与依据（2026-10-19） |
+| --- | --- |
+| 对外接口 HTTP / RPC / MQ | 均为 `0`；`Action.psm1` 为本地命令，没有对外服务监听；下载、Git 和包源请求仅为出站调用。 |
+| 服务模块 / 部署单元 | 后端服务 `0`；客户端部署单元 `13` 个，按 `Extensions.json` 对应包独立 release / 安装器计数。 |
+| 核心业务表 | `0`；状态用 `settings.json`，备份用 CLIXML；目标代码地图数据库不归本仓所有。 |
+| 业务状态机 | 后端业务状态机 `0`；本地安装 / 启用 / 停用、Git 冲突恢复属于操作流程，不算服务业务对象。 |
+| 外部系统集成 | 未集成支付、短信、实名、ERP 等业务服务；条件工具集成列于依赖表，Git 目标服务随用户仓库变化，不固定远端数量。 |
+| 定时任务 / 异步消费者 | `0` 个常驻调度任务 / MQ 消费者；仅用户触发的菜单与安装批次。 |
+| 中间件 | 无 Redis、MQ、搜索或对象存储部署依赖；不将目标工程的依赖算入。 |
+| 运行时规模 | QPS、日增数据量不适用；本地缓存 / 日志存储量与执行耗时未测量。 |
+
+本地命令工具不符合“页面 : 接口”的业务关系，页面与接口比例校验不适用。
+
+### <span id="jobs-toc-heading-17" data-jobs-toc="v2">7.4、模块依赖与核心流程 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+
+以下为可编辑 [**Mermaid**](https://mermaid.js.org) 源码，虚线标出外部进程 / 系统边界。
+
+```mermaid
+flowchart TD
+    A["总入口<br/>Install.cmd / Configure.cmd / Uninstall.cmd"] --> B["总编排<br/>Scripts/Manage.ps1"]
+    B --> C["清单<br/>Extensions.json / Scripts/Catalog.psm1"]
+    B --> D["唯一面板<br/>Scripts/Installer.psm1"]
+    B --> E["各包安装入口<br/>包内 Scripts/Manage.ps1"]
+    E --> F["包内 Scripts/PackageInstaller.psm1<br/>独立备份与部署"]
+    F -.-> G["外部系统<br/>HKCU 菜单 / 用户 release 与状态"]
+    G --> H["包内运行入口<br/>Scripts/Invoke.ps1"]
+    H --> I["各包业务<br/>Scripts/Action.psm1"]
+    I --> J["随包工具<br/>Common.psm1 / 提取包 Dart 引擎"]
+    I -.-> K["外部 Git / IDE / FVM / Flutter / CodeGraph"]
+    L["维护模板<br/>Infrastructure + Sync-PackageInfrastructure.ps1"] -.->|维护时显式同步| F
+```
+
+```mermaid
+flowchart TD
+    A["资源管理器菜单<br/>PackageInstaller.psm1 注册项"] --> B["本包 Invoke.ps1<br/>解码路径、载入 Action.psm1"]
+    B --> C{"精确目标与功能前提合法?"}
+    C -->|否| D["停止 / 提示 / 记录日志"]
+    C -->|是| E{"直接系统操作或写操作?"}
+    E -->|打开 / 复制| F["Action.psm1<br/>解析路径与远端后调用系统"]
+    E -->|SDK / Pub / 代码地图 / Git| G["本包交互终端<br/>健康检查、来源显示与对应确认"]
+    G -->|取消 / 检查失败| D
+    G -->|确认| H["Action.psm1 / 自有 Dart 引擎<br/>执行业务并检查结果"]
+    H -->|失败 / 冲突| I["按功能停止或提供快照恢复选择"]
+    H -->|成功| J["展示结果 / 日志路径"]
+    F -.-> K["外部系统 / IDE / 浏览器 / 剪贴板"]
+    H -.-> L["外部工具 / 远端 / 目标项目"]
+```
+
+### <span id="jobs-toc-heading-18" data-jobs-toc="v2">7.5、功能实现清单 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+
+| 类目 | 是否涉及 / 实现与证据 |
+| --- | --- |
+| 网络 / 安全 | 涉及 Git 认证复用与官方 HTTPS 下载；FVM ZIP 校验 SHA-256，见 `JobsFlutterVersionMgr/Scripts/Action.psm1`；没有自有 OAuth / JWT / Session、接口加解密、证书绑定或密钥托管。 |
+| 数据 / 缓存 / 迁移 | 涉及每包 JSON 状态、CLIXML 菜单备份、release / logs / tools、旧总状态逐包迁移；见 `Infrastructure/PackageInstaller.psm1` 及各包副本。无自有业务数据库、通用数据库迁移。 |
+| 端能力 | 注册表经典菜单、剪贴板、IDE / 浏览器 / 终端启动，分别由包内 `Action.psm1` 实现；蓝牙、推送、定位、相机、相册、生物识别、扫码、NFC、支付、系统分享未实现。 |
+| 国际化 / 分析 / 崩溃 | 当前中文文案，未发现国际化资源框架、分析 SDK 或崩溃上传 SDK；只保留本地诊断日志。 |
+| 热更新 / CI / 环境 | 没有远程热更新服务；重装生成包 release，正在执行会话保持自己的版本；CI 见 `.github/workflows/windows-tests.yml`，dev / test / prod 未分离 API。 |
+| 后端能力 | 无幂等服务、限流、熔断、分布式锁、服务事务、链路追踪、灰度、对账。每包安装事务 / 回滚、Git 快照及进程超时属于本地保护，不宣称后端能力。 |
+| 权限 / 隐私 / 日志 | 仅当前用户 `HKCU`，不提权；外部地址日志脱敏、原始地址按复制功能需求保留；路径不拼接为表达式。见 `Common.psm1`、`PackageInstaller.psm1`。不收集遥测；尚无单独产品隐私声明，发布前按实际分发方式核实。 |
+
+### <span id="jobs-toc-heading-19" data-jobs-toc="v2">7.6、业务代码占比 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+
+日期 **2026-10-19**，以本仓 `git ls-files -c -o --exclude-standard` 返回的现存普通文件为候选，明确纳入既有未跟踪的 `JobsGitPuller/`、`JobsFlutterDependencyExtractor/` 和对应测试；当前统计不等于远端已发布代码。十三包均为普通源码目录，仓库内未发现进一步嵌套 Git 子模块。
+
+按物理行数（含空行、注释）计算。业务为十三包 `Action.psm1` 和提取包 Dart 引擎；测试为 `Tests/` 下脚本；配置与脚本为安装 / 运行入口、通用基础设施、目录工具、JSON / CI / Git 配置。各包为独立部署而携带的自有基础代码副本按物理文件分别计数，不能拿本表衡量去重后的逻辑复杂度。Markdown、资源、锁文件、第三方源码、生成代码、Git 元数据、依赖目录、`build`、`DerivedData`、`work` 等产物排除。
+
+| 类别 | 文件数 | 行数 | 行数占比 |
+| --- | --- | --- | --- |
+| 业务代码 | `14` | `2,969` | `17.65%` |
+| 测试代码 | `11` | `2,472` | `14.70%` |
+| 配置与脚本 | `109` | `11,378` | `67.65%` |
+| 纳入合计 | `134` | `16,819` | `100.00%` |
+| 第三方源码（排除） | 候选中未发现 | — | 不参与分母 |
+
+```mermaid
+pie showData
+    title 2026-10-19 自有源码物理行数占比
+    "业务代码" : 2969
+    "测试代码" : 2472
+    "配置与脚本" : 11378
+```
+
+## 八、<span id="direct-dependencies">直接依赖与风险</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+
+统计日期 **2026-10-19**。安装 / 运行模块未声明需要安装的外部 PowerShell / npm / Pub 源码包，第三方嵌入式直接源码包为 `0`；引擎只用 Dart 标准库。下表统计直接工具及 CI 依赖，公有来源、私库地址不适用，不合计传递依赖，也不统计被操作项目的依赖。许可证为官方上游声明，具体分发版本须再核 LICENSE / NOTICE。
+
+| 直接依赖 | 版本 / 来源 | 许可证 | 用途 / 是否仍在使用 |
+| --- | --- | --- | --- |
+| Windows PowerShell / .NET / WinForms | 系统 `5.1` Desktop；[Microsoft](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) | Windows 系统组件许可，不套用 PowerShell 7 的开源许可 | 是；系统运行与面板。 |
+| Git | 未锁定；[公有来源](https://git-scm.com/) | [GPL-2.0](https://github.com/git/git/blob/master/COPYING) | 是，按功能需要；远程解析、拉取、空白提交。 |
+| Flutter / Dart | 目标项目或健康本机版本，未锁定；[Flutter](https://github.com/flutter/flutter) / [Dart](https://github.com/dart-lang/sdk) 公库 | [Flutter BSD-3-Clause](https://github.com/flutter/flutter/blob/master/LICENSE) / [Dart BSD-3-Clause](https://github.com/dart-lang/sdk/blob/main/LICENSE) | 是；Pub、SDK 校验、运行提取引擎。 |
+| FVM | 官方最新 ZIP 或健康本机版，未锁精确版本；[公库](https://github.com/leoafarias/fvm) | [MIT](https://github.com/leoafarias/fvm/blob/main/LICENSE) | 是；项目 SDK 安装 / 切换，代码中接受 `btwld` / `leoafarias` 官方发行路径。 |
+| fzf | 健康本机版 / WinGet，未锁定；[公库](https://github.com/junegunn/fzf) | [MIT](https://github.com/junegunn/fzf/blob/master/LICENSE) | 是；SDK 版本单选。 |
+| WinGet | 系统健康工具，未锁定；[公库](https://github.com/microsoft/winget-cli) | [MIT](https://github.com/microsoft/winget-cli/blob/master/LICENSE) | 是，FVM 功能缺 Git / fzf 时经确认安装；分发包条款按各包核实。 |
+| CodeGraph | **精确 `1.6.2`**；[公有 npm 包](https://www.npmjs.com/package/@colbymchenry/codegraph/v/1.6.2) | [MIT](https://github.com/colbymchenry/codegraph/blob/main/LICENSE) | 是；`JobsCodeGraphUpdater/Scripts/Action.psm1` 按版本门禁并安装到私有前缀。 |
+| Node.js / npm | 文档 Node `20+`、CI Node `24`；CodeGraph 功能检查健康安装；[Node](https://nodejs.org/) / [npm](https://docs.npmjs.com/) 公有来源 | [Node MIT 及附带第三方条款](https://github.com/nodejs/node/blob/main/LICENSE)；npm 实际分发版完整条款待核实 | 是；文档 / CI 与 CodeGraph 安装工具链；精确补丁版本未锁定。 |
+| `actions/checkout` | `v4`，直接 CI 公库 [actions/checkout](https://github.com/actions/checkout) | [MIT](https://github.com/actions/checkout/blob/main/LICENSE) | 是；工作流检出，浮动 major tag 未锁 SHA。 |
+| `actions/setup-node` | `v4`，直接 CI 公库 [actions/setup-node](https://github.com/actions/setup-node) | [MIT](https://github.com/actions/setup-node/blob/main/LICENSE) | 是；工作流 Node 24，浮动 major tag 未锁 SHA。 |
+| IDE / Windows Terminal / 浏览器 | 用户本机版本，产品来源见功能列表 | 各产品分发许可；非随包第三方代码 | 是，按功能选择；缺失提示官方安装页。 |
+
+**处置边界：** Git 的 GPL-2.0 明确列示，当前调用独立 CLI，不将其源码或二进制内嵌分发；若未来打包这些工具，应按实际组件重新审查。FVM / fzf / Flutter / Node / Git 等浮动环境须保留实际版本与来源；CodeGraph 固定旧版本应在兼容回归后才调整。CI `windows-latest`、major actions tag 与 Node major 未锁具体镜像 / SHA / 补丁，重跑环境可能变化。未做完整安全公告、CVE 与归档状态审计，不能据此认定不存在漏洞或停止维护风险。
+
+## 九、<span id="runtime-environments">运行环境与常见问题补充</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
+
+| 场景 | 配置位置 / 操作 |
+| --- | --- |
+| 环境准备 / 启动 | 使用 Windows 图形桌面与系统 PowerShell 5.1，双击根 `Install.cmd`；也可按第二章运行 `Scripts/Manage.ps1 -Mode Install`。安装菜单无需编译或预装所有功能工具。 |
+| 构建 / 分发 | 无编译命令；独立复制某包即可交付，`Extension.json` 和 `Scripts/` 必须完整。安装由 `PackageInstaller.psm1` 校验并保存 release，不手工拷贝半个包。 |
+| 测试 | 第五章保留全部行为回归命令；CI 另含 `Tests/Catalog.Tests.ps1`。目录只读校验使用 `node ./.jobs-markdown-toc/MarkdownToc.mjs verify`；`check` 检查原始索引，不能替代 Windows 菜单验收。 |
+| dev / test / prod | 无服务器地址或三套 API 环境；源码开发、临时夹具测试、当前用户安装状态分别管理。`Extensions.json` 控制总包清单，包内 `Extension.json` 控制菜单身份，安装状态 `settings.json` 和系统位置见第三章。 |
+| PowerShell 7 / 非 STA | 菜单入口要求 Desktop 5.1 与 STA；用 `.cmd` 启动，不用 `pwsh` 直接运行面板。 |
+| 缺工具 / 目标不合法 | 功能在点击时校验；修复精确目标与对应依赖后重试，不跨目录猜测项目。企业策略阻止脚本时由设备策略处理。 |
+| 离线 | 不提供 API 假数据；FVM 仅列已就绪缓存，Pub / Git / CodeGraph 的联网失败按功能停止并保留日志。 |
+| 状态与菜单不一致 | 检查当前用户包状态、release、日志及经典菜单；单包失败停止其事务，不通过删除全部注册表或卸载其它软件排障。 |
+
+统计与文档验证没有执行 Windows 真实安装 / 卸载、注册表写入、依赖下载、Git 提交或推送；真实 Windows 的菜单、权限、剪贴板与终端交互仍按第五章实机验收。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

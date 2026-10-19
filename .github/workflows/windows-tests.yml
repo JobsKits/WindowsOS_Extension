@@ -58,3 +58,9 @@ jobs:
       - name: Flutter FVM project and offline selection guardrails
         shell: powershell
         run: .\Tests\FlutterVersionMgr.Tests.ps1
+      - name: Git pull snapshots and conflict choices against temporary bare remotes
+        shell: powershell
+        run: .\Tests\GitPuller.Tests.ps1
+      - name: Flutter dependency extraction guards and native argument transport
+        shell: powershell
+        run: .\Tests\FlutterDependencyExtractor.Tests.ps1

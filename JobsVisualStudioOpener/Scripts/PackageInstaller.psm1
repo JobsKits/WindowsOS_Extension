@@ -145,7 +145,7 @@ function New-JobsPackageRelease {
     }
     # 只取当前包的直属脚本；开发测试、日志及相邻功能从不进入 release。
     foreach ($item in Get-ChildItem -LiteralPath $scripts -File -Force -ErrorAction Stop) {
-        if ($item.Extension -in @('.ps1', '.psm1') -and $item.Name -notmatch '(?i)\.Tests?\.') {
+        if ($item.Extension -in @('.ps1', '.psm1', '.dart') -and $item.Name -notmatch '(?i)\.Tests?\.') {
             $files += 'Scripts/' + $item.Name
         }
     }

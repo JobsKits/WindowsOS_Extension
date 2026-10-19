@@ -42,5 +42,13 @@
   {
     "Id": "git-empty-commit-push",
     "Name": "JobsGitEmptyCommitPusher"
+  },
+  {
+    "Id": "git-pull-latest",
+    "Name": "JobsGitPuller"
+  },
+  {
+    "Id": "flutter-dependency-extract",
+    "Name": "JobsFlutterDependencyExtractor"
   }
 ]

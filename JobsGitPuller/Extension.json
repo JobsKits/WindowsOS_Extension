@@ -1,0 +1,8 @@
+{
+  "Id": "git-pull-latest",
+  "Name": "JobsGitPuller",
+  "Label": "拉取 Git 到最新",
+  "Description": "保护本地改动，冲突时选择恢复、放弃改动或提交后重试。",
+  "DirectoryOnly": true,
+  "Console": true
+}
