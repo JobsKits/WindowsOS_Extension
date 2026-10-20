@@ -45,6 +45,8 @@ node ./MarkdownToc.mjs status
 
 安装只配置本仓 `filter.jobs-markdown-toc.clean / smudge / required`，核对清单和有效 Git 属性，不改全局配置、hooks、分支或真实暂存区。安装会更新受控文档的修改时间，让 Git 重新检测新过滤器；未生成过目录的文档正文保持原样。恢复记录保存在本仓实际 Git 元数据目录中的 `jobs-markdown-toc.json`。
 
+仓库边界按文件系统中的目录身份核对，兼容 Windows 盘符与路径大小写差异；放错层级的工具和跨入独立子仓的清单仍会停止，避免改写父仓配置。
+
 ### 2.1、<span id="first-adoption">仓库首次接入与首次提交</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 仓库首次接入时，安装成功表示本机转换已启用，已有提交和暂存内容仍保持原样。先在 [**Sourcetree**](https://www.sourcetreeapp.com/) 审查本仓差异，再按下面的范围手动准备首次提交：
