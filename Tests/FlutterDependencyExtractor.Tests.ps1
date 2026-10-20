@@ -143,7 +143,11 @@ try {
     Assert-Extractor ((Get-FileHash -LiteralPath $engine).Hash -ceq (Get-FileHash -LiteralPath (Join-Path $standalone 'Scripts/ExtractFlutterDependencies.dart')).Hash) '部署引擎逐字节一致'
     # 使用真实原生进程回传参数，验证 Common argv 遇中文、空格、引号和 Shell 符号仍是数据。
     $argvScript = Join-Path $temporary 'argv.ps1'
-    [IO.File]::WriteAllText($argvScript, 'ConvertTo-Json -InputObject @($args) -Compress', (New-Object Text.UTF8Encoding($true)))
+    $argvSource = @'
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+[Console]::Write((ConvertTo-Json -InputObject @($args) -Compress))
+'@
+    [IO.File]::WriteAllText($argvScript, $argvSource, (New-Object Text.UTF8Encoding($true)))
     $shell = Join-Path $PSHOME 'pwsh'
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { $shell = Join-Path $PSHOME 'powershell.exe' }
     $common = Import-Module (Join-Path $standalone 'Scripts/Common.psm1') -PassThru -DisableNameChecking

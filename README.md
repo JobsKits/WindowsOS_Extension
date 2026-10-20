@@ -354,7 +354,9 @@ powershell.exe `
   -File .\Tests\FlutterDependencyExtractor.Tests.ps1
 ```
 
-核心回归覆盖独立包的参数转义、路径处理、远程网页转换、进程树超时清理和临时真实 Git 工作树。总安装器回归核对逐包操作计划和失败停止；独立包安装器回归核对隔离注册、卸载、冲突保护、配置提交与事务回滚。架构回归将功能包单独复制到临时目录，检查包内容完整、功能业务归属和不依赖总目录的边界。业务模块回归覆盖各包独立导入与调用、项目门禁、Git 推送计划、暂存区保护及数据库只读检查，不运行真实安装入口或实际推送。FVM 选版回归另覆盖严格 pubspec、离线只选就绪缓存、取消不写项目、配置字段保留、备份与父项目保护，全部采用临时夹具。Git 拉取回归使用临时裸远端覆盖暂存 / 未暂存 / 未跟踪恢复、三选项重试、空提交信息、已有 stash 保护和失败停止。Flutter 依赖提取回归以临时夹具核对根项目门禁、路径不求值、系统桌面默认、健康 Dart 发现及 release 包内引擎完整性。仓库附带 Windows CI 配置，包含基础模板一致性检查及上述回归；但未推送触发，不能将其视为已通过的远程结果。
+核心回归覆盖独立包的参数转义、路径处理、远程网页转换、进程树超时清理和临时真实 Git 工作树。总安装器回归核对逐包操作计划和失败停止；独立包安装器回归核对隔离注册、卸载、冲突保护、配置提交与事务回滚。架构回归将功能包单独复制到临时目录，检查包内容完整、功能业务归属和不依赖总目录的边界。业务模块回归覆盖各包独立导入与调用、项目门禁、Git 推送计划、暂存区保护及数据库只读检查，不运行真实安装入口或实际推送。FVM 选版回归另覆盖严格 pubspec、离线只选就绪缓存、取消不写项目、配置字段保留、备份与父项目保护，全部采用临时夹具。Git 拉取回归使用临时裸远端覆盖暂存 / 未暂存 / 未跟踪恢复、三选项重试、空提交信息、已有 stash 保护和失败停止。Flutter 依赖提取回归以临时夹具核对根项目门禁、路径不求值、系统桌面默认、健康 Dart 发现及 release 包内引擎完整性。
+
+[Windows CI 配置](./.github/workflows/windows-tests.yml) 在 `push`、`pull_request` 或手动 `workflow_dispatch` 时由 [**GitHub Actions**](https://docs.github.com/actions) 执行，使用 `windows-latest`、Windows PowerShell `5.1` 和 Node.js `24`，包含基础模板一致性检查及上述回归。各独立检查使用 `if: ${{ !cancelled() }}`：未取消时，即使前面的检查失败，后续检查仍继续运行；任意一步失败都会使整体运行失败。实际状态、失败步骤和完整日志见[该工作流的最新运行记录](https://github.com/JobsKits/WindowsOS_Extension/actions/workflows/windows-tests.yml)。
 
 `Tests/SelectionPanel.Tests.ps1` 另核对面板选择规则、普通屏 / 矮屏布局计算、空选门禁和安装 / 配置 / 卸载操作计划。回归通过不代替真实 WinForms 窗口的显示与键盘验收。
 
@@ -420,7 +422,7 @@ node .jobs-markdown-toc/MarkdownToc.mjs uninstall
 
 ## 七、<span id="project-statistics">项目统计与复核口径</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-本章除 7.6 源码行数外的数量统计日期为 **2026-10-19（Asia/Shanghai）**；7.6 随 CodeGraph 体检、安装面板和测试复核于 **2026-10-20**。规模统计使用当前磁盘工作树，包含已存在的未提交新增功能；提交历史使用本仓 `HEAD`。根目录无 `.codegraph/`，直接核对清单、源码、测试和 CI 配置，未建立索引。功能、依赖或目录变化时同步更新本章；超过一个迭代周期须重新复核。
+本章除 7.6 源码行数外的数量统计日期为 **2026-10-19（Asia/Shanghai）**；7.6 随 CI 兼容修复与测试复核于 **2026-10-21**。规模统计使用当前磁盘工作树，包含已存在的未提交新增功能；提交历史使用本仓 `HEAD`。根目录无 `.codegraph/`，直接核对清单、源码、测试和 CI 配置，未建立索引。功能、依赖或目录变化时同步更新本章；超过一个迭代周期须重新复核。
 
 ### <span id="jobs-toc-heading-16" data-jobs-toc="v2">7.1、工具链与锁文件 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -534,24 +536,24 @@ flowchart TD
 
 ### <span id="jobs-toc-heading-21" data-jobs-toc="v2">7.6、业务代码占比 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-日期 **2026-10-20**，以本仓 `git ls-files -c -o --exclude-standard` 返回的现存普通文件为候选，纳入当前工作区的 CodeGraph 体检业务、安装面板、中英文入口及隔离测试；当前统计不等于远端已发布代码。十四包均为普通源码目录，仓库内未发现进一步嵌套 Git 子模块。
+日期 **2026-10-21**，以本仓 `git ls-files -c -o --exclude-standard` 返回的现存普通文件为候选，纳入当前工作区的 CodeGraph 体检业务、安装面板、中英文入口及隔离测试；当前统计不等于远端已发布代码。十四包均为普通源码目录，仓库内未发现进一步嵌套 Git 子模块。
 
 按物理行数（含空行、注释）计算。候选为 Git 跟踪 / 非忽略未跟踪的现存普通文件；纳入 `.ps1`、`.psm1`、`.cmd`、`.mjs`、`.json`、`.yml`、`.yaml`、`.dart`、`.cpp`、`.h`、`.cs`、`.def` 和根 Git 属性 / 忽略配置。业务为十四包 `Action.psm1`、提取引擎及 Flutter 运行包原生桥接 / 识别 / 后台宿主；`Tests/` 单列，其余为配置与脚本。基础副本按物理文件分别计数。排除 Markdown、资源、锁文件、第三方、生成代码、依赖和构建产物；本表不衡量去重后的逻辑复杂度。
 
 | 类别 | 文件数 | 行数 | 行数占比 |
 | --- | --- | --- | --- |
-| 业务代码 | `18` | `4,259` | `21.62%` |
-| 测试代码 | `16` | `3,056` | `15.51%` |
-| 配置与脚本 | `121` | `12,386` | `62.87%` |
-| 纳入合计 | `155` | `19,701` | `100.00%` |
+| 业务代码 | `18` | `4,259` | `21.48%` |
+| 测试代码 | `16` | `3,150` | `15.89%` |
+| 配置与脚本 | `121` | `12,416` | `62.63%` |
+| 纳入合计 | `155` | `19,825` | `100.00%` |
 | 第三方源码（排除） | 候选中未发现 | — | 不参与分母 |
 
 ```mermaid
 pie showData
-    title 2026-10-20 自有源码物理行数占比
+    title 2026-10-21 自有源码物理行数占比
     "业务代码" : 4259
-    "测试代码" : 3056
-    "配置与脚本" : 12386
+    "测试代码" : 3150
+    "配置与脚本" : 12416
 ```
 
 ## 八、<span id="direct-dependencies">直接依赖与风险</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>

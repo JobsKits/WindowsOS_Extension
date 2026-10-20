@@ -20,6 +20,50 @@ function Assert-FvmThrows {
     Assert-Fvm $threw $Message
 }
 
+function New-FvmTestSymbolicLink {
+    param([string]$Path, [string]$Target, [switch]$Directory)
+    # 直接使用字面路径 API，避免 New-Item 在旧版 PowerShell 中展开目标里的 []。
+    $linkType = [IO.File]
+    if ($Directory) { $linkType = [IO.Directory] }
+    $create = $linkType.GetMethod('CreateSymbolicLink', [type[]]@([string], [string]))
+    if ($null -ne $create) {
+        [void]$create.Invoke($null, [object[]]@($Path, $Target))
+    }
+    elseif ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        if (-not ('Jobs.FvmTestSymbolicLink' -as [type])) {
+            Add-Type -TypeDefinition @'
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+namespace Jobs {
+    public static class FvmTestSymbolicLink {
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern bool CreateSymbolicLinkW(string linkPath, string targetPath, uint flags);
+        public static void Create(string linkPath, string targetPath, bool directory) {
+            uint flags = directory ? 1u : 0u;
+            if (CreateSymbolicLinkW(linkPath, targetPath, flags | 2u)) return;
+            int error = Marshal.GetLastWin32Error();
+            // 旧系统不识别非提权标志时，保留原有符号链接权限路径。
+            if (error == 87) {
+                if (CreateSymbolicLinkW(linkPath, targetPath, flags)) return;
+                error = Marshal.GetLastWin32Error();
+            }
+            throw new Win32Exception(error);
+        }
+    }
+}
+'@
+        }
+        [Jobs.FvmTestSymbolicLink]::Create($Path, $Target, $Directory.IsPresent)
+    }
+    else {
+        throw '当前运行时不提供符号链接 API，无法建立真实测试夹具。'
+    }
+    if (([IO.File]::GetAttributes($Path) -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
+        throw ('符号链接夹具未正确创建：' + $Path)
+    }
+}
+
 $root = Split-Path -Parent $PSScriptRoot
 $testParent = [IO.Path]::GetTempPath()
 if ([IO.Directory]::Exists('/private/tmp')) { $testParent = '/private/tmp' }
@@ -117,14 +161,24 @@ try {
     [IO.File]::WriteAllText($outsideFile, 'outside-retained')
     foreach ($relative in @('.fvm/fvm_config.json', '.fvm/version', '.fvm/release', '.fvm/.gitignore', 'unsafe.code-workspace')) {
         $link = Join-Path $guardProject $relative
-        [void](New-Item -ItemType SymbolicLink -Path $link -Target $outsideFile)
+        New-FvmTestSymbolicLink -Path $link -Target $outsideFile
         Assert-FvmThrows { & $module { param($Project) Assert-JobsFvmWritePaths $Project } $guardProject } ('FVM已知写路径拒绝链接：' + $relative)
         [IO.File]::Delete($link)
     }
     $dangling = Join-Path $guardProject '.fvm/version'
-    [void](New-Item -ItemType SymbolicLink -Path $dangling -Target (Join-Path $temporary 'missing-outside'))
+    New-FvmTestSymbolicLink -Path $dangling -Target (Join-Path $temporary 'missing-outside')
     Assert-FvmThrows { & $module { param($Project) Assert-JobsFvmWritePaths $Project } $guardProject } '悬空配置链接不得伪装不存在'
     [IO.File]::Delete($dangling)
+    $outsideDirectory = Join-Path $temporary 'outside-sdk [中文]'
+    [void][IO.Directory]::CreateDirectory($outsideDirectory)
+    $directoryLink = Join-Path $guardProject '.fvm/versions'
+    foreach ($targetDirectory in @($outsideDirectory, (Join-Path $temporary 'missing-sdk [中文]'))) {
+        New-FvmTestSymbolicLink -Path $directoryLink -Target $targetDirectory -Directory
+        Assert-FvmThrows { & $module { param($Project) Assert-JobsFvmWritePaths $Project } $guardProject } '真实或悬空的目录链接均不能成为 FVM 写入位置'
+        if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { [IO.Directory]::Delete($directoryLink) }
+        else { [IO.File]::Delete($directoryLink) }
+    }
+    Assert-Fvm ([IO.Directory]::Exists($outsideDirectory)) '删除目录链接夹具保留外部目标'
     Assert-Fvm ([IO.File]::ReadAllText($outsideFile) -ceq 'outside-retained') '门禁没有写出项目边界'
     & $module {
         function script:Read-JobsFvmWebJson {
@@ -172,6 +226,8 @@ try {
         Assert-Fvm ((Get-FileHash -LiteralPath (Join-Path $project '.fvmrc')).Hash -ceq $hashBefore) ('最终非空输入取消不写项目：[' + $cancelInput + ']')
     }
     & $module {
+        param([scriptblock]$CreateLink)
+        $script:CreateTestSymbolicLink = $CreateLink
         $script:Commands = @()
         function script:Read-Host { param($Prompt) return '' }
         function script:Assert-JobsFvmSymlinkSupport { param($Directory) }
@@ -189,12 +245,12 @@ try {
                 [IO.File]::WriteAllText((Join-Path $sdk 'bin/flutter.bat'), '@echo fixture')
                 [void][IO.Directory]::CreateDirectory((Join-Path $Directory '.fvm'))
                 if (-not (Test-Path -LiteralPath (Join-Path $Directory '.fvm/flutter_sdk'))) {
-                    [void](New-Item -ItemType SymbolicLink -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $sdk)
+                    & $script:CreateTestSymbolicLink -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $sdk -Directory
                 }
             }
             return [pscustomobject]@{ ExitCode = 0; StdOut = '{"frameworkVersion":"3.22.0"}'; StdErr = '' }
         }
-    }
+    } ${function:New-FvmTestSymbolicLink}
     & $module { param($Project) Invoke-JobsFlutterVersionAction $Project } $project
     $commands = @(& $module { $script:Commands })
     Assert-Fvm ($commands.Count -eq 3 -and $commands[0] -ceq 'api context --compress' -and $commands[1] -ceq 'use 3.22.0 --skip-pub-get --skip-setup' -and $commands[2] -ceq 'flutter --version --machine') '最终回车执行离线缓存切换并复核，不安装/联网pub'

@@ -129,7 +129,11 @@ try {
     Assert-True ($null -eq (Find-JobsExecutable -Name 'JobsTestFakeAlias')) '不执行同名别名'
 
     $argumentProbe = Join-Path $testRoot 'probe arguments.ps1'
-    [IO.File]::WriteAllText($argumentProbe, '[Console]::Write((ConvertTo-Json -InputObject @($args) -Compress))', (New-Object Text.UTF8Encoding($true)))
+    $argumentSource = @'
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+[Console]::Write((ConvertTo-Json -InputObject @($args) -Compress))
+'@
+    [IO.File]::WriteAllText($argumentProbe, $argumentSource, (New-Object Text.UTF8Encoding($true)))
     $probeArguments = @('simple', '', 'C:\', 'path with spaces\', 'a"b', 'a\"b', "中文 ' & ; `$() %PATH%", "line1`nline2")
     $roundTrip = Invoke-JobsProcess -FilePath $powerShell -Arguments (@('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $argumentProbe) + $probeArguments) -WorkingDirectory $testRoot
     Assert-Equal $roundTrip.ExitCode 0 '原生子进程正常返回'
