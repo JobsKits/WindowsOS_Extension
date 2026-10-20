@@ -154,7 +154,8 @@ try {
     $special = @($project, (Join-Path $temporary 'a"b'), '--destination', (Join-Path $temporary '$(whoami); & %PATH% !'))
     $native = & $common { param($Shell, $Script, $Values, $Directory) Invoke-JobsProcess -FilePath $Shell -Arguments (@('-NoLogo', '-NoProfile', '-File', $Script) + $Values) -WorkingDirectory $Directory } $shell $argvScript $special $temporary
     Assert-Extractor ($native.ExitCode -eq 0) '真实原生进程回传成功'
-    $actual = @($native.StdOut | ConvertFrom-Json)
+    $decoded = $native.StdOut | ConvertFrom-Json
+    $actual = @($decoded)
     Assert-Extractor ($actual.Count -eq $special.Count) '原生参数数量保持'
     for ($i = 0; $i -lt $special.Count; $i++) { Assert-Extractor ($actual[$i] -ceq $special[$i]) '特殊字符未经 Shell 展开'
     }
