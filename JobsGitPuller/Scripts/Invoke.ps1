@@ -1,4 +1,4 @@
-﻿# Invoke.ps1 | Windows@Extension 单功能运行入口
+﻿# Invoke.ps1 | WindowsOS@Extension 单功能运行入口
 # Created by Jobs on 2026年10月18日，星期日.
 [CmdletBinding()]
 param([Parameter(Mandatory = $true)][string]$Target)

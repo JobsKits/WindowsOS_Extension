@@ -37,7 +37,7 @@
 
 - 系统为 Windows 10 / 11，系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1` Desktop、系统 .NET 与图形桌面可用。
 - 仅文件夹及文件夹空白处；目标和父目录必须为普通目录。
-- 使用已核对行为的 CodeGraph `1.6.2`，支持 Windows x64 / ARM64；依赖健康的 [**Node.js**](https://nodejs.org/) / [**npm**](https://docs.npmjs.com/)。
+- 使用已核对行为的 CodeGraph `1.6.2`，支持 Windows x64 / ARM64；业务使用其随包 Node / SQLite 运行时，安装通道要求健康的 [**Node.js**](https://nodejs.org/) `>=20 <25` / [**npm**](https://docs.npmjs.com/)。
 - 菜单按单选设计，多选批量操作不在支持范围内。**Windows 11 需要进入“显示更多选项”或使用 `Shift+F10` 打开经典菜单。**
 - 安装作用于当前用户，不需要管理员权限；不修改系统菜单样式、默认关联或永久执行策略。
 
@@ -65,10 +65,23 @@
 
 ## <span id="jobs-toc-heading-6" data-jobs-toc="v2">三、功能行为与风险 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-- 缺少 Node/npm 时提示安装官方工具链；缺少匹配 CLI 时展示官方 npm 包来源，经确认后安装到本包私有 `tools/`，不替换其他版本。
-- 不主动升级健康工具，不写全局 PATH，不启动 watcher / server，不安装 Git hooks。
+- 每次先体检 PowerShell / .NET、已有 Node/npm、[**WinGet**](https://learn.microsoft.com/windows/package-manager/winget/)、CodeGraph 随包 Node / SQLite 及 `init` / `sync` / `status` 命令；输出实际路径与版本。健康 CLI 可直接更新地图，未使用的缺失上游仅诊断，不强制安装。
+- 缺少或损坏匹配 CLI 时，沿实际安装链补齐依赖：先复用健康 Node/npm；需要修复时从 WinGet 官方源 `OpenJS.NodeJS.LTS` 的版本清单选择最高 `24.x`，展示精确版本与来源，回车确认后只尝试一次安装，再刷新本进程 PATH 并复检。为修复同版本损坏，强制重跑所选官方安装器；可能替换现有损坏或不兼容 Node、请求系统授权并更新其 PATH，扩展不主动提权。
+- WinGet 本身缺失 / 损坏、官方源无可核实的 `24.x`、安装或复检失败时，打印官方修复来源并停止。不会自动安装 WSL、修改代理或替换健康工具。
+- 安装上游就绪后，展示[官方 npm 包来源](https://www.npmjs.com/package/@colbymchenry/codegraph/v/1.6.2)，回车确认后检查官方 npm 源连通性，再安装 / 修复到本包私有 `tools/`，禁止 npm 生命周期脚本；随包 Node、SQLite 真实读写和 CLI 命令再次体检通过才开始目标建图。每层失败停止，不无限重试。
+- 不主动升级健康工具；本包只刷新当前进程 PATH，Node 官方安装器可能登记系统 / 用户 PATH。不启动 watcher / server，不安装 Git hooks。
 - 先以随包运行时只读检查目标层的 [**SQLite**](https://sqlite.org/) 数据库；拒绝损坏、缺少节点表、路径不符或重解析目录，不回退父目录建图。
 - 运行后核对目标与结果；失败即停止，窗口保留到回车关闭。工具安装及代码地图写入都属于明确确认后的操作。
+
+[**Homebrew**](https://docs.brew.sh/Homebrew-on-Linux) 在 Windows 只支持 WSL 2 的 Linux 环境，不能安装本菜单使用的 Windows 原生工具链；本包采用上述 WinGet / 官方 npm 路线，macOS 的 Homebrew 路线由平行扩展负责。
+
+| 体检层 | 检查及失败处理 |
+| --- | --- |
+| 系统宿主 | Windows PowerShell 5.1 Desktop、.NET SHA-256、x64 / ARM64；不满足即停止。 |
+| 安装上游 | Node 主版本范围、标准库可用性及 npm 实际启动；WinGet 版本 / `--info`。健康独立 CLI 无须修复这些上游。 |
+| 必需安装路径 | WinGet 官方源精确 `24.x` → Node/npm 复检 → 私有 npm 包 → CLI 复检；任一步失败阻止下游。 |
+| 代码地图运行时 | 版本 `1.6.2`、内存 SQLite 建表 / 写入 / 读取、必需命令帮助。 |
+| 精确项目输出 | 写前只读数据库完整性；写后 JSON 必须包含当前目标的绝对项目 / 索引路径、完成状态及零待处理变更。 |
 
 ## <span id="jobs-toc-heading-7" data-jobs-toc="v2">四、目录与状态 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -83,7 +96,8 @@ JobsCodeGraphUpdater/
     ├── PackageInstaller.psm1   本包注册、备份、回滚与状态提交
     ├── Common.psm1             随包内嵌的通用基础实现
     ├── Invoke.ps1              本包菜单运行入口
-    └── Action.psm1             本功能业务实现
+    ├── Action.psm1             本功能业务实现
+    └── README.md               运行链、依赖体检与维护验证
 ```
 
 全部运行文件均在包内。即使移走总目录及其他包，本包仍能独立安装、运行和卸载。
@@ -96,7 +110,7 @@ JobsCodeGraphUpdater/
 
 ## <span id="jobs-toc-heading-8" data-jobs-toc="v2">五、排查与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-遇到已有 `.codegraph` 检查失败时先保留现场并查看本包日志，不删除数据库后盲目重试；缺工具分支会显示精确安装来源。
+遇到已有 `.codegraph` 检查失败时先保留现场并查看本包日志，不删除数据库后盲目重试；缺工具分支会显示精确安装来源。上游提示异常时，先看它是否正在阻塞安装：已有健康的随包运行时可以继续更新地图；需要安装时必须先修复该层。Windows Node `25+` 不满足此版本安装兼容范围，不会被误判为健康安装通道。
 
 菜单未出现时，重新右键并检查 Windows 11 经典菜单入口，再查看本包安装日志。其他包的菜单状态与日志无需改动。
 

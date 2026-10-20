@@ -1,4 +1,4 @@
-﻿# PackageInstaller.psm1 | Windows@Extension 独立功能包
+﻿# PackageInstaller.psm1 | WindowsOS@Extension 独立功能包
 # Created by Jobs on 2026年10月18日，星期日.
 # 只管理传入功能包自己的文件、状态和菜单；导入模块不会修改系统。
 Set-StrictMode -Version 2.0

@@ -4,3 +4,6 @@ Desktop.ini
 /work/
 /TestResults/
 *.log
+
+/JobsFlutterRunner/build/
+/JobsFlutterRunner/bin/

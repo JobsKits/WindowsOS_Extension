@@ -1,5 +1,5 @@
 ﻿# Core.Tests.ps1
-# Windows@Extension
+# WindowsOS@Extension
 # Created by Jobs on 2026年10月18日，星期日.
 
 [CmdletBinding()]
@@ -64,8 +64,8 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("Jobs WindowsExtension [中文
 $savedLocalData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
 try {
     $features = @(Get-JobsFeaturePackages -Root $project)
-    Assert-Equal $features.Count 13 '13 项菜单功能均可独立选择'
-    Assert-Equal (@($features.Id | Sort-Object -Unique).Count) 13 '功能标识唯一'
+    Assert-Equal $features.Count 14 '14 项菜单功能均可独立选择'
+    Assert-Equal (@($features.Id | Sort-Object -Unique).Count) 14 '功能标识唯一'
     Assert-True (@($features | Where-Object { $_.DirectoryOnly }).Count -ge 3) '写操作只显示在文件夹上'
 
     $quoteCases = @(

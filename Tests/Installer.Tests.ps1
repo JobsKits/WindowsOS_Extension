@@ -1,4 +1,4 @@
-﻿# Installer.Tests.ps1 | Windows@Extension
+﻿# Installer.Tests.ps1 | WindowsOS@Extension
 # Created by Jobs on 2026-10-18.
 # Windows 注册测试只写入本次 GUID 隔离目录，绝不使用真实菜单键。
 [CmdletBinding()]
@@ -16,7 +16,8 @@ function Get-JobsRegistryPlan {
     $known = @(Get-JobsFeaturePackages)
     foreach ($id in $Features) { if ($id -notin @($known.Id)) { throw 'Unknown feature' } }
     foreach ($feature in $known) {
-        & $packageInstaller { param($Manifest, $Release, $PowerShell, $Enabled) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath $PowerShell -Enabled $Enabled } $feature $ReleasePath $PowerShellPath ($feature.Id -in $Features)
+        $ownInstaller = Import-Module (Join-Path $feature.PackagePath 'Scripts/PackageInstaller.psm1') -PassThru -DisableNameChecking
+        & $ownInstaller { param($Manifest, $Release, $PowerShell, $Enabled) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath $PowerShell -Enabled $Enabled } $feature $ReleasePath $PowerShellPath ($feature.Id -in $Features)
     }
 }
 
@@ -34,8 +35,8 @@ function Assert-JobsThrows {
 }
 
 $features = @(Get-JobsFeaturePackages)
-Assert-JobsTest ($features.Count -eq 13) '提供十三个独立功能'
-Assert-JobsTest (@($features.Id | Select-Object -Unique).Count -eq 13) '功能标识唯一'
+Assert-JobsTest ($features.Count -eq 14) '提供十四个独立功能'
+Assert-JobsTest (@($features.Id | Select-Object -Unique).Count -eq 14) '功能标识唯一'
 $release = Join-Path ([IO.Path]::GetTempPath()) 'Jobs 中文 & 100% release'
 $powerShell = Join-Path $PSHOME 'powershell.exe'
 $all = @(Get-JobsRegistryPlan -Features @($features.Id) -ReleasePath $release -PowerShellPath $powerShell)
@@ -44,6 +45,12 @@ Assert-JobsTest (@($all.Key | Select-Object -Unique).Count -eq $all.Count) '每�
 Assert-JobsTest (@($all | Where-Object { -not $_.Enabled }).Count -eq 0) '全选计划全部启用'
 
 foreach ($feature in $features) {
+    if ($feature.Id -eq 'flutter-run') {
+        $native = @($all | Where-Object { $_.Key -match 'flutter-run$|CLSID\\\{239D7884-83C5-4D66-AB0C-14A2667DCD61\}$' })
+        Assert-JobsTest ($native.Count -eq 4) 'Flutter 运行包只注册三个动态处理器和独立 CLSID'
+        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) 'Flutter 运行包不残留始终可见的静态菜单'
+        continue
+    }
     $items = @($all | Where-Object { $_.Key.EndsWith('\Jobs.WindowsExtension.' + $feature.Id) })
     $expectedCount = 4
     if ($feature.DirectoryOnly) { $expectedCount = 3 }

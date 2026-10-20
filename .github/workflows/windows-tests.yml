@@ -37,6 +37,9 @@ jobs:
       - name: Independent package contents and orchestration
         shell: powershell
         run: .\Tests\Architecture.Tests.ps1
+      - name: Selection panel layout, confirmation gates, and package plans
+        shell: powershell
+        run: .\Tests\SelectionPanel.Tests.ps1
       - name: Infrastructure copies stay in sync
         shell: powershell
         run: .\Scripts\Sync-PackageInfrastructure.ps1
@@ -64,3 +67,6 @@ jobs:
       - name: Flutter dependency extraction guards and native argument transport
         shell: powershell
         run: .\Tests\FlutterDependencyExtractor.Tests.ps1
+      - name: Flutter runner project, lifecycle, and native build guards
+        shell: powershell
+        run: .\Tests\FlutterRunner.Tests.ps1

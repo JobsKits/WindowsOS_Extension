@@ -1,4 +1,4 @@
-﻿# PackageInstaller.Tests.ps1 | Windows@Extension
+﻿# PackageInstaller.Tests.ps1 | WindowsOS@Extension
 # Created by Jobs on 2026年10月18日，星期日.
 # 文件和状态使用隔离临时目录；Windows 注册验证只在 GUID 隔离子键下运行。
 [CmdletBinding()]

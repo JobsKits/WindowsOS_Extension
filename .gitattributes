@@ -8,9 +8,12 @@
 "/.jobs-markdown-toc/README.md" filter=jobs-markdown-toc
 "/JobsAndroidStudioOpener/README.md" filter=jobs-markdown-toc
 "/JobsCodeGraphUpdater/README.md" filter=jobs-markdown-toc
+"/JobsCodeGraphUpdater/Scripts/README.md" filter=jobs-markdown-toc
 "/JobsFlutterDependencyExtractor/README.md" filter=jobs-markdown-toc
 "/JobsFlutterDependencyExtractor/Scripts/README.md" filter=jobs-markdown-toc
 "/JobsFlutterPubGet/README.md" filter=jobs-markdown-toc
+"/JobsFlutterRunner/README.md" filter=jobs-markdown-toc
+"/JobsFlutterRunner/Scripts/README.md" filter=jobs-markdown-toc
 "/JobsFlutterVersionMgr/README.md" filter=jobs-markdown-toc
 "/JobsFlutterVersionMgr/Scripts/README.md" filter=jobs-markdown-toc
 "/JobsGitEmptyCommitPusher/README.md" filter=jobs-markdown-toc

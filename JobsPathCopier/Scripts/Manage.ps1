@@ -1,5 +1,5 @@
 ﻿<#
-Manage.ps1 | Windows@Extension 独立功能包
+Manage.ps1 | WindowsOS@Extension 独立功能包
 Created by Jobs on 2026年10月18日，星期日.
 安装：只复制本包运行文件并注册本功能的当前用户右键菜单。
 卸载：只移除本功能菜单，保留禁用状态、运行文件、工具、备份和日志。

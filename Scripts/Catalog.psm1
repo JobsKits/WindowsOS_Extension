@@ -1,4 +1,4 @@
-﻿# Catalog.psm1 | Windows@Extension 组合安装清单
+﻿# Catalog.psm1 | WindowsOS@Extension 组合安装清单
 # Created by Jobs on 2026年10月18日，星期日.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
@@ -35,7 +35,7 @@ function Get-JobsPackageOperationPlan {
         if ($Mode -eq 'Uninstall') {
             if ($package.Id -in $Selected -and $package.Id -in $Installed) { $operation = 'Uninstall' }
         } elseif ($package.Id -in $Selected) { $operation = 'Install' }
-        elseif ($package.Id -in $Installed) { $operation = 'Uninstall' }
+        elseif ($Mode -eq 'Configure' -and $package.Id -in $Installed) { $operation = 'Uninstall' }
         if ($operation) {
             [pscustomobject]@{ Id = $package.Id; Label = $package.Label; PackagePath = $package.PackagePath; Mode = $operation }
         }

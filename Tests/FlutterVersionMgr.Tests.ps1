@@ -1,5 +1,5 @@
 ﻿# FlutterVersionMgr.Tests.ps1
-# Windows@Extension
+# WindowsOS@Extension
 # Created by Jobs on 2026年10月19日，星期一.
 # 全部业务操作为隔离夹具，不运行真实 FVM、WinGet 或网络下载。
 

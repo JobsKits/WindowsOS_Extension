@@ -1,4 +1,4 @@
-﻿# Common.psm1 | Windows@Extension 基础设施
+﻿# Common.psm1 | WindowsOS@Extension 基础设施
 # Created by Jobs on 2026年10月18日，星期日.
 # 仅含路径、参数、进程及日志工具；每个功能包内嵌同版本副本。
 Set-StrictMode -Version 2.0

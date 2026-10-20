@@ -50,5 +50,9 @@
   {
     "Id": "flutter-dependency-extract",
     "Name": "JobsFlutterDependencyExtractor"
+  },
+  {
+    "Id": "flutter-run",
+    "Name": "JobsFlutterRunner"
   }
 ]

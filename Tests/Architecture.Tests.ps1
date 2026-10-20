@@ -1,4 +1,4 @@
-﻿# Architecture.Tests.ps1 | Windows@Extension 独立包架构回归
+﻿# Architecture.Tests.ps1 | WindowsOS@Extension 独立包架构回归
 # Created by Jobs on 2026年10月18日，星期日.
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
@@ -11,8 +11,8 @@ function Assert-Architecture {
     $script:assertions++
 }
 $packages = @(Get-JobsFeaturePackages -Root $root)
-Assert-Architecture ($packages.Count -eq 13) '十三个功能工程单独列出'
-Assert-Architecture (@($packages.Name | Select-Object -Unique).Count -eq 13) '功能目录唯一'
+Assert-Architecture ($packages.Count -eq 14) '十四个功能工程单独列出'
+Assert-Architecture (@($packages.Name | Select-Object -Unique).Count -eq 14) '功能目录唯一'
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('JobsStandalone-' + [guid]::NewGuid().ToString('N'))
 $savedLocal = $env:LOCALAPPDATA
 try {
@@ -42,8 +42,13 @@ try {
         $plan = @(& $installer { param($Manifest, $Release, $PowerShell) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath $PowerShell -Enabled $true } $package $release (Join-Path $PSHOME 'powershell.exe'))
         $expected = 4
         if ($package.DirectoryOnly) { $expected = 3 }
+        if ($package.Id -eq 'flutter-run') { $expected = 4 }
         Assert-Architecture ($plan.Count -eq $expected) ('本包只注册自己的上下文：' + $package.Id)
         foreach ($item in $plan) {
+            if ($package.Id -eq 'flutter-run') {
+                Assert-Architecture ($item.Key -match '(?:ContextMenuHandlers\\Jobs\.WindowsExtension\.flutter-run|CLSID\\\{239D7884-83C5-4D66-AB0C-14A2667DCD61\})$') '原生 COM 只注册本包处理器及 CLSID'
+                continue
+            }
             Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.' + $package.Id)) '菜单计划不包含其它功能'
             Assert-Architecture ($item.Command -notmatch '\s-Action\s' -and $item.Command -match 'Invoke\.ps1') '菜单直接启动本功能'
             Assert-Architecture ($item.Command.Contains($release)) '注册命令使用本包独立运行版本'
@@ -52,7 +57,7 @@ try {
         Assert-Architecture ($copied.Id -eq $package.Id) '部署只包含所选包的清单'
         Assert-Architecture (@(Get-ChildItem -LiteralPath $release -Recurse -File | Where-Object { $_.Name -eq 'Action.psm1' }).Count -eq 1) '一次安装只打包一个功能业务'
     }
-    Assert-Architecture (@($roots | Select-Object -Unique).Count -eq 13) '十三个功能安装状态彼此独立'
+    Assert-Architecture (@($roots | Select-Object -Unique).Count -eq 14) '十四个功能安装状态彼此独立'
     $single = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @($packages[2].Id) -Installed @() -Mode Install)
     Assert-Architecture ($single.Count -eq 1 -and $single[0].Id -eq $packages[2].Id) '首次只选一项只部署一项'
     $configure = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @($packages[2].Id) -Installed @($packages[0].Id, $packages[2].Id) -Mode Configure)
