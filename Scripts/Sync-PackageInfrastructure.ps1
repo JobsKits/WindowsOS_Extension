@@ -30,4 +30,4 @@ foreach ($package in $packages) {
     }
 }
 if ($different.Count -gt 0) { throw ('基础设施副本不一致：' + ($different -join ', ')) }
-Write-Host '十四个独立包的共享基础设施副本一致；原生 COM 安装器按白名单独立维护，业务文件未修改。'
+Write-Host ('{0} 个独立包的共享基础设施副本一致；原生 COM 安装器按白名单独立维护，业务文件未修改。' -f $packages.Count)

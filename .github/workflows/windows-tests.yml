@@ -14,15 +14,12 @@ jobs:
         with:
           node-version: '24'
       - name: Markdown TOC filter regression
-        if: ${{ !cancelled() }}
         shell: powershell
         run: node --test Tests/MarkdownToc.Tests.mjs
       - name: Committed README table of contents matches its headings
-        if: ${{ !cancelled() }}
         shell: powershell
         run: node Scripts/MarkdownToc.mjs check
       - name: Parse all scripts with Windows PowerShell 5.1
-        if: ${{ !cancelled() }}
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -35,54 +32,44 @@ jobs:
             if ($bytes[0] -ne 239 -or $bytes[1] -ne 187 -or $bytes[2] -ne 191) { throw "Missing UTF-8 BOM: $($_.Name)" }
           }
       - name: Core behavior
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\Core.Tests.ps1
       - name: Independent package contents and orchestration
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\Architecture.Tests.ps1
       - name: Selection panel layout, confirmation gates, and package plans
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\SelectionPanel.Tests.ps1
       - name: Infrastructure copies stay in sync
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Scripts\Sync-PackageInfrastructure.ps1
       - name: Per-package registry commands
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\Installer.Tests.ps1
       - name: Isolated package registry transactions
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\PackageInstaller.Tests.ps1
       - name: Independent business module entry points
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\ActionModules.Tests.ps1
       - name: Windows PowerShell 5.1 catalog compatibility
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\Catalog.Tests.ps1
       - name: Terminal package guardrails and command transport
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\Worker.Tests.ps1
+      - name: Flutter SDK inspection and version constraint guardrails
+        shell: powershell
+        run: .\Tests\FlutterSdkInspector.Tests.ps1
       - name: Flutter FVM project and offline selection guardrails
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\FlutterVersionMgr.Tests.ps1
       - name: Git pull snapshots and conflict choices against temporary bare remotes
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\GitPuller.Tests.ps1
       - name: Flutter dependency extraction guards and native argument transport
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\FlutterDependencyExtractor.Tests.ps1
       - name: Flutter runner project, lifecycle, and native build guards
-        if: ${{ !cancelled() }}
         shell: powershell
         run: .\Tests\FlutterRunner.Tests.ps1

@@ -25,7 +25,7 @@ try {
     $packages = @(Get-ChildItem -LiteralPath $sourceRoot -Directory | Where-Object {
         Test-Path -LiteralPath (Join-Path $_.FullName 'Extension.json') -PathType Leaf
     })
-    Assert-True ($packages.Count -eq 14) '14 个功能包均有自己的清单'
+    Assert-True ($packages.Count -eq 15) '15 个功能包均有自己的清单'
     foreach ($package in $packages) {
         # 只复制当前功能的清单和两个模块，父目录没有安装器或其它功能可供回调。
         $standalone = Join-Path $testRoot $package.Name
@@ -76,6 +76,7 @@ try {
                 function script:Get-JobsAndroidStudio { return 'studio.exe' }
                 function script:Get-JobsVisualStudio { return 'devenv.exe' }
                 function script:Select-JobsSolution { param($Path) return 'solution.sln' }
+                function script:Invoke-JobsSdkInspect { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsFlutterDependencyAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsFlutterVersionAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsFlutterRunAction { param($Target) $script:Captured = $Target }

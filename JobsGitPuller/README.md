@@ -9,9 +9,10 @@
 
 - [🔥 前言](#%E5%89%8D%E8%A8%80)
 - [一、冲突三选项](#jobs-toc-heading-2)
-- [二、安装、范围与依赖](#jobs-toc-heading-3)
-- [三、保护、日志与人工恢复](#jobs-toc-heading-4)
-- [四、文件与验证](#jobs-toc-heading-5)
+- [二、安装与卸载](#jobs-toc-heading-3)
+- [三、范围与依赖](#jobs-toc-heading-4)
+- [四、保护、日志与人工恢复](#jobs-toc-heading-5)
+- [五、文件与验证](#jobs-toc-heading-6)
 
 </details>
 <!-- jobs-toc:end -->
@@ -44,19 +45,23 @@
 
 等待输入后会复核分支、HEAD、暂存及工作文件内容。发现外部编辑或探测失败时保留现场并停止，不自动重置；运行期间请勿同时编辑或操作同一仓库。
 
-## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装、范围与依赖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装与卸载 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-- Windows 10 / 11，系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1 Desktop`、系统 .NET、图形桌面及 [**Git for Windows**](https://git-scm.com/download/win)。缺 Git 时提示并停止，不安装工具。
+两个入口都是包根目录下裸露的双击脚本，独立于总目录安装面板；本包可单独拷走安装，不依赖相邻功能包。
+
+[`Install.cmd`](./Install.cmd) 显示来源、包身份及目标，确认后仅复制本包，逐文件校验 SHA-256 并注册当前用户 `HKCU\Software\Classes` 下本包菜单。缺 [**Git for Windows**](https://git-scm.com/download/win) 时提示并停止，不自动安装工具。遇到未知同名注册键时停止；本包部署失败时恢复本包注册与配置。它不联网、不提权、不改永久执行策略。
+
+[`Uninstall.cmd`](./Uninstall.cmd) 确认后仅移除本包菜单及卸载快捷方式，写入 `Enabled=false`，保留程序版本、日志与菜单备份；不会撤销 Git 拉取、提交或恢复锚点。入口从自身位置找文件，不依赖终端启动目录。
+
+## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、范围与依赖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+
+- Windows 10 / 11，系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1 Desktop`、系统 .NET 与图形桌面。
 - 仅文件夹及目录空白处，单选；选择工作树内的子目录时操作整个所属仓库。目标及父目录必须为普通目录。
 - Windows 11 通过“显示更多选项”或 `Shift+F10` 进入经典右键菜单。
 - 需要已有提交、正常本地分支及唯一远端 upstream；没有 upstream、detached HEAD、裸仓库、正在 merge / rebase / cherry-pick 的仓库均停止。
 - 稀疏检出、`assume-unchanged`、`skip-worktree`、变化中的子模块、未跟踪嵌套 Git、未跟踪符号链接不进入自动快照。子模块不递归拉取、更新、暂存或清理。
 
-[`Install.cmd`](./Install.cmd) 显示来源、包身份及目标，确认后仅复制本包，逐文件校验 SHA-256 并注册当前用户 `HKCU\Software\Classes` 下本包菜单。遇到未知同名注册键时停止；本包部署失败时恢复本包注册与配置。它不联网、不提权、不改永久执行策略。
-
-[`Uninstall.cmd`](./Uninstall.cmd) 确认后仅移除本包菜单及卸载快捷方式，写入 `Enabled=false`，保留程序版本、日志与菜单备份；不会撤销 Git 拉取、提交或恢复锚点。入口从自身位置找文件，不依赖终端启动目录。
-
-## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、保护、日志与人工恢复 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+## <span id="jobs-toc-heading-5" data-jobs-toc="v2">四、保护、日志与人工恢复 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 首次先 fetch 确认网络可用，不改变本地 index / 工作文件；随后创建 HEAD 锚点和原 index 副本，使用 `stash push --include-untracked` 保存父仓改动，并以独立引用固定 stash 对象。合并关闭自动 stash 和子模块递归，使用 `--no-overwrite-ignore` 拒绝覆盖忽略文件。恢复使用 `stash apply --index`，保留暂存 / 未暂存边界，**不 pop 或 drop 任何 stash**。Git hooks 按仓库原配置执行，提交失败时保留提交尝试后的现场与原恢复锚点。
 
@@ -73,7 +78,7 @@ git stash show --stat refs/jobs-git-puller/<会话ID>/worktree
 
 部分失败、进程中断或外部并发写入不能保证自动复原。恢复引用不会因本工具卸载而删除；也不会替代忽略文件、子仓或整个磁盘的备份。
 
-## <span id="jobs-toc-heading-5" data-jobs-toc="v2">四、文件与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+## <span id="jobs-toc-heading-6" data-jobs-toc="v2">五、文件与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 ```text
 JobsGitPuller/

@@ -64,8 +64,8 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("Jobs WindowsExtension [中文
 $savedLocalData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
 try {
     $features = @(Get-JobsFeaturePackages -Root $project)
-    Assert-Equal $features.Count 14 '14 项菜单功能均可独立选择'
-    Assert-Equal (@($features.Id | Sort-Object -Unique).Count) 14 '功能标识唯一'
+    Assert-Equal $features.Count 15 '15 项菜单功能均可独立选择'
+    Assert-Equal (@($features.Id | Sort-Object -Unique).Count) 15 '功能标识唯一'
     Assert-True (@($features | Where-Object { $_.DirectoryOnly }).Count -ge 3) '写操作只显示在文件夹上'
 
     $quoteCases = @(
@@ -129,11 +129,7 @@ try {
     Assert-True ($null -eq (Find-JobsExecutable -Name 'JobsTestFakeAlias')) '不执行同名别名'
 
     $argumentProbe = Join-Path $testRoot 'probe arguments.ps1'
-    $argumentSource = @'
-[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
-[Console]::Write((ConvertTo-Json -InputObject @($args) -Compress))
-'@
-    [IO.File]::WriteAllText($argumentProbe, $argumentSource, (New-Object Text.UTF8Encoding($true)))
+    [IO.File]::WriteAllText($argumentProbe, '[Console]::Write((ConvertTo-Json -InputObject @($args) -Compress))', (New-Object Text.UTF8Encoding($true)))
     $probeArguments = @('simple', '', 'C:\', 'path with spaces\', 'a"b', 'a\"b', "中文 ' & ; `$() %PATH%", "line1`nline2")
     $roundTrip = Invoke-JobsProcess -FilePath $powerShell -Arguments (@('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $argumentProbe) + $probeArguments) -WorkingDirectory $testRoot
     Assert-Equal $roundTrip.ExitCode 0 '原生子进程正常返回'

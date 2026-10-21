@@ -19,7 +19,7 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ('JobsCatalog-' + [guid]::NewGu
 [void][IO.Directory]::CreateDirectory($testRoot)
 $module = $null
 try {
-    # 用十四个只有本包生命周期接口的夹具，不运行真正安装、注册表或右键业务。
+    # 用十五个只有本包生命周期接口的夹具，不运行真正安装、注册表或右键业务。
     Copy-Item -LiteralPath (Join-Path $sourceRoot 'Extensions.json') -Destination $testRoot
     $parsed = Get-Content -LiteralPath (Join-Path $testRoot 'Extensions.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $entries = @($parsed)
@@ -42,7 +42,7 @@ Export-ModuleMember -Function Invoke-JobsPackageChange
     }
     $module = Import-Module (Join-Path $sourceRoot 'Scripts/Catalog.psm1') -PassThru -DisableNameChecking
     $nativePackages = @(Get-JobsFeaturePackages -Root $testRoot)
-    Assert-True ($nativePackages.Count -eq 14) '当前 PowerShell 加载十四个独立包'
+    Assert-True ($nativePackages.Count -eq 15) '当前 PowerShell 加载十五个独立包'
     Assert-True (@($nativePackages | Where-Object { $_ -is [Management.Automation.PSModuleInfo] }).Count -eq 0) '包清单输出没有模块对象'
     & $module {
         # Windows PowerShell 5.1 的 JSON 顶层数组作为单个管道对象输出。
@@ -56,7 +56,7 @@ Export-ModuleMember -Function Invoke-JobsPackageChange
         }
     }
     $legacyPackages = @(Get-JobsFeaturePackages -Root $testRoot)
-    Assert-True ($legacyPackages.Count -eq 14) '模拟 PowerShell 5.1 JSON 非枚举输出仍加载十四个包'
+    Assert-True ($legacyPackages.Count -eq 15) '模拟 PowerShell 5.1 JSON 非枚举输出仍加载十五个包'
     for ($index = 0; $index -lt $entries.Count; $index++) {
         Assert-True ($legacyPackages[$index].Id -ceq $entries[$index].Id) ('5.1 包身份保持：' + $entries[$index].Id)
         Assert-True ($legacyPackages[$index].PackagePath -eq (Join-Path $testRoot $entries[$index].Name)) ('5.1 包路径保持：' + $entries[$index].Id)

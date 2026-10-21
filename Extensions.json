@@ -36,6 +36,10 @@
     "Name": "JobsFlutterVersionMgr"
   },
   {
+    "Id": "flutter-sdk-inspector",
+    "Name": "JobsFlutterSdkInspector"
+  },
+  {
     "Id": "codegraph-bootstrap",
     "Name": "JobsCodeGraphUpdater"
   },

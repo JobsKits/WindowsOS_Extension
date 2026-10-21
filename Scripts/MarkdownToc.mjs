@@ -273,13 +273,6 @@ function decode(bytes) {
   return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
 }
 
-export function sameDirectory(left, right) {
-  // Git and Node can spell the same Windows path with different casing.
-  const first = fs.statSync(left, { bigint: true });
-  const second = fs.statSync(right, { bigint: true });
-  return first.isDirectory() && second.isDirectory() && first.dev === second.dev && first.ino === second.ino;
-}
-
 function managedFiles() {
   const file = path.join(ROOT, MANIFEST);
   if (!fs.existsSync(file) && SCRIPT === 'Scripts/MarkdownToc.mjs') return ['README.md'];
@@ -301,7 +294,7 @@ function readDocument(relative) {
     if (fs.lstatSync(current).isSymbolicLink()) throw new Error(`跳过符号链接：${relative}`);
   }
   const nearest = execFileSync('git', ['-C', path.dirname(current), 'rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
-  if (!sameDirectory(nearest, ROOT)) throw new Error(`清单越过独立 Git 边界：${relative}`);
+  if (fs.realpathSync(nearest) !== fs.realpathSync(ROOT)) throw new Error(`清单越过独立 Git 边界：${relative}`);
   return decode(fs.readFileSync(current));
 }
 
@@ -336,7 +329,7 @@ function requireRepository() {
   if (['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR'].some(key => process.env[key])) {
     throw new Error('管理命令不接受 GIT_DIR / GIT_WORK_TREE / GIT_COMMON_DIR 定位覆盖；请在目标仓库正常环境运行。');
   }
-  if (!sameDirectory(git(['rev-parse', '--show-toplevel']).trim(), ROOT)) {
+  if (fs.realpathSync(git(['rev-parse', '--show-toplevel']).trim()) !== fs.realpathSync(ROOT)) {
     throw new Error('安装器必须位于目标仓库的 Scripts 目录，不能改写父仓配置。');
   }
 }

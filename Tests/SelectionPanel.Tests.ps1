@@ -33,6 +33,10 @@ $short = Get-JobsFeatureSelectionLayout -ItemCount $packages.Count -WorkingWidth
 Assert-Selection ($short.Columns -eq 2) '矮屏改为两列而不是滚动列表'
 Assert-Selection ($short.Rows -eq [int][Math]::Ceiling($packages.Count / 2.0)) '两列覆盖每项功能且不丢失末项'
 Assert-Selection ($short.ClientWidth -le 1280 -and $short.ClientHeight -le 540) '矮屏布局不超过工作区'
+Assert-Selection ($short.RowHeight -eq 34 -and $short.ClientHeight -le 460) '十五项短屏保留行高并预留窗口边框空间'
+$evenShort = Get-JobsFeatureSelectionLayout -ItemCount 16 -WorkingWidth 1280 -WorkingHeight 540
+Assert-Selection ($evenShort.Columns -eq 2 -and $evenShort.Rows -eq 8 -and $evenShort.ClientHeight -le 460) '偶数项短屏同样完整容纳两列'
+Assert-SelectionThrows { Get-JobsFeatureSelectionLayout -ItemCount 17 -WorkingWidth 1280 -WorkingHeight 540 } '两列加紧凑留白仍无法容纳时明确停止'
 $scaled = Get-JobsFeatureSelectionLayout -ItemCount $packages.Count -WorkingWidth 2560 -WorkingHeight 1440 -RowHeight 51 -Scale 1.5
 Assert-Selection ($scaled.RowHeight -ge 51) '高 DPI 下点击区域随比例放大'
 Assert-Selection ($scaled.ClientWidth -le 2560 -and $scaled.ClientHeight -le 1440) '高 DPI 布局仍在工作区内'

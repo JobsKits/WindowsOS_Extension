@@ -18,6 +18,12 @@ function Get-JobsFeatureSelectionLayout {
     if ($ItemCount * $RowHeight + $header + $footer -gt $maxHeight) { $columns = 2 }
     $rows = [int][Math]::Ceiling($ItemCount / [double]$columns)
     $height = $rows * $RowHeight + $header + $footer
+    if ($columns -eq 2 -and $height -gt $maxHeight) {
+        # 短屏收紧标题和按钮区留白，保持每项行高与两列完整显示。
+        $header = [int][Math]::Ceiling(96 * $Scale)
+        $footer = [int][Math]::Ceiling(92 * $Scale)
+        $height = $rows * $RowHeight + $header + $footer
+    }
     $preferredWidth = 680
     $minimumWidth = 500
     if ($columns -eq 2) { $preferredWidth = 1020; $minimumWidth = 720 }

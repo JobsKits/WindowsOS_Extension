@@ -32,7 +32,7 @@
 | [Sync-PackageInfrastructure.ps1](./Sync-PackageInfrastructure.ps1) | 对照 `../Infrastructure/` 核对各包内嵌的四份通用模板。 | 默认只检查；显式传入 `-Write` 才覆盖对应模板副本。 |
 | [MarkdownToc.mjs](./MarkdownToc.mjs) | 提供目录过滤器的同源码兼容入口。 | 正式过滤器统一从 `../.jobs-markdown-toc/` 运行，按[目录维护说明](#toc-maintenance)操作。 |
 
-总清单位于 [Extensions.json](../Extensions.json)，包含十四项独立功能；[Flutter SDK 安装/切换包](../JobsFlutterVersionMgr/README.md) 同样只由面板编排，其工具链体检、fzf 选版与项目绑定在本包终端内进行。包内的 `Extension.json` 声明功能身份与菜单信息；`PackageInstaller.psm1` 承担本包部署、注册、备份和回滚；`Invoke.ps1` 是已安装菜单的运行入口。[Git 拉取包](../JobsGitPuller/README.md) 同样独立处理上游拉取、改动快照与冲突恢复。[Flutter 第三方依赖提取包](../JobsFlutterDependencyExtractor/README.md) 通过本包健康 Dart 读取锁文件与解析记录，输出父目录空行默认系统桌面，不安装工具或自动获取依赖。组合面板保存后按清单逐包执行，一包失败即停止，已完成的包保持结果，失败包由自己的安装器回滚。
+总清单位于 [Extensions.json](../Extensions.json)，包含十五项独立功能；[Flutter SDK 安装/切换包](../JobsFlutterVersionMgr/README.md) 同样只由面板编排，其工具链体检、fzf 选版与项目绑定在本包终端内进行。包内的 `Extension.json` 声明功能身份与菜单信息；`PackageInstaller.psm1` 承担本包部署、注册、备份和回滚；`Invoke.ps1` 是已安装菜单的运行入口。[Git 拉取包](../JobsGitPuller/README.md) 同样独立处理上游拉取、改动快照与冲突恢复。[Flutter 第三方依赖提取包](../JobsFlutterDependencyExtractor/README.md) 通过本包健康 Dart 读取锁文件与解析记录，输出父目录空行默认系统桌面，不安装工具或自动获取依赖。组合面板保存后按清单逐包执行，一包失败即停止，已完成的包保持结果，失败包由自己的安装器回滚。
 
 ## 二、<span id="menu-entry">菜单安装、配置与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
@@ -73,7 +73,7 @@ powershell.exe `
   -Preview
 ```
 
-预览窗口标题标明“仅预览”，按钮显示“返回选择”；确认后返回面板选择，不部署、不写安装状态或注册表。可将模式改为 `Configure` 或 `Uninstall`；卸载预览始终列出全部十四包并默认全选，让没有安装历史的机器也能查看完整面板，真实卸载仍只列出当前已安装包。自动回归见 [SelectionPanel.Tests.ps1](../Tests/SelectionPanel.Tests.ps1)，真实 Windows 桌面的布局、悬停说明及键盘操作按[总说明的验收步骤](../README.md#verification)另行核验。
+预览窗口标题标明“仅预览”，按钮显示“返回选择”；确认后返回面板选择，不部署、不写安装状态或注册表。可将模式改为 `Configure` 或 `Uninstall`；卸载预览始终列出全部十五包并默认全选，让没有安装历史的机器也能查看完整面板，真实卸载仍只列出当前已安装包。自动回归见 [SelectionPanel.Tests.ps1](../Tests/SelectionPanel.Tests.ps1)，真实 Windows 桌面的布局、悬停说明及键盘操作按[总说明的验收步骤](../README.md#verification)另行核验。
 
 菜单安装状态、运行日志和注册表备份按包保存在**当前用户本地应用数据**的 `Jobs\WindowsExtension\extensions\<功能ID>` 下。卸载保留日志、备份和版本文件。注册范围、迁移与故障处理详见[总说明的安装章节](../README.md#installation)和[安装状态章节](../README.md#structure)。
 
@@ -107,8 +107,6 @@ powershell.exe `
 使用 [**Typora**](https://typora.io/) 时，本地文档保留 `[toc]`；安装 [**Git clean / smudge 过滤器**](https://git-scm.com/docs/gitattributes#_filter)后，整文件暂存自动生成默认收起的目录，检出时恢复本地标签。处理范围由 [manifest.json](../.jobs-markdown-toc/manifest.json) 精确登记，路径均相对仓库根；新增或移动文档须先确认有效标签，增量更新清单和根 `.gitattributes` 精确路径，再运行 `install` 与 `verify`。直接推送旧提交不会刷新目录。
 
 过滤器维护需要 [**Node.js**](https://nodejs.org) `20` 或更新版本及 Git，不依赖第三方 npm 包。这套依赖用于文档维护；Windows 组合安装面板本身不需要 Node.js。个别右键功能的 Node.js 依赖按其包说明单独检查。
-
-兼容入口与正式工具保持相同源码。两者按文件系统目录身份判断 Git 根，兼容 Windows 路径大小写差异，并继续阻止工具层级错误及清单跨越独立仓库。
 
 下列命令从本 `Scripts/` 目录运行；新克隆先安装一次，换机或 Node.js 可执行文件位置变化后重新安装：
 

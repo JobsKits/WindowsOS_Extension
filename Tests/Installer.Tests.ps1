@@ -35,8 +35,8 @@ function Assert-JobsThrows {
 }
 
 $features = @(Get-JobsFeaturePackages)
-Assert-JobsTest ($features.Count -eq 14) '提供十四个独立功能'
-Assert-JobsTest (@($features.Id | Select-Object -Unique).Count -eq 14) '功能标识唯一'
+Assert-JobsTest ($features.Count -eq 15) '提供十五个独立功能'
+Assert-JobsTest (@($features.Id | Select-Object -Unique).Count -eq 15) '功能标识唯一'
 $release = Join-Path ([IO.Path]::GetTempPath()) 'Jobs 中文 & 100% release'
 $powerShell = Join-Path $PSHOME 'powershell.exe'
 $all = @(Get-JobsRegistryPlan -Features @($features.Id) -ReleasePath $release -PowerShellPath $powerShell)

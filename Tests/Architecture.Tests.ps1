@@ -11,8 +11,8 @@ function Assert-Architecture {
     $script:assertions++
 }
 $packages = @(Get-JobsFeaturePackages -Root $root)
-Assert-Architecture ($packages.Count -eq 14) '十四个功能工程单独列出'
-Assert-Architecture (@($packages.Name | Select-Object -Unique).Count -eq 14) '功能目录唯一'
+Assert-Architecture ($packages.Count -eq 15) '十五个功能工程单独列出'
+Assert-Architecture (@($packages.Name | Select-Object -Unique).Count -eq 15) '功能目录唯一'
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('JobsStandalone-' + [guid]::NewGuid().ToString('N'))
 $savedLocal = $env:LOCALAPPDATA
 try {
@@ -57,7 +57,7 @@ try {
         Assert-Architecture ($copied.Id -eq $package.Id) '部署只包含所选包的清单'
         Assert-Architecture (@(Get-ChildItem -LiteralPath $release -Recurse -File | Where-Object { $_.Name -eq 'Action.psm1' }).Count -eq 1) '一次安装只打包一个功能业务'
     }
-    Assert-Architecture (@($roots | Select-Object -Unique).Count -eq 14) '十四个功能安装状态彼此独立'
+    Assert-Architecture (@($roots | Select-Object -Unique).Count -eq 15) '十五个功能安装状态彼此独立'
     $single = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @($packages[2].Id) -Installed @() -Mode Install)
     Assert-Architecture ($single.Count -eq 1 -and $single[0].Id -eq $packages[2].Id) '首次只选一项只部署一项'
     $configure = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @($packages[2].Id) -Installed @($packages[0].Id, $packages[2].Id) -Mode Configure)
