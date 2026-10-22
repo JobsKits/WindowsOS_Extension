@@ -1,0 +1,11 @@
+{
+  "Id": "android-simulator-create",
+  "Name": "JobsAndroidSimulatorCreator",
+  "Label": "新建 Android 模拟器",
+  "Description": "仅系统桌面空白显示；CMD 体检 SDK，选择机型与系统镜像，创建或启动 Android AVD。",
+  "DirectoryOnly": true,
+  "Console": true,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

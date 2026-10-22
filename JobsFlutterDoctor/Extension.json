@@ -1,0 +1,11 @@
+{
+  "Id": "flutter-doctor",
+  "Name": "JobsFlutterDoctor",
+  "Label": "Flutter 项目体检",
+  "Description": "仅 Flutter 根目录显示；终端只读执行版本与 doctor 诊断，不获取依赖、不清理、不升级工具。",
+  "DirectoryOnly": true,
+  "Console": true,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

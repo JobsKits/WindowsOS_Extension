@@ -1,0 +1,4 @@
+LIBRARY JobsFlutterPackagerContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

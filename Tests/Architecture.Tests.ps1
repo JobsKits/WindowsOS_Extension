@@ -11,8 +11,10 @@ function Assert-Architecture {
     $script:assertions++
 }
 $packages = @(Get-JobsFeaturePackages -Root $root)
-Assert-Architecture ($packages.Count -eq 15) '十五个功能工程单独列出'
-Assert-Architecture (@($packages.Name | Select-Object -Unique).Count -eq 15) '功能目录唯一'
+$parsedCatalog = Get-Content -LiteralPath (Join-Path $root 'Extensions.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$expectedCount = @($parsedCatalog).Count
+Assert-Architecture ($packages.Count -eq $expectedCount) '登记的功能工程单独列出'
+Assert-Architecture (@($packages.Name | Select-Object -Unique).Count -eq $expectedCount) '功能目录唯一'
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('JobsStandalone-' + [guid]::NewGuid().ToString('N'))
 $savedLocal = $env:LOCALAPPDATA
 try {
@@ -42,11 +44,17 @@ try {
         $plan = @(& $installer { param($Manifest, $Release, $PowerShell) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath $PowerShell -Enabled $true } $package $release (Join-Path $PSHOME 'powershell.exe'))
         $expected = 4
         if ($package.DirectoryOnly) { $expected = 3 }
-        if ($package.Id -eq 'flutter-run') { $expected = 4 }
+        if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) { $expected = 4 }
+        if ($package.Id -eq 'android-simulator-create') { $expected = 2 }
+        if ($package.Id -eq 'git-proxy-configure') { $expected = 1 }
         Assert-Architecture ($plan.Count -eq $expected) ('本包只注册自己的上下文：' + $package.Id)
         foreach ($item in $plan) {
-            if ($package.Id -eq 'flutter-run') {
-                Assert-Architecture ($item.Key -match '(?:ContextMenuHandlers\\Jobs\.WindowsExtension\.flutter-run|CLSID\\\{239D7884-83C5-4D66-AB0C-14A2667DCD61\})$') '原生 COM 只注册本包处理器及 CLSID'
+            if ($package.Id -eq 'android-simulator-create') {
+                Assert-Architecture ($item.Key -eq 'Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.android-simulator-create' -or $item.Key -eq 'Software\Classes\CLSID\{9591D98B-3481-4E05-BE24-470FCDFD0E23}') 'Android 只注册桌面背景及本包 CLSID'
+                continue
+            }
+            if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) {
+                Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.' + $package.Id) -or $item.Key.EndsWith('CLSID\{239D7884-83C5-4D66-AB0C-14A2667DCD61}') -or $item.Key.EndsWith('CLSID\{64A7C5BE-E031-4E89-A2D7-75C3F62B1AC9}') -or $item.Key.EndsWith('CLSID\{A41E939F-64E7-49DD-85FA-81F9B8CFD5E2}') -or $item.Key.EndsWith('CLSID\{DD71AE09-8A16-4B08-9868-5A40A9F39F63}')) '原生 COM 只注册本包处理器及 CLSID'
                 continue
             }
             Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.' + $package.Id)) '菜单计划不包含其它功能'
@@ -57,7 +65,7 @@ try {
         Assert-Architecture ($copied.Id -eq $package.Id) '部署只包含所选包的清单'
         Assert-Architecture (@(Get-ChildItem -LiteralPath $release -Recurse -File | Where-Object { $_.Name -eq 'Action.psm1' }).Count -eq 1) '一次安装只打包一个功能业务'
     }
-    Assert-Architecture (@($roots | Select-Object -Unique).Count -eq 15) '十五个功能安装状态彼此独立'
+    Assert-Architecture (@($roots | Select-Object -Unique).Count -eq $expectedCount) '登记的功能安装状态彼此独立'
     $single = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @($packages[2].Id) -Installed @() -Mode Install)
     Assert-Architecture ($single.Count -eq 1 -and $single[0].Id -eq $packages[2].Id) '首次只选一项只部署一项'
     $configure = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @($packages[2].Id) -Installed @($packages[0].Id, $packages[2].Id) -Mode Configure)

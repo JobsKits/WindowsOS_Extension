@@ -58,5 +58,25 @@
   {
     "Id": "flutter-run",
     "Name": "JobsFlutterRunner"
+  },
+  {
+    "Id": "flutter-package",
+    "Name": "JobsFlutterPackager"
+  },
+  {
+    "Id": "flutter-doctor",
+    "Name": "JobsFlutterDoctor"
+  },
+  {
+    "Id": "flutter-codegen",
+    "Name": "JobsFlutterCodegen"
+  },
+  {
+    "Id": "android-simulator-create",
+    "Name": "JobsAndroidSimulatorCreator"
+  },
+  {
+    "Id": "git-proxy-configure",
+    "Name": "JobsGitProxyConfigurator"
   }
 ]

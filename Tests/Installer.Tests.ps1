@@ -35,8 +35,10 @@ function Assert-JobsThrows {
 }
 
 $features = @(Get-JobsFeaturePackages)
-Assert-JobsTest ($features.Count -eq 15) '提供十五个独立功能'
-Assert-JobsTest (@($features.Id | Select-Object -Unique).Count -eq 15) '功能标识唯一'
+$parsedCatalog = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'Extensions.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$expectedCount = @($parsedCatalog).Count
+Assert-JobsTest ($features.Count -eq $expectedCount) '提供登记的独立功能'
+Assert-JobsTest (@($features.Id | Select-Object -Unique).Count -eq $expectedCount) '功能标识唯一'
 $release = Join-Path ([IO.Path]::GetTempPath()) 'Jobs 中文 & 100% release'
 $powerShell = Join-Path $PSHOME 'powershell.exe'
 $all = @(Get-JobsRegistryPlan -Features @($features.Id) -ReleasePath $release -PowerShellPath $powerShell)
@@ -45,8 +47,24 @@ Assert-JobsTest (@($all.Key | Select-Object -Unique).Count -eq $all.Count) '每�
 Assert-JobsTest (@($all | Where-Object { -not $_.Enabled }).Count -eq 0) '全选计划全部启用'
 
 foreach ($feature in $features) {
-    if ($feature.Id -eq 'flutter-run') {
-        $native = @($all | Where-Object { $_.Key -match 'flutter-run$|CLSID\\\{239D7884-83C5-4D66-AB0C-14A2667DCD61\}$' })
+    if ($feature.Id -eq 'git-proxy-configure') {
+        $desktop = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.git-proxy-configure') })
+        Assert-JobsTest ($desktop.Count -eq 1) 'Git 配置只注册一个桌面空白入口'
+        Assert-JobsTest ($desktop[0].Key -eq 'Software\Classes\DesktopBackground\shell\Jobs.WindowsExtension.git-proxy-configure') 'Git 配置不进入普通目录、磁盘和选中项'
+        continue
+    }
+    if ($feature.Id -eq 'android-simulator-create') {
+        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.android-simulator-create') -or $_.Key.EndsWith('CLSID\{9591D98B-3481-4E05-BE24-470FCDFD0E23}') })
+        Assert-JobsTest ($native.Count -eq 2) 'Android 桌面 handler 与 CLSID 独立'
+        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\Directory|\\Drive|\\\*|\\shell\\' }).Count -eq 0) 'Android 不注册普通目录与选中项'
+        continue
+    }
+    if ($feature.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) {
+        $clsid = '{239D7884-83C5-4D66-AB0C-14A2667DCD61}'
+        if ($feature.Id -eq 'flutter-package') { $clsid = '{64A7C5BE-E031-4E89-A2D7-75C3F62B1AC9}' }
+        if ($feature.Id -eq 'flutter-doctor') { $clsid = '{A41E939F-64E7-49DD-85FA-81F9B8CFD5E2}' }
+        if ($feature.Id -eq 'flutter-codegen') { $clsid = '{DD71AE09-8A16-4B08-9868-5A40A9F39F63}' }
+        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.' + $feature.Id) -or $_.Key.EndsWith('CLSID\' + $clsid) })
         Assert-JobsTest ($native.Count -eq 4) 'Flutter 运行包只注册三个动态处理器和独立 CLSID'
         Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) 'Flutter 运行包不残留始终可见的静态菜单'
         continue

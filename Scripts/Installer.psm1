@@ -11,24 +11,41 @@ function Get-JobsFeatureSelectionLayout {
         [ValidateRange(1, 1000)][int]$RowHeight = 34,
         [ValidateRange(0.5, 4.0)][double]$Scale = 1
     )
-    $header = [int][Math]::Ceiling(118 * $Scale)
-    $footer = [int][Math]::Ceiling(104 * $Scale)
     $maxHeight = $WorkingHeight - [int][Math]::Ceiling(80 * $Scale)
-    $columns = 1
-    if ($ItemCount * $RowHeight + $header + $footer -gt $maxHeight) { $columns = 2 }
-    $rows = [int][Math]::Ceiling($ItemCount / [double]$columns)
-    $height = $rows * $RowHeight + $header + $footer
-    if ($columns -eq 2 -and $height -gt $maxHeight) {
-        # 短屏收紧标题和按钮区留白，保持每项行高与两列完整显示。
-        $header = [int][Math]::Ceiling(96 * $Scale)
-        $footer = [int][Math]::Ceiling(92 * $Scale)
-        $height = $rows * $RowHeight + $header + $footer
+    $maxExpandedHeight = $WorkingHeight - [int][Math]::Ceiling(44 * $Scale)
+    $columns = 0
+    $width = 0
+    $rows = 0
+    $height = 0
+    $header = 0
+    $footer = 0
+    foreach ($candidateColumns in @(1, 2, 3)) {
+        $candidateHeader = [int][Math]::Ceiling(118 * $Scale)
+        $candidateFooter = [int][Math]::Ceiling(104 * $Scale)
+        $candidateRows = [int][Math]::Ceiling($ItemCount / [double]$candidateColumns)
+        $candidateHeight = $candidateRows * $RowHeight + $candidateHeader + $candidateFooter
+        $limit = $maxHeight
+        if ($candidateColumns -gt 1 -and $candidateHeight -gt $maxHeight) {
+            $candidateHeader = [int][Math]::Ceiling(96 * $Scale)
+            $candidateFooter = [int][Math]::Ceiling(92 * $Scale)
+            $candidateHeight = $candidateRows * $RowHeight + $candidateHeader + $candidateFooter
+            if ($candidateHeight -gt $maxHeight) { $limit = $maxExpandedHeight }
+        }
+        $preferredWidth = 680
+        $minimumWidth = 500
+        if ($candidateColumns -eq 2) { $preferredWidth = 1020; $minimumWidth = 720 }
+        if ($candidateColumns -eq 3) { $preferredWidth = 1320; $minimumWidth = 1080 }
+        $candidateWidth = [int][Math]::Min([Math]::Ceiling($preferredWidth * $Scale), $WorkingWidth - [Math]::Ceiling(48 * $Scale))
+        if ($candidateHeight -gt $limit -or $candidateWidth -lt $minimumWidth * $Scale) { continue }
+        $columns = $candidateColumns
+        $rows = $candidateRows
+        $height = $candidateHeight
+        $width = $candidateWidth
+        $header = $candidateHeader
+        $footer = $candidateFooter
+        break
     }
-    $preferredWidth = 680
-    $minimumWidth = 500
-    if ($columns -eq 2) { $preferredWidth = 1020; $minimumWidth = 720 }
-    $width = [int][Math]::Min([Math]::Ceiling($preferredWidth * $Scale), $WorkingWidth - [Math]::Ceiling(48 * $Scale))
-    if ($height -gt $maxHeight -or $width -lt $minimumWidth * $Scale) {
+    if ($columns -eq 0) {
         throw '当前桌面工作区过小，无法完整显示功能与按钮；请降低显示缩放或提高屏幕分辨率后重试。'
     }
     return [pscustomobject]@{

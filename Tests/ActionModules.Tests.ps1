@@ -22,10 +22,10 @@ $testRoot = Join-Path $temporary ("JobsFeatureModules [中文] '& " + [guid]::Ne
 $savedLocalData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
 try {
     $env:LOCALAPPDATA = $testRoot
-    $packages = @(Get-ChildItem -LiteralPath $sourceRoot -Directory | Where-Object {
-        Test-Path -LiteralPath (Join-Path $_.FullName 'Extension.json') -PathType Leaf
-    })
-    Assert-True ($packages.Count -eq 15) '15 个功能包均有自己的清单'
+    $parsedCatalog = Get-Content -LiteralPath (Join-Path $sourceRoot 'Extensions.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $catalog = @($parsedCatalog)
+    $packages = @($catalog | ForEach-Object { Get-Item -LiteralPath (Join-Path $sourceRoot $_.Name) })
+    Assert-True ($packages.Count -eq $catalog.Count) '清单登记功能包均有自己的源码'
     foreach ($package in $packages) {
         # 只复制当前功能的清单和两个模块，父目录没有安装器或其它功能可供回调。
         $standalone = Join-Path $testRoot $package.Name
@@ -79,10 +79,15 @@ try {
                 function script:Invoke-JobsSdkInspect { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsFlutterDependencyAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsFlutterVersionAction { param($Directory) $script:Captured = $Directory }
+                function script:Invoke-JobsAndroidSimulatorAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterRunAction { param($Target) $script:Captured = $Target }
+                function script:Invoke-JobsFlutterPackageAction { param($Target) $script:Captured = $Target }
+                function script:Invoke-JobsFlutterDoctorAction { param($Target) $script:Captured = $Target }
+                function script:Invoke-JobsFlutterCodegenAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsCodeGraphAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsGitAction { param($Directory) $script:Captured = $Directory }
+                function script:Invoke-JobsProxyConfiguratorAction { param($Directory) $script:Captured = $Directory }
                 Invoke-JobsFeature -Target ($Target + '|JobsPathEnd')
                 return $script:Captured
             } $manifest.Id $testRoot

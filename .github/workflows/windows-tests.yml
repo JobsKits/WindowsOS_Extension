@@ -73,3 +73,18 @@ jobs:
       - name: Flutter runner project, lifecycle, and native build guards
         shell: powershell
         run: .\Tests\FlutterRunner.Tests.ps1
+      - name: Flutter packaging selection, SDK, failure, and artifact guards
+        shell: powershell
+        run: .\Tests\FlutterPackager.Tests.ps1
+      - name: Flutter doctor and configured codegen guardrails
+        shell: powershell
+        run: .\Tests\FlutterDoctorCodegen.Tests.ps1
+      - name: Android simulator desktop, SDK, and creation guardrails
+        shell: powershell
+        run: .\Tests\AndroidSimulatorCreator.Tests.ps1
+      - name: Android simulator SDK repair and same-volume staging
+        shell: powershell
+        run: .\Tests\AndroidSimulatorRepair.Tests.ps1
+      - name: Git dynamic proxy desktop, routing and exact user restore
+        shell: powershell
+        run: .\Tests\GitProxyConfigurator.Tests.ps1

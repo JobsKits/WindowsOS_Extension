@@ -64,8 +64,10 @@ $testRoot = Join-Path ([IO.Path]::GetTempPath()) ("Jobs WindowsExtension [中文
 $savedLocalData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
 try {
     $features = @(Get-JobsFeaturePackages -Root $project)
-    Assert-Equal $features.Count 15 '15 项菜单功能均可独立选择'
-    Assert-Equal (@($features.Id | Sort-Object -Unique).Count) 15 '功能标识唯一'
+    $parsedCatalog = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'Extensions.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $expectedFeatureCount = @($parsedCatalog).Count
+    Assert-Equal $features.Count $expectedFeatureCount '清单内菜单功能均可独立选择'
+    Assert-Equal (@($features.Id | Sort-Object -Unique).Count) $expectedFeatureCount '功能标识唯一'
     Assert-True (@($features | Where-Object { $_.DirectoryOnly }).Count -ge 3) '写操作只显示在文件夹上'
 
     $quoteCases = @(
