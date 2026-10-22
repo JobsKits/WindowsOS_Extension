@@ -40,6 +40,8 @@ $eighteen = Get-JobsFeatureSelectionLayout -ItemCount 18 -WorkingWidth 1280 -Wor
 Assert-Selection ($eighteen.Columns -eq 2 -and $eighteen.Rows -eq 9 -and $eighteen.ClientHeight -le 496) '18项短屏扩展窗口后保持两列'
 $nineteen = Get-JobsFeatureSelectionLayout -ItemCount 19 -WorkingWidth 1280 -WorkingHeight 540
 Assert-Selection ($nineteen.Columns -eq 3 -and $nineteen.Rows -eq 7 -and $nineteen.ClientWidth -le 1232) '19项短屏使用三列且保留左右边框'
+$twentyOne = Get-JobsFeatureSelectionLayout -ItemCount 21 -WorkingWidth 1280 -WorkingHeight 540
+Assert-Selection ($twentyOne.Columns -eq 3 -and $twentyOne.Rows -eq 7 -and $twentyOne.ClientHeight -le 496) '含鸿蒙的21项短屏保持三列完整点击区域'
 Assert-SelectionThrows { Get-JobsFeatureSelectionLayout -ItemCount 28 -WorkingWidth 1280 -WorkingHeight 540 } '三列仍无法容纳时明确停止'
 $scaled = Get-JobsFeatureSelectionLayout -ItemCount $packages.Count -WorkingWidth 2560 -WorkingHeight 1440 -RowHeight 51 -Scale 1.5
 Assert-Selection ($scaled.RowHeight -ge 51) '高 DPI 下点击区域随比例放大'

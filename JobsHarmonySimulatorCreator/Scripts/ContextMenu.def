@@ -1,0 +1,4 @@
+﻿LIBRARY JobsHarmonySimulatorCreatorContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

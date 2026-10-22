@@ -14,7 +14,7 @@ $installer = Import-Module (Join-Path $package 'Scripts/PackageInstaller.psm1') 
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ("JobsAndroid 中文 & 100% ' " + [guid]::NewGuid().ToString('N'))
 [void][IO.Directory]::CreateDirectory($temporary)
 $oldArch = $env:PROCESSOR_ARCHITECTURE; $oldArch2 = $env:PROCESSOR_ARCHITEW6432
-$oldAvd = $env:ANDROID_AVD_HOME; $oldJava = $env:JAVA_HOME; $oldSdk = $env:ANDROID_HOME
+$oldAvd = $env:ANDROID_AVD_HOME; $oldJava = $env:JAVA_HOME; $oldSdk = $env:ANDROID_HOME; $oldSdkRoot = $env:ANDROID_SDK_ROOT
 try {
     $manifest = Get-Content -LiteralPath (Join-Path $package 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $plan = @(Get-JobsPackageRegistryPlan $manifest $temporary 'powershell.exe')
@@ -61,11 +61,10 @@ system-images;android-36;android-tv;x86_64 | 1 | not phone
     & $module { $script:Answer = 'q' }
     Assert-AndroidThrows { & $module { Read-JobsAndroidChoice '选择' @('first') } } 'q 停止'
     & $module { $script:Answer = '' }
-    Assert-Android (-not (& $module { Confirm-JobsAndroidDownload '下载' })) '回车不下载'
-    & $module { $script:Answer = 'yes' }
-    Assert-Android (-not (& $module { Confirm-JobsAndroidDownload '下载' })) '小写 yes 不安装'
-    & $module { $script:Answer = 'YES' }
-    Assert-Android (& $module { Confirm-JobsAndroidDownload '下载' }) '精确 YES 安装'
+    & $module { Show-JobsAndroidIntro 'sdk-fixture' }
+    Assert-Android $true '首屏自述回车继续自动补齐'
+    & $module { $script:Answer = 'cancel' }
+    Assert-AndroidThrows { & $module { Show-JobsAndroidIntro 'sdk-fixture' } } '首屏非空输入在补齐前取消'
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
         $result = & $module { Invoke-JobsAndroidTool /bin/echo "SDK 中文 & 100% '" sdkmanager @('--sdk_root=SDK 中文 & 100%', '--version') }
         Assert-Android ($result -match 'toolsdir=SDK 中文 & 100% '' -classpath' -and $result -match 'SdkManagerCli --sdk_root=SDK 中文 & 100% --version') 'Java argv 保留特殊路径且参数彼此独立'
@@ -73,19 +72,21 @@ system-images;android-36;android-tv;x86_64 | 1 | not phone
     }
     & $module {
         param($Sdk)
-        $script:FixtureSdk = $Sdk; $script:Calls = @(); $script:Created = $false; $script:Booted = $false; $script:FailCreate = $false; $script:Choice = 'create'; $script:ModePromptCount = 0
+        $script:FixtureSdk = $Sdk; $script:Calls = @(); $script:Created = $false; $script:Booted = $false; $script:FailCreate = $false; $script:Choice = 'create'; $script:ModePromptCount = 0; $script:ImagesInstalled = $true; $script:CancelImages = $false
         function script:Test-JobsAndroidDesktop { param($Target) return $Target -eq 'desktop-fixture' }
         function script:Get-JobsAndroidArchitecture { return 'x86_64' }
         function script:Get-JobsAndroidSdk { return $script:FixtureSdk }
         function script:Get-JobsAndroidJava { return (Join-Path $script:FixtureSdk 'jbr/bin/java.exe') }
         function script:Get-JobsAndroidTools { param($Sdk) return $Sdk }
-        function script:Read-JobsAndroidChoice { param($Prompt, $Items) if ($Prompt -eq '操作') { $script:ModePromptCount++ }; if ($Prompt -eq '操作' -and $script:Choice -eq 'existing') { return $Items[1] }; return $Items[0] }
+        function script:Read-JobsAndroidChoice { param($Prompt, $Items) if ($Prompt -like '*待安装*' -and $script:CancelImages) { throw 'fixture cancelled image selection' }; if ($Prompt -eq '操作') { $script:ModePromptCount++ }; if ($Prompt -eq '操作' -and $script:Choice -eq 'existing') { return $Items[1] }; return $Items[0] }
         function script:Read-JobsAndroidInput { param($Prompt) return '' }
         function script:Write-JobsLog { param($Message) }
         function script:Invoke-JobsAndroidTool {
             param($Java, $Tools, $Tool, $Arguments, $InputText, [switch]$Interactive)
             $script:Calls += ($Tool + ' ' + ($Arguments -join ' '))
-            if ($Arguments -contains '--list_installed') { return 'system-images;android-36;google_apis;x86_64 | 1 | Android' }
+            if ($Arguments -contains '--list_installed') { if ($script:ImagesInstalled) { return 'system-images;android-36;google_apis;x86_64 | 1 | Android' }; return '' }
+            if ($Arguments -contains '--list') { return 'system-images;android-36;google_apis;x86_64 | 1 | Android' }
+            if ($Arguments -contains '--install') { $script:ImagesInstalled = $true }
             if ($Arguments -contains 'create') {
                 if ($script:FailCreate) { throw 'fixture create failed' }
                 $script:Created = $true; $script:CreatedName = $Arguments[[array]::IndexOf($Arguments, '--name') + 1]
@@ -107,15 +108,15 @@ system-images;android-36;android-tv;x86_64 | 1 | not phone
     [void][IO.Directory]::CreateDirectory((Join-Path $temporary 'platform-tools'))
     [IO.File]::WriteAllText((Join-Path $temporary 'emulator/emulator.exe'), 'fixture')
     [IO.File]::WriteAllText((Join-Path $temporary 'platform-tools/adb.exe'), 'fixture')
-    $env:ANDROID_HOME = 'original-sdk'; $env:JAVA_HOME = 'original-java'
+    $env:ANDROID_HOME = 'original-sdk'; $env:JAVA_HOME = 'original-java'; $env:ANDROID_SDK_ROOT = 'original-sdk-root'
     & $module { Invoke-JobsAndroidSimulatorAction desktop-fixture }
     Assert-Android (& $module { $script:Created -and $script:Booted -and $script:BootName -eq $script:CreatedName }) '创建、清单复核后再启动同一个 AVD'
     Assert-Android (& $module { @($script:Calls | Where-Object { $_ -match '--force|--install|--licenses|delete' }).Count -eq 0 }) '已有 SDK/镜像不下载、不覆盖、不删除'
-    Assert-Android ($env:ANDROID_HOME -eq 'original-sdk' -and $env:JAVA_HOME -eq 'original-java') '成功后恢复进程变量'
+    Assert-Android ($env:ANDROID_HOME -eq 'original-sdk' -and $env:JAVA_HOME -eq 'original-java' -and $env:ANDROID_SDK_ROOT -eq 'original-sdk-root') '成功后恢复进程变量'
     & $module { $script:Created = $false; $script:Booted = $false; $script:FailCreate = $true }
     Assert-AndroidThrows { & $module { Invoke-JobsAndroidSimulatorAction desktop-fixture } } '创建失败原样传播'
     Assert-Android (-not (& $module { $script:Booted })) '创建失败不启动或报告成功'
-    Assert-Android ($env:ANDROID_HOME -eq 'original-sdk' -and $env:JAVA_HOME -eq 'original-java') '失败后恢复进程变量'
+    Assert-Android ($env:ANDROID_HOME -eq 'original-sdk' -and $env:JAVA_HOME -eq 'original-java' -and $env:ANDROID_SDK_ROOT -eq 'original-sdk-root') '失败后恢复进程变量'
     Assert-AndroidThrows { & $module { Invoke-JobsAndroidSimulatorAction folder-fixture } } '点击时复核普通 folder 目标'
     & $module { $script:Choice = 'existing'; $script:FailCreate = $false; $script:Calls = @() }
     & $module { Invoke-JobsAndroidSimulatorAction desktop-fixture }
@@ -123,15 +124,23 @@ system-images;android-36;android-tv;x86_64 | 1 | not phone
     & $module { $script:ModePromptCount = 0; $script:Choice = 'existing'; Invoke-JobsAndroidSimulatorAction desktop-fixture -Create }
     Assert-Android (& $module { $script:ModePromptCount -eq 0 -and $script:Created -and $script:BootName -eq $script:CreatedName }) '桌面入口直接新建，不多弹操作选择'
 
+    & $module { $script:ImagesInstalled = $false; $script:Calls = @(); Invoke-JobsAndroidSimulatorAction desktop-fixture -Create }
+    Assert-Android (& $module { @($script:Calls | Where-Object { $_ -match '--list --channel=0' }).Count -eq 1 }) '镜像为空自动查询官方清单'
+    Assert-Android (& $module { @($script:Calls | Where-Object { $_ -match '--install system-images;' }).Count -eq 1 -and $script:Booted }) '选中镜像直接安装并复检后创建'
+    Assert-Android (& $module { @($script:Calls | Where-Object { $_ -match '--licenses' }).Count -eq 1 }) 'SDK许可仍由官方原生交互处理'
+    & $module { $script:ImagesInstalled = $false; $script:CancelImages = $true; $script:Calls = @() }
+    Assert-AndroidThrows { & $module { Invoke-JobsAndroidSimulatorAction desktop-fixture -Create } } '自动查询后仍可取消镜像选择'
+    Assert-Android (& $module { @($script:Calls | Where-Object { $_ -match '--install' }).Count -eq 0 }) '取消镜像选择不安装镜像'
     $native = Get-Content -LiteralPath (Join-Path $package 'Scripts/ContextMenu.cpp') -Raw -Encoding UTF8
     Assert-Android ($native.Contains('if (selection) return S_OK;') -and $native.Contains('!IsDesktop(target)')) '原生菜单生成/点击双检且拒绝选中项'
     $source = Get-Content -LiteralPath (Join-Path $package 'Scripts/Action.psm1') -Raw -Encoding UTF8
     Assert-Android ($source.Contains('sys.boot_completed') -and $source.Contains('AddSeconds(180)')) '成功需要系统启动完成且有等待上限'
+    Assert-Android (-not $source.Contains('Confirm-JobsAndroidDownload') -and -not $source.Contains('输入 YES')) '依赖与镜像没有逐项确认'
     Assert-Android (-not $source.Contains('Start-Process -FilePath $java')) 'Java 不经二次 Shell'
     Write-Host ('PASS: AndroidSimulatorCreator.Tests.ps1 (' + $script:assertions + ' assertions)')
 } finally {
     $env:PROCESSOR_ARCHITECTURE = $oldArch; $env:PROCESSOR_ARCHITEW6432 = $oldArch2
-    $env:ANDROID_AVD_HOME = $oldAvd; $env:JAVA_HOME = $oldJava; $env:ANDROID_HOME = $oldSdk
+    $env:ANDROID_AVD_HOME = $oldAvd; $env:JAVA_HOME = $oldJava; $env:ANDROID_HOME = $oldSdk; $env:ANDROID_SDK_ROOT = $oldSdkRoot
     Remove-Module $module; Remove-Module $installer
     Remove-Item -LiteralPath $temporary -Recurse -Force
 }

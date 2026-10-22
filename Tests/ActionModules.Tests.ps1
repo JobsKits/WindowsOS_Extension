@@ -80,6 +80,7 @@ try {
                 function script:Invoke-JobsFlutterDependencyAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsFlutterVersionAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsAndroidSimulatorAction { param($Target) $script:Captured = $Target }
+                function script:Invoke-JobsHarmonySimulatorAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterRunAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterPackageAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterDoctorAction { param($Target) $script:Captured = $Target }

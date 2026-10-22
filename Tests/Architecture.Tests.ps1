@@ -32,6 +32,12 @@ try {
             $source = Get-Content -LiteralPath $script.FullName -Raw
             Assert-Architecture ($source -notmatch '(?:\.\.[\\/])+(?:Scripts|Infrastructure|Jobs[A-Z])') ('包不引用父工程或其它功能：' + $script.Name)
         }
+        if ($package.Id -eq 'harmony-simulator-create') {
+            foreach ($name in @('Run.cmd', 'Scripts/Build.ps1', 'Scripts/ContextMenu.cpp', 'Scripts/DesktopScope.h', 'Scripts/CreateHarmonySimulator.ps1')) {
+                Assert-Architecture (Test-Path -LiteralPath (Join-Path $standalone $name) -PathType Leaf) ('鸿蒙独立运行与原生源码齐全：' + $name)
+            }
+            Assert-Architecture (@($package.InfrastructureOverrides).Count -eq 1 -and $package.InfrastructureOverrides[0] -ceq 'PackageInstaller.psm1') '鸿蒙安装器独立覆盖且保留其它基础设施模板'
+        }
         $action = Import-Module (Join-Path $standalone 'Scripts/Action.psm1') -PassThru -DisableNameChecking
         Assert-Architecture ($action.ExportedCommands.ContainsKey('Invoke-JobsFeature')) ('独立业务可载入：' + $package.Id)
         $common = Import-Module (Join-Path $standalone 'Scripts/Common.psm1') -PassThru -DisableNameChecking
@@ -45,12 +51,17 @@ try {
         $expected = 4
         if ($package.DirectoryOnly) { $expected = 3 }
         if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) { $expected = 4 }
-        if ($package.Id -eq 'android-simulator-create') { $expected = 2 }
+        if ($package.Id -in @('android-simulator-create', 'harmony-simulator-create')) { $expected = 2 }
         if ($package.Id -eq 'git-proxy-configure') { $expected = 1 }
         Assert-Architecture ($plan.Count -eq $expected) ('本包只注册自己的上下文：' + $package.Id)
         foreach ($item in $plan) {
-            if ($package.Id -eq 'android-simulator-create') {
-                Assert-Architecture ($item.Key -eq 'Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.android-simulator-create' -or $item.Key -eq 'Software\Classes\CLSID\{9591D98B-3481-4E05-BE24-470FCDFD0E23}') 'Android 只注册桌面背景及本包 CLSID'
+            if ($package.Id -in @('android-simulator-create', 'harmony-simulator-create')) {
+                $clsid = '{9591D98B-3481-4E05-BE24-470FCDFD0E23}'
+                if ($package.Id -eq 'harmony-simulator-create') { $clsid = '{95E5B535-2EB8-48CA-98B5-A14D17A0A859}' }
+                Assert-Architecture ($item.Key -eq ('Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $package.Id) -or $item.Key -eq ('Software\Classes\CLSID\' + $clsid)) ('模拟器只注册桌面背景及本包 CLSID：' + $package.Id)
+                if ($item.Key.EndsWith('CLSID\' + $clsid)) {
+                    Assert-Architecture ($item.InProcServer -eq (Join-Path $release ('bin/' + $package.Name + 'ContextMenu.dll'))) ('原生 DLL 归属于本包 release：' + $package.Id)
+                }
                 continue
             }
             if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) {

@@ -11,7 +11,8 @@ try {
         & $module {
             [void](Get-JobsAndroidArchitecture)
             $sdk = Get-JobsAndroidSdk
-            $java = Get-JobsAndroidJava
+            if (-not (Test-Path -LiteralPath $sdk -PathType Container)) { throw ('SDK 目录不存在；只读体检不会创建：' + $sdk) }
+            $java = Get-JobsAndroidJava -ReadOnly
             $tools = Get-JobsAndroidHealthyTools -Sdk $sdk -Java $java -ReadOnly
             Repair-JobsAndroidComponents -Sdk $sdk -Java $java -Tools $tools -ReadOnly
             $emulator = Join-Path $sdk 'emulator/emulator.exe'

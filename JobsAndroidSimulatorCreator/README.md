@@ -34,17 +34,17 @@
 
 Android Emulator 官方目前[不支持 Windows ARM CPU](https://developer.android.com/studio/install#windows)，本包明确停止，避免下载不兼容镜像。x64 使用 `x86_64` 手机 / 平板镜像。BIOS 虚拟化及 [**WHPX**](https://developer.android.com/studio/run/emulator-acceleration) 必须可用；脚本运行 `emulator -accel-check`，失败时给出诊断，不自动改系统功能或安装驱动。
 
-SDK 按 `ANDROID_HOME`、`ANDROID_SDK_ROOT`、当前用户 `LOCALAPPDATA/Android/Sdk` 定位。明确配置的 SDK 优先，损坏时不会切换到另一份。Java 依次检查 `JAVA_HOME`、[**Android Studio**](https://developer.android.com/studio/install) 的 JBR 和 PATH；没有健康 Java 时提供官方安装说明并停止。只对当前进程及其子进程设置 SDK / Java 环境，流程结束后恢复，不改系统代理、全局 PATH 或用户配置。
+SDK 按 `ANDROID_HOME`、`ANDROID_SDK_ROOT`、当前用户 `LOCALAPPDATA/Android/Sdk` 定位；显式配置必须是本机绝对路径，文件 / 链接碰撞停止，缺失的 SDK 根目录在首屏回车后自动建立。Java 依次检查 `JAVA_HOME`、[**Android Studio**](https://developer.android.com/studio/install) 的 JBR、PATH 及本工具用户缓存，实际执行并解析版本，复用健康 Java 21+。缺失或版本不足时从 [**Adoptium**](https://adoptium.net/installation/archives) 官方 API 获取 Temurin 21 Windows x64 JDK ZIP，核对官方 SHA-256，再下载、解压到当前用户 `LOCALAPPDATA/Jobs/AndroidToolchain/java/` 的同卷私有 stage，体检后安装为独立版本。无 MSI、管理员权限或预先安装 Android Studio 的要求。仅当前进程与子进程统一 SDK 的 `ANDROID_HOME` / `ANDROID_SDK_ROOT` 及 `JAVA_HOME`，结束后恢复，不改系统代理、全局 PATH 或用户配置。
 
 ## 二、<span id="workflow">创建与启动流程</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-1、从桌面空白右键进入 CMD，显示完整 SDK / Java 来源，检查 `sdkmanager`、`avdmanager`、Emulator、ADB 与硬件加速。
+1、从桌面空白右键或 `Run.cmd` 进入 CMD，首屏说明来源、目标、依赖自动下载 / 修复和数据保留边界。直接回车开始，任意非空输入取消；随后自动体检并补齐 SDK 根目录、Java、Command-Line Tools、Emulator 与 ADB，健康工具复用。
 
 2、桌面右键直接进入新建流程；独立 `Run.cmd` 可以选择“新建 Android 模拟器”或“启动已有 Android 模拟器”。编号列表回车采用第一项，`q` 取消。EOF 会停止，不能被当作默认回车。
 
 3、新建优先选择已安装、匹配宿主的稳定系统镜像，再选择 SDK 自带的设备型号。镜像按 API 从新到旧，Google APIs 优先；兼容 `36.1` 及 `36-extN` 稳定 API，不把代号预览、TV 或其它 CPU 架构混入手机镜像。
 
-4、缺 Command-Line Tools 时，先展示 Google 官方源、SDK 目标及许可链接，必须精确输入 `YES` 才下载。读取官方 `repository2-3.xml`，按其中归档与校验值下载、解压到 SDK 卷内的私有 stage，再同卷重命名至唯一目录；不覆盖现有 Command-Line Tools。现有命令行工具实际执行失败时也可确认安装一个独立新版本，复检仍失败就停止。Emulator / ADB 不只检查文件存在，还实际检查版本；缺失或损坏时确认后由 sdkmanager 修复一次，损坏的已有工具包先卸载再安装，复检仍失败就停止，AVD / 镜像保留。下载失败时被替换的工具可能暂时缺失。没有本机镜像时另行确认；回车不下载。镜像查询、选择和正式安装分开，许可由官方工具交互展示，不自动发送无限 `yes`。
+4、Command-Line Tools 优先逐份检查已有版本；全部缺失或损坏时自动读取 Google 官方 `repository2-3.xml`，按归档与校验值下载、解压到 SDK 卷内私有 stage，再同卷重命名为独立新版本，不覆盖旧目录。Emulator / ADB 实际检查版本；缺失或损坏自动由 sdkmanager 修复一次，坏的已有工具包先卸载再安装，立即复检，失败停止，AVD / 镜像保留。没有本机镜像时自动查询官方稳定清单，选中镜像后直接安装，`q` / EOF 可退出；依赖及镜像不再逐项要求 `YES`。SDK 许可证仍由官方工具交给用户本人确认，不自动发送 `yes`。下载失败时被替换的坏工具可能暂时缺失。
 
 5、最终显示设备、系统镜像、唯一 AVD 名和实际 AVD 目录；直接回车创建并启动，任意非空输入取消。调用 `avdmanager create avd`，不使用 `--force`，名称同时检查现有清单与目录。遵循 `ANDROID_AVD_HOME` / `ANDROID_EMULATOR_HOME` / `ANDROID_USER_HOME`，默认当前用户 `.android/avd`。
 
@@ -54,10 +54,10 @@ SDK 按 `ANDROID_HOME`、`ANDROID_SDK_ROOT`、当前用户 `LOCALAPPDATA/Android
 
 ```mermaid
 flowchart TD
-    A[桌面右键或 Run.cmd] --> B[体检宿主 Java SDK 与硬件加速]
+    A[桌面右键或 Run.cmd] --> B[首屏回车后体检宿主与完整依赖链]
     B --> C{缺少 SDK 组件?}
-    C -->|是| D[展示官方源 目标 许可并确认 YES]
-    D -->|取消或失败| X[报错停止并保留已有数据]
+    C -->|是| D[从官方源自动补齐 一次修复并复检]
+    D -->|失败| X[报错停止并保留已有数据]
     D -->|安装并复检| E{入口模式}
     C -->|否| E
     E -->|独立入口选择已有 AVD| F[选择已有设备]
@@ -75,8 +75,8 @@ flowchart TD
 
 安装只写当前用户 `Software/Classes/DesktopBackground/shellex/ContextMenuHandlers/Jobs.WindowsExtension.android-simulator-create` 及本包 CLSID `{9591D98B-3481-4E05-BE24-470FCDFD0E23}`，不写系统级注册表。原生 `IContextMenu` 同时检查无选中项和系统 Desktop 已知目录，菜单生成与点击均复核；SDK / Java 不载入 Explorer 进程。构建完成后才提交注册与状态，失败回滚本包自己的记录。
 
-数据位于当前用户 `LOCALAPPDATA/Jobs/WindowsExtension/extensions/android-simulator-create/`；`logs/` 保存安装记录及每个启动会话的 `.stdout.log` / `.stderr.log`。安装不下载 SDK；实际启动只在运行者确认后补齐缺失组件。卸载保留 SDK、AVD、运行版本、日志和备份，方便排障。
+数据位于当前用户 `LOCALAPPDATA/Jobs/WindowsExtension/extensions/android-simulator-create/`；`logs/` 保存安装记录及每个启动会话的 `.stdout.log` / `.stderr.log`。菜单安装不下载 SDK；进入创建 / 启动流程后，首屏回车即自动补齐缺失组件，SDK 许可仍由官方工具本人确认。卸载保留 SDK、AVD、运行版本、日志和备份，方便排障。
 
-隔离测试位于 [`AndroidSimulatorCreator.Tests.ps1`](../Tests/AndroidSimulatorCreator.Tests.ps1)，覆盖桌面专用注册、单包 release、架构筛选、镜像 / 型号解析、唯一命名、下载门禁、特殊路径、创建与已有设备分支、失败传播及环境恢复。修复和 SDK 同卷 stage 由 [`AndroidSimulatorRepair.Tests.ps1`](../Tests/AndroidSimulatorRepair.Tests.ps1) 的本地归档及进程夹具覆盖；只读体检共用相同健康检查，并明确禁用安装 / 卸载。原生桌面规则另由 [`AndroidDesktopProbe.cpp`](../Tests/AndroidDesktopProbe.cpp) 验证。macOS 上的 PowerShell / C++ 回归不等于 Windows PowerShell 5.1、MSVC 编译、Explorer 加载、真实 SDK 下载与 AVD 启动已经实机通过。
+隔离测试位于 [`AndroidSimulatorCreator.Tests.ps1`](../Tests/AndroidSimulatorCreator.Tests.ps1)，覆盖桌面专用注册、单包 release、架构筛选、镜像 / 型号解析、唯一命名、首屏门禁与自动镜像安装、特殊路径、创建与已有设备分支、失败传播及环境恢复。修复和 SDK 同卷 stage 由 [`AndroidSimulatorRepair.Tests.ps1`](../Tests/AndroidSimulatorRepair.Tests.ps1) 的本地归档及进程夹具覆盖；只读体检共用相同健康检查，并明确禁用安装 / 卸载。Java 官方 ZIP 校验、版本解析、只读禁安装、首屏取消及用户目录同卷安装另见 [`AndroidSimulatorBootstrap.Tests.ps1`](../Tests/AndroidSimulatorBootstrap.Tests.ps1)。原生桌面规则另由 [`AndroidDesktopProbe.cpp`](../Tests/AndroidDesktopProbe.cpp) 验证。macOS 上的 PowerShell / C++ 回归不等于 Windows PowerShell 5.1、MSVC 编译、Explorer 加载、真实 SDK 下载与 AVD 启动已经实机通过。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

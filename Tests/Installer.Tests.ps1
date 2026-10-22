@@ -53,10 +53,13 @@ foreach ($feature in $features) {
         Assert-JobsTest ($desktop[0].Key -eq 'Software\Classes\DesktopBackground\shell\Jobs.WindowsExtension.git-proxy-configure') 'Git 配置不进入普通目录、磁盘和选中项'
         continue
     }
-    if ($feature.Id -eq 'android-simulator-create') {
-        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.android-simulator-create') -or $_.Key.EndsWith('CLSID\{9591D98B-3481-4E05-BE24-470FCDFD0E23}') })
-        Assert-JobsTest ($native.Count -eq 2) 'Android 桌面 handler 与 CLSID 独立'
-        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\Directory|\\Drive|\\\*|\\shell\\' }).Count -eq 0) 'Android 不注册普通目录与选中项'
+    if ($feature.Id -in @('android-simulator-create', 'harmony-simulator-create')) {
+        $clsid = '{9591D98B-3481-4E05-BE24-470FCDFD0E23}'
+        if ($feature.Id -eq 'harmony-simulator-create') { $clsid = '{95E5B535-2EB8-48CA-98B5-A14D17A0A859}' }
+        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.' + $feature.Id) -or $_.Key.EndsWith('CLSID\' + $clsid) })
+        Assert-JobsTest ($native.Count -eq 2) ('模拟器桌面 handler 与 CLSID 独立：' + $feature.Id)
+        Assert-JobsTest (@($native | Where-Object { $_.Key -eq ('Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $feature.Id) }).Count -eq 1) ('只登记系统桌面背景 handler：' + $feature.Id)
+        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\Directory|\\Drive|\\\*|\\shell\\' }).Count -eq 0) ('模拟器不注册普通目录与选中项：' + $feature.Id)
         continue
     }
     if ($feature.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) {

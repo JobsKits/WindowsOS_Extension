@@ -25,10 +25,15 @@ function Read-JobsAndroidInput {
     if ($null -eq $answer) { throw '输入已结束，停止操作。' }
     return $answer
 }
-function Confirm-JobsAndroidDownload {
-    param([string]$Description)
-    Write-Host $Description -ForegroundColor Yellow
-    return (Read-JobsAndroidInput '输入 YES 下载 / 安装，直接回车取消') -ceq 'YES'
+function Show-JobsAndroidIntro {
+    param([string]$Sdk)
+    Write-Host ('Jobs Android 模拟器 · 来源：' + $PSScriptRoot) -ForegroundColor Cyan
+    Write-Host ('继续后自动体检并补齐 SDK 根目录、Java 21、Command-Line Tools、Emulator 和 ADB；健康依赖直接复用，损坏工具自动修复一次并复检。' + [Environment]::NewLine +
+        'SDK 目标：' + $Sdk + [Environment]::NewLine + '缺失 Java 安装到当前用户目录：' + (Get-JobsAndroidJavaRoot) + [Environment]::NewLine +
+        '下载来源：Google Android SDK 官方源、Adoptium 官方 API / Temurin 21；归档校验后使用。' + [Environment]::NewLine +
+        '缺少镜像时自动查询官方稳定清单，选择后直接安装；SDK 许可证由官方工具交给本人确认，不自动回答 yes。' + [Environment]::NewLine +
+        '保留已有 AVD、镜像及健康工具，不修改全局 PATH / JAVA_HOME、代理或系统功能；损坏工具替换失败时会停止。')
+    if ((Read-JobsAndroidInput '直接回车开始，任意非空输入取消').Length -gt 0) { throw '已取消。' }
 }
 function Get-JobsAndroidArchitecture {
     $architecture = $env:PROCESSOR_ARCHITEW6432
@@ -40,16 +45,89 @@ function Get-JobsAndroidArchitecture {
 }
 function Get-JobsAndroidSdk {
     $candidates = @($env:ANDROID_HOME, $env:ANDROID_SDK_ROOT)
-    if ($env:LOCALAPPDATA) { $candidates += Join-Path $env:LOCALAPPDATA 'Android/Sdk' }
+    $local = $env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($local)) { $local = [Environment]::GetFolderPath('LocalApplicationData') }
+    if (-not [string]::IsNullOrWhiteSpace($local)) { $candidates += Join-Path $local 'Android/Sdk' }
     foreach ($candidate in $candidates) {
         if (-not [string]::IsNullOrWhiteSpace($candidate)) {
             # 显式配置优先；不能悄悄把损坏的指定 SDK 切到另一份。
-            return [IO.Path]::GetFullPath($candidate)
+            if (-not [IO.Path]::IsPathRooted($candidate) -or ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT -and $candidate -notmatch '^[a-zA-Z]:[\\/]')) { throw ('SDK 必须使用本机绝对路径：' + $candidate) }
+            $path = [IO.Path]::GetFullPath($candidate)
+            if (Test-Path -LiteralPath $path) {
+                $item = Get-Item -LiteralPath $path -Force
+                if (-not $item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('SDK 目标不是普通目录：' + $path) }
+            }
+            return $path
         }
     }
     throw '无法定位 SDK，请设置 ANDROID_HOME 或当前用户 LOCALAPPDATA。'
 }
+function Get-JobsAndroidJavaRoot {
+    $local = $env:LOCALAPPDATA
+    if ([string]::IsNullOrWhiteSpace($local)) { $local = [Environment]::GetFolderPath('LocalApplicationData') }
+    if ([string]::IsNullOrWhiteSpace($local)) { throw '无法定位当前用户 Java 安装目录。' }
+    return Join-Path $local 'Jobs/AndroidToolchain/java'
+}
+function Test-JobsAndroidJava {
+    param([string]$Path)
+    try {
+        if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+        $result = Invoke-JobsProcess -FilePath $Path -Arguments @('-version') -TimeoutSeconds 15
+        $version = $result.StdErr + [Environment]::NewLine + $result.StdOut
+        return $result.ExitCode -eq 0 -and $version -match '(?:openjdk|java) version "(\d+)' -and [int]$Matches[1] -ge 21
+    } catch { return $false }
+}
+function Expand-JobsAndroidArchive {
+    param([string]$Archive, [string]$Destination)
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archiveFile = [IO.Compression.ZipFile]::OpenRead($Archive)
+    try {
+        foreach ($entry in $archiveFile.Entries) {
+            if ($entry.FullName -match '(^[/\\]|(^|[/\\])\.\.([/\\]|$)|:)') { throw '压缩包含越界路径，停止。' }
+        }
+    } finally { $archiveFile.Dispose() }
+    [IO.Compression.ZipFile]::ExtractToDirectory($Archive, $Destination)
+}
+function Install-JobsAndroidJava {
+    $parent = Get-JobsAndroidJavaRoot
+    [void][IO.Directory]::CreateDirectory($parent)
+    $stage = Join-Path $parent ('.jobs-stage-' + [guid]::NewGuid().ToString('N'))
+    $previousProtocol = [Net.ServicePointManager]::SecurityProtocol
+    try {
+        [void][IO.Directory]::CreateDirectory($stage)
+        [Net.ServicePointManager]::SecurityProtocol = $previousProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $metadata = Join-Path $stage 'temurin.json'
+        $metadataUrl = 'https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=x64&image_type=jdk&os=windows&vendor=eclipse'
+        Write-Host ('自动补齐 Java 21；元数据来源：' + $metadataUrl + [Environment]::NewLine + '安装目标：' + $parent)
+        Invoke-WebRequest -UseBasicParsing -Uri $metadataUrl -OutFile $metadata -TimeoutSec 60
+        $parsed = Get-Content -LiteralPath $metadata -Raw -Encoding UTF8 | ConvertFrom-Json
+        $assets = @($parsed)
+        $asset = @($assets | Where-Object { $_.version.major -eq 21 -and $_.binary.os -ceq 'windows' -and $_.binary.architecture -ceq 'x64' -and $_.binary.image_type -ceq 'jdk' -and $_.vendor -ceq 'eclipse' })
+        if ($asset.Count -ne 1) { throw '官方 API 未返回唯一 Windows x64 Temurin 21 JDK。' }
+        $package = $asset[0].binary.package
+        $link = [string]$package.link
+        if ($link -cnotmatch '^https://github\.com/adoptium/temurin21-binaries/releases/download/[^/]+/OpenJDK21U-jdk_x64_windows_hotspot_[^/]+\.zip$' -or
+            [string]$package.checksum -cnotmatch '^[a-fA-F0-9]{64}$') { throw 'Java 官方下载地址或 SHA-256 不符合预期，停止。' }
+        $zip = Join-Path $stage 'temurin.zip'
+        Write-Host ('Java 归档来源：' + $link)
+        Invoke-WebRequest -UseBasicParsing -Uri $link -OutFile $zip -TimeoutSec 600
+        if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine [string]$package.checksum) { throw 'Java 归档 SHA-256 校验失败，未安装。' }
+        $expanded = Join-Path $stage 'expanded'
+        Expand-JobsAndroidArchive -Archive $zip -Destination $expanded
+        $roots = @(Get-ChildItem -LiteralPath $expanded -Directory)
+        if ($roots.Count -ne 1 -or -not (Test-JobsAndroidJava (Join-Path $roots[0].FullName 'bin/java.exe'))) { throw '下载的 Java 目录结构或版本体检失败。' }
+        $destination = Join-Path $parent ('temurin-21-' + [guid]::NewGuid().ToString('N'))
+        [IO.Directory]::Move($roots[0].FullName, $destination)
+        $java = Join-Path $destination 'bin/java.exe'
+        if (-not (Test-JobsAndroidJava $java)) { throw ('Java 安装后复检失败，停止：' + $destination) }
+        return $java
+    } finally {
+        [Net.ServicePointManager]::SecurityProtocol = $previousProtocol
+        if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+    }
+}
 function Get-JobsAndroidJava {
+    param([switch]$ReadOnly)
     $candidates = @()
     if ($env:JAVA_HOME) { $candidates += Join-Path $env:JAVA_HOME 'bin/java.exe' }
     foreach ($base in @($env:ProgramFiles, $env:LOCALAPPDATA)) {
@@ -57,15 +135,19 @@ function Get-JobsAndroidJava {
     }
     $pathJava = Find-JobsExecutable 'java.exe'
     if ($pathJava) { $candidates += $pathJava }
-    foreach ($candidate in $candidates) {
-        if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
-        $result = Invoke-JobsProcess -FilePath $candidate -Arguments @('-version') -TimeoutSeconds 15
-        if ($result.ExitCode -eq 0) { return $candidate }
+    $parent = Get-JobsAndroidJavaRoot
+    if (Test-Path -LiteralPath $parent -PathType Container) {
+        foreach ($directory in @(Get-ChildItem -LiteralPath $parent -Directory | Where-Object { $_.Name -like 'temurin-21-*' } | Sort-Object LastWriteTime -Descending)) {
+            $candidates += Join-Path $directory.FullName 'bin/java.exe'
+        }
     }
-    throw '没有健康 Java。请安装 Android Studio（附带 JBR）或受支持的 JDK，并设置 JAVA_HOME 后重试：https://developer.android.com/studio/install'
+    foreach ($candidate in $candidates) { if (Test-JobsAndroidJava $candidate) { return $candidate } }
+    if ($ReadOnly) { throw '没有健康 Java 21+；只读体检不会下载或修复。' }
+    # 用户目录 ZIP 安装，不运行 MSI、不写全局 JAVA_HOME / PATH；新版本失败不循环安装。
+    return Install-JobsAndroidJava
 }
 function Get-JobsAndroidTools {
-    param([string]$Sdk)
+    param([string]$Sdk, [switch]$All)
     $directory = Join-Path $Sdk 'cmdline-tools'
     $roots = @()
     if (Test-Path -LiteralPath $directory -PathType Container) {
@@ -73,7 +155,9 @@ function Get-JobsAndroidTools {
     }
     foreach ($root in $roots) {
         if ((Test-Path -LiteralPath (Join-Path $root.FullName 'lib/sdkmanager-classpath.jar') -PathType Leaf) -and
-            (Test-Path -LiteralPath (Join-Path $root.FullName 'lib/avdmanager-classpath.jar') -PathType Leaf)) { return $root.FullName }
+            (Test-Path -LiteralPath (Join-Path $root.FullName 'lib/avdmanager-classpath.jar') -PathType Leaf)) {
+            if ($All) { Write-Output $root.FullName } else { return $root.FullName }
+        }
     }
     return $null
 }
@@ -112,7 +196,7 @@ function Invoke-JobsAndroidTool {
 }
 function Install-JobsAndroidCommandTools {
     param([string]$Sdk, [string]$Reason = '缺少 SDK Command-Line Tools。')
-    if (-not (Confirm-JobsAndroidDownload ($Reason + '来源：https://dl.google.com/android/repository/；目标：' + $Sdk + '。下载代表接受 SDK 条款 https://developer.android.com/studio/terms 。不覆盖已有目录。'))) { throw '未安装 Command-Line Tools，停止。' }
+    Write-Host ($Reason + '自动补齐 Command-Line Tools。来源：https://dl.google.com/android/repository/；目标：' + $Sdk + '。SDK 条款：https://developer.android.com/studio/terms 。不覆盖已有目录。')
     $previousProtocol = [Net.ServicePointManager]::SecurityProtocol
     # 下载、解压与最终重命名都放在 SDK 卷内，兼容系统临时目录与 SDK 分属 C: / D:。
     $parent = Join-Path $Sdk 'cmdline-tools'
@@ -139,15 +223,8 @@ function Install-JobsAndroidCommandTools {
         Write-Host ('下载来源：https://dl.google.com/android/repository/' + $relative)
         Invoke-WebRequest -UseBasicParsing -Uri ('https://dl.google.com/android/repository/' + $relative) -OutFile $zip -TimeoutSec 600
         if ((Get-FileHash -LiteralPath $zip -Algorithm $algorithm).Hash -ine $checksum.InnerText.Trim()) { throw '官方归档校验失败，未安装。' }
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-        $archiveFile = [IO.Compression.ZipFile]::OpenRead($zip)
-        try {
-            foreach ($entry in $archiveFile.Entries) {
-                if ($entry.FullName -match '(^[/\\]|(^|[/\\])\.\.([/\\]|$)|:)') { throw '压缩包含越界路径，停止。' }
-            }
-        } finally { $archiveFile.Dispose() }
         $expanded = Join-Path $temporary 'expanded'
-        [IO.Compression.ZipFile]::ExtractToDirectory($zip, $expanded)
+        Expand-JobsAndroidArchive -Archive $zip -Destination $expanded
         $source = Join-Path $expanded 'cmdline-tools'
         foreach ($name in @('sdkmanager', 'avdmanager')) {
             if (-not (Test-Path -LiteralPath (Join-Path $source ('lib/' + $name + '-classpath.jar')) -PathType Leaf)) { throw '下载工具目录结构不完整。' }
@@ -167,9 +244,9 @@ function Assert-JobsAndroidCommandTools {
 }
 function Get-JobsAndroidHealthyTools {
     param([string]$Sdk, [string]$Java, [switch]$ReadOnly)
-    $tools = Get-JobsAndroidTools $Sdk
     $reason = '缺少 SDK Command-Line Tools。'
-    if ($tools) {
+    foreach ($tools in @(Get-JobsAndroidTools $Sdk -All)) {
+        if ([string]::IsNullOrWhiteSpace($tools)) { continue }
         try { Assert-JobsAndroidCommandTools $Java $tools; return $tools }
         catch { $reason = '现有 Command-Line Tools 体检失败：' + $_.Exception.Message + [Environment]::NewLine }
     }
@@ -203,7 +280,7 @@ function Repair-JobsAndroidComponents {
     if ($ReadOnly) { throw ('SDK 工具体检失败；只读模式不会修复：' + [Environment]::NewLine + $details) }
     $description = 'SDK 工具缺失或损坏：' + [Environment]::NewLine + $details + [Environment]::NewLine +
         '从 Google 官方源修复一次到 ' + $Sdk + '。损坏的已有工具包会先卸载再安装；下载失败时可能暂时缺失该工具。AVD、系统镜像及其它工具包保留。'
-    if (-not (Confirm-JobsAndroidDownload $description)) { throw '未修复必要 SDK 工具，停止。' }
+    Write-Host $description -ForegroundColor Yellow
     Invoke-JobsAndroidTool $Java $Tools 'sdkmanager' @(('--sdk_root=' + $Sdk), '--licenses') -Interactive
     foreach ($component in $unhealthy) {
         if ($component.HasDirectory) {
@@ -318,11 +395,15 @@ function Invoke-JobsAndroidSimulatorAction {
     if (-not (Test-JobsAndroidDesktop $Target)) { throw '此入口仅适用于系统桌面空白。' }
     $abi = Get-JobsAndroidArchitecture
     $sdk = Get-JobsAndroidSdk
-    $java = Get-JobsAndroidJava
+    Show-JobsAndroidIntro $sdk
+    [void][IO.Directory]::CreateDirectory($sdk)
     $oldAndroidHome = $env:ANDROID_HOME
     $oldJavaHome = $env:JAVA_HOME
+    $oldSdkRoot = $env:ANDROID_SDK_ROOT
     try {
+        $java = Get-JobsAndroidJava
         $env:ANDROID_HOME = $sdk
+        $env:ANDROID_SDK_ROOT = $sdk
         $env:JAVA_HOME = Split-Path -Parent (Split-Path -Parent $java)
         Write-Host ('SDK 来源：' + $sdk + [Environment]::NewLine + 'Java 来源：' + $java)
         $tools = Get-JobsAndroidHealthyTools -Sdk $sdk -Java $java
@@ -341,11 +422,11 @@ function Invoke-JobsAndroidSimulatorAction {
             $listing = Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $sdk), '--list_installed')
             $images = @(Get-JobsAndroidImages $listing $abi)
             if ($images.Count -eq 0) {
-                if (-not (Confirm-JobsAndroidDownload ('没有本机 ' + $abi + ' 系统镜像。是否查询 Google 官方可用镜像？后续选定后再确认安装。'))) { throw '没有系统镜像，停止。' }
+                Write-Host ('没有本机 ' + $abi + ' 镜像，自动查询 Google 官方稳定镜像清单。')
                 $listing = Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $sdk), '--list', '--channel=0')
                 $images = @(Get-JobsAndroidImages $listing $abi)
                 $image = Read-JobsAndroidChoice '选择待安装稳定系统镜像' $images
-                if (-not (Confirm-JobsAndroidDownload ('安装 ' + $image + ' 到 ' + $sdk + '，可能下载数 GB；SDK 许可交互由官方工具显示。'))) { throw '已取消镜像安装。' }
+                Write-Host ('自动安装选中的镜像：' + $image + '；目标：' + $sdk + '，可能下载数 GB。')
                 Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $sdk), '--licenses') -Interactive
                 Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $sdk), '--install', $image) -Interactive
                 $installed = Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $sdk), '--list_installed')
@@ -364,7 +445,7 @@ function Invoke-JobsAndroidSimulatorAction {
             Write-JobsLog ('Created Android AVD ' + $name)
         }
         Start-JobsAndroidAvd $sdk $name
-    } finally { $env:ANDROID_HOME = $oldAndroidHome; $env:JAVA_HOME = $oldJavaHome }
+    } finally { $env:ANDROID_HOME = $oldAndroidHome; $env:JAVA_HOME = $oldJavaHome; $env:ANDROID_SDK_ROOT = $oldSdkRoot }
 }
 function Invoke-JobsFeature {
     param([Parameter(Mandatory = $true)][string]$Target)

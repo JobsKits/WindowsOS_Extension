@@ -59,8 +59,8 @@ try {
     Remove-Module $module
     $module = Import-Module $path -PassThru -DisableNameChecking -Force
     & $module {
-        $script:RepairCount = 0; $script:HealthCalls = @(); $script:FailOld = $false; $script:FailNew = $false; $script:ToolsMissing = $false
-        function script:Get-JobsAndroidTools { param($Sdk) if ($script:ToolsMissing) { return $null }; return 'old-tools' }
+        $script:RepairCount = 0; $script:HealthCalls = @(); $script:FailOld = $false; $script:FailNew = $false; $script:ToolsMissing = $false; $script:Fallback = $false
+        function script:Get-JobsAndroidTools { param($Sdk) if ($script:ToolsMissing) { return $null }; if ($script:Fallback) { return @('old-tools', 'cached-healthy-tools') }; return 'old-tools' }
         function script:Install-JobsAndroidCommandTools { param($Sdk, $Reason) $script:RepairCount++; return 'new-tools' }
         function script:Invoke-JobsAndroidTool {
             param($Java, $Tools, $Tool, $Arguments)
@@ -71,7 +71,11 @@ try {
     }
     Assert-Repair ((& $module { Get-JobsAndroidHealthyTools sdk java }) -eq 'old-tools') '健康工具直接复用'
     Assert-Repair (& $module { $script:RepairCount -eq 0 -and $script:HealthCalls.Count -eq 2 }) '健康检测实际运行 sdkmanager 与 avdmanager'
-    & $module { $script:FailOld = $true; $script:HealthCalls = @() }
+    & $module { $script:FailOld = $true; $script:Fallback = $true }
+    Assert-Repair ((& $module { Get-JobsAndroidHealthyTools sdk java }) -eq 'cached-healthy-tools') 'latest损坏优先复用其它已有健康工具'
+    Assert-Repair (& $module { $script:RepairCount -eq 0 }) '有其它健康版本时不下载'
+    & $module { $script:Fallback = $false; $script:HealthCalls = @() }
+
     Assert-Repair ((& $module { Get-JobsAndroidHealthyTools sdk java }) -eq 'new-tools') '坏工具经一次安装后返回健康新版本'
     Assert-Repair (& $module { $script:RepairCount -eq 1 -and @($script:HealthCalls | Where-Object { $_ -like 'new-tools:*' }).Count -eq 2 }) '修复后两项工具重新体检'
     & $module { $script:RepairCount = 0; $script:FailNew = $true }
@@ -102,7 +106,7 @@ try {
         }
     }
     & $module { Repair-JobsAndroidComponents sdk java tools }
-    Assert-Repair (& $module { $script:Commands.Count -eq 3 -and $script:ConfirmCount -eq 1 }) '坏工具一次确认后执行许可、卸载、安装'
+    Assert-Repair (& $module { $script:Commands.Count -eq 3 -and $script:ConfirmCount -eq 0 }) '坏工具自动一次修复，许可仍走官方交互'
     Assert-Repair (& $module { $script:Commands[1] -eq '--sdk_root=sdk --uninstall emulator' -and $script:Commands[2] -eq '--sdk_root=sdk --install emulator' }) '仅重装损坏 emulator，健康 platform-tools 保留'
     & $module { $script:RepairDone = $false; $script:FailRecheck = $true; $script:Commands = @(); $script:Missing = @('emulator', 'platform-tools') }
     Assert-RepairThrows { & $module { Repair-JobsAndroidComponents sdk java tools } } '组件修复后仍坏停止'
@@ -111,9 +115,9 @@ try {
     & $module { $script:RepairDone = $false; $script:Commands = @(); $script:ConfirmCount = 0 }
     Assert-RepairThrows { & $module { Repair-JobsAndroidComponents sdk java tools -ReadOnly } } '只读组件检查直接报告'
     Assert-Repair (& $module { $script:Commands.Count -eq 0 -and $script:ConfirmCount -eq 0 }) '只读组件不确认不联网不卸载'
-    & $module { $script:Approved = $false }
-    Assert-RepairThrows { & $module { Repair-JobsAndroidComponents sdk java tools } } '拒绝安装则停止'
-    Assert-Repair (& $module { $script:Commands.Count -eq 0 }) '未批准不动 SDK'
+    & $module { $script:FailRecheck = $false; $script:RepairDone = $false; $script:Commands = @() }
+    & $module { Repair-JobsAndroidComponents sdk java tools }
+    Assert-Repair (& $module { $script:Commands.Count -gt 0 -and $script:ConfirmCount -eq 0 }) '自动补齐组件不再要求额外确认'
     Remove-Module $module
     $module = Import-Module $path -PassThru -DisableNameChecking -Force
     $componentSdk = Join-Path $temporary 'components'

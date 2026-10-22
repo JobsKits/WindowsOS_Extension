@@ -23,6 +23,8 @@ try {
     Copy-Item -LiteralPath (Join-Path $sourceRoot 'Extensions.json') -Destination $testRoot
     $parsed = Get-Content -LiteralPath (Join-Path $testRoot 'Extensions.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $entries = @($parsed)
+    $harmonyEntries = @($entries | Where-Object { $_.Id -ceq 'harmony-simulator-create' })
+    Assert-True ($harmonyEntries.Count -eq 1 -and $harmonyEntries[0].Name -ceq 'JobsHarmonySimulatorCreator') '鸿蒙模拟器以唯一独立身份接入总清单'
     foreach ($entry in $entries) {
         $package = Join-Path $testRoot $entry.Name
         $scripts = Join-Path $package 'Scripts'
@@ -44,6 +46,12 @@ Export-ModuleMember -Function Invoke-JobsPackageChange
     $nativePackages = @(Get-JobsFeaturePackages -Root $testRoot)
     Assert-True ($nativePackages.Count -eq $entries.Count) '当前 PowerShell 加载清单登记的独立包'
     Assert-True (@($nativePackages | Where-Object { $_ -is [Management.Automation.PSModuleInfo] }).Count -eq 0) '包清单输出没有模块对象'
+    $harmony = @($nativePackages | Where-Object { $_.Id -ceq 'harmony-simulator-create' })
+    Assert-True ($harmony.Count -eq 1 -and $harmony[0].Label -ceq '新建鸿蒙模拟器' -and $harmony[0].Console -eq $true) '总面板读取鸿蒙菜单名称并保留可见终端'
+    $harmonyPlan = @(Get-JobsPackageOperationPlan -Packages $nativePackages -Selected @('harmony-simulator-create') -Installed @() -Mode Install)
+    Assert-True ($harmonyPlan.Count -eq 1 -and $harmonyPlan[0].Id -ceq 'harmony-simulator-create') '仅勾选鸿蒙时只编排本包'
+    $harmonyResult = Invoke-JobsPackageOperations -Plan $harmonyPlan
+    Assert-True ($harmonyResult.Success -and @($harmonyResult.Completed).Count -eq 1 -and $harmonyResult.Completed[0] -ceq 'Install:harmony-simulator-create') '鸿蒙组合安装只调用本包隔离生命周期'
     & $module {
         # Windows PowerShell 5.1 的 JSON 顶层数组作为单个管道对象输出。
         function script:ConvertFrom-Json {

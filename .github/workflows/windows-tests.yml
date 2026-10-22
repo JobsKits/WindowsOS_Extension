@@ -88,3 +88,9 @@ jobs:
       - name: Git dynamic proxy desktop, routing and exact user restore
         shell: powershell
         run: .\Tests\GitProxyConfigurator.Tests.ps1
+      - name: Android simulator automatic Java and dependency bootstrap
+        shell: powershell
+        run: .\Tests\AndroidSimulatorBootstrap.Tests.ps1
+      - name: Harmony simulator desktop and installed-image creation guardrails
+        shell: powershell
+        run: .\Tests\HarmonySimulatorCreator.Tests.ps1
