@@ -1,0 +1,8 @@
+{
+  "Id": "clean-build-artifacts",
+  "Name": "JobsBuildArtifactCleaner",
+  "Label": "清理构建产物",
+  "Description": "识别当前 Flutter / Android 工程并预览清理范围；Windows 不提供 iOS 清理。",
+  "DirectoryOnly": true,
+  "Console": true
+}

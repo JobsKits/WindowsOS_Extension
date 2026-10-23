@@ -1,0 +1,11 @@
+{
+  "Id": "flutter-tools",
+  "Name": "JobsFlutterRunner",
+  "Label": "运行 Flutter 项目",
+  "Description": "仅 Flutter 根目录显示；在 CMD 选择设备、查看日志，关闭窗口后继续后台运行。",
+  "DirectoryOnly": true,
+  "Console": true,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

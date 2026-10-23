@@ -64,6 +64,9 @@ jobs:
       - name: Flutter FVM project and offline selection guardrails
         shell: powershell
         run: .\Tests\FlutterVersionMgr.Tests.ps1
+      - name: OpenHarmony Flutter SDK pinning and project-only publication
+        shell: powershell
+        run: .\Tests\HarmonyFlutterSdk.Tests.ps1
       - name: Git pull snapshots and conflict choices against temporary bare remotes
         shell: powershell
         run: .\Tests\GitPuller.Tests.ps1
@@ -85,6 +88,15 @@ jobs:
       - name: Android simulator SDK repair and same-volume staging
         shell: powershell
         run: .\Tests\AndroidSimulatorRepair.Tests.ps1
+      - name: Android emulator storage diagnosis and guarded repairs
+        shell: powershell
+        run: .\Tests\AndroidSimulatorRepairer.Tests.ps1
+      - name: Build standalone Android repair desktop handler with MSVC
+        shell: powershell
+        run: |
+          .\JobsAndroidSimulatorRepairer\Scripts\Build.ps1 `
+            -SourceRoot (Join-Path $PWD 'JobsAndroidSimulatorRepairer') `
+            -OutputRoot (Join-Path $env:RUNNER_TEMP 'JobsAndroidSimulatorRepairer-native')
       - name: Git dynamic proxy desktop, routing and exact user restore
         shell: powershell
         run: .\Tests\GitProxyConfigurator.Tests.ps1

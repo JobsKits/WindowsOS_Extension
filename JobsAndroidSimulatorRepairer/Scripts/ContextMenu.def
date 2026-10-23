@@ -1,0 +1,4 @@
+﻿LIBRARY JobsAndroidSimulatorRepairerContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

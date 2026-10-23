@@ -1,3 +1,5 @@
+> 本功能的右键入口已迁入 [JobsFlutterTools](../JobsFlutterTools/README.md)。以下保留旧独立工程的实现说明；新安装使用统一菜单与项目 FVM。原“Flutter项目体检”在新菜单中称为“原生Flutter项目体检”。
+
 # `JobsFlutterPubGet`
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
@@ -57,7 +59,7 @@
 > **目的：** 只移除“Flutter 安装依赖（pub get）”，保留可追溯数据。
 
 - 确认后备份本包注册，移除本包菜单和开始菜单卸载快捷方式。
-- 保留 `settings.json` 并写入 `Enabled=false`，不让旧版总配置重新启用本项。
+- 保留 `settings.json` 并写入 `Enabled=false`，避免兼容配置重新启用本项。
 - 保留本包运行版本、日志、备份和私有工具；不删除其他软件，也不停止其他会话。
 - 需要彻底清理时，先等待本包会话退出，再手动清理本包部署目录。
 
@@ -91,7 +93,7 @@ JobsFlutterPubGet/
 
 注册表范围限于当前用户 `HKCU\Software\Classes` 下的 `shell\Jobs.WindowsExtension.flutter-pub-get` 菜单键，不写 `HKLM`。适用对象由本包 `Extension.json` 的 `DirectoryOnly` 控制。
 
-旧版整体安装仅按本项迁移：新包状态优先；尚无本包状态时才读取旧总配置的本项选择。安装或卸载本包不改变其他尚未迁移功能，旧运行目录和备份保留。
+安装状态按功能独立读取：本包状态优先；缺少时才读取兼容总配置中的本项选择。安装或卸载只更新本项，其它功能、运行目录和备份保留。
 
 ## <span id="jobs-toc-heading-8" data-jobs-toc="v2">五、排查与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -102,4 +104,3 @@ JobsFlutterPubGet/
 源码的语法、独立包结构和跨平台回归不能代替 Windows 真实桌面验收；应在 Windows 核对安装确认、菜单对象、中文特殊路径、依赖缺失分支以及只卸载本包后其他功能仍可用。普通验证不执行真实业务写操作。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>
-

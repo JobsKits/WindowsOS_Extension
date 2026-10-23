@@ -1,3 +1,5 @@
+> 本功能的右键入口已迁入 [JobsFlutterTools](../JobsFlutterTools/README.md)。以下保留旧独立工程的实现说明；新安装使用统一菜单与项目 FVM。原“Flutter项目体检”在新菜单中称为“原生Flutter项目体检”。
+
 # JobsFlutterRunner · 右键运行 Flutter 项目
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
@@ -76,6 +78,6 @@ JobsFlutterRunner/
 
 父仓提供 `Tests/FlutterRunner.Tests.ps1`（临时文件、项目识别、设备过滤、会话身份、控制请求与独立注册计划）；Windows 使用 `-Native` 额外编译产物并通过假 Flutter 检查后台运行及 r / R / s 协议。测试不安装扩展、不启动真实设备、不修改真实项目。原生识别夹具由 `Tests/FlutterRunnerProjectProbe.cpp` 共用同一头文件。
 
-实现选用 Microsoft 官方的 [IShellExtInit 初始化接口](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellextinit) 与 [IContextMenu::QueryContextMenu](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-icontextmenu-querycontextmenu)：无效目录插入零个菜单项。Microsoft 明确[不支持 .NET 进程内 Shell 扩展](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/dd758089(v=vs.85))，因此使用原生 C++ 桥接；CLR 仅运行于独立宿主。Windows 真实 Explorer 的显示 / 隐藏、原生 DLL 加载、设备运行、关闭 CMD 后存活仍需 Windows 实机验收；跨平台静态 / 夹具验证不代替实机结果。
+实现选用 Microsoft 官方的 [IShellExtInit 初始化接口](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellextinit) 与 [IContextMenu::QueryContextMenu](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-icontextmenu-querycontextmenu)：无效目录插入零个菜单项。Microsoft 明确[不支持 .NET 进程内 Shell 扩展](<https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/dd758089(v=vs.85)>)，因此使用原生 C++ 桥接；CLR 仅运行于独立宿主。Windows 真实 Explorer 的显示 / 隐藏、原生 DLL 加载、设备运行、关闭 CMD 后存活仍需 Windows 实机验收；跨平台静态 / 夹具验证不代替实机结果。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

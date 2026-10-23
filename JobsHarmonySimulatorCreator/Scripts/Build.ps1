@@ -8,7 +8,7 @@ $ErrorActionPreference = 'Stop'
 if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '原生菜单编译只支持 Windows。' }
 $architecture = $env:PROCESSOR_ARCHITEW6432
 if ([string]::IsNullOrWhiteSpace($architecture)) { $architecture = $env:PROCESSOR_ARCHITECTURE }
-if ($architecture -ine 'AMD64') { throw '鸿蒙模拟器仅支持 x64 Windows 10 / 11，Windows ARM / 32 位宿主不支持；没有注册菜单。' }
+if ($architecture -ine 'AMD64') { throw 'Harmony 模拟器仅支持 x64 Windows 10 / 11，Windows ARM / 32 位宿主不支持；没有注册菜单。' }
 $target = 'x64'
 $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
 if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
@@ -68,5 +68,5 @@ try {
     if (-not $build.WaitForExit(120000)) { $build.Kill(); throw '原生菜单编译超时。' }
     if ($build.ExitCode -ne 0) { throw '原生菜单编译失败；尚未写入注册表。' }
 } finally { $build.Dispose() }
-if (-not (Test-Path -LiteralPath (Join-Path $output 'JobsHarmonySimulatorCreatorContextMenu.dll') -PathType Leaf)) { throw '鸿蒙 模拟器菜单构建产物缺失。' }
-Write-Host ('原生 鸿蒙 模拟器菜单已编译：' + $output)
+if (-not (Test-Path -LiteralPath (Join-Path $output 'JobsHarmonySimulatorCreatorContextMenu.dll') -PathType Leaf)) { throw 'Harmony 模拟器菜单构建产物缺失。' }
+Write-Host ('原生 Harmony 模拟器菜单已编译：' + $output)

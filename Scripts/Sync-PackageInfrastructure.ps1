@@ -15,7 +15,9 @@ foreach ($package in $packages) {
     $overrides = @()
     if ($null -ne $manifest.PSObject.Properties['InfrastructureOverrides']) {
         $overrides = @($manifest.InfrastructureOverrides)
-        if ($overrides.Count -ne 1 -or $overrides[0] -cne 'PackageInstaller.psm1') { throw '基础设施覆盖白名单只允许 PackageInstaller.psm1。' }
+        if ($package.Id -ceq 'flutter-tools' -and $package.Name -ceq 'JobsFlutterTools') {
+            if (($overrides -join ',') -cne 'PackageInstaller.psm1,Invoke.ps1,Manage.ps1') { throw '统一 Flutter 菜单的基础设施覆盖必须与固定白名单一致。' }
+        } elseif ($overrides.Count -ne 1 -or $overrides[0] -cne 'PackageInstaller.psm1') { throw '基础设施覆盖白名单只允许 PackageInstaller.psm1。' }
     }
     foreach ($name in @('Common.psm1', 'Invoke.ps1', 'Manage.ps1', 'PackageInstaller.psm1')) {
         # 原生 COM 包有独立生命周期；明确白名单防止同步时覆盖其注册 / 构建事务。

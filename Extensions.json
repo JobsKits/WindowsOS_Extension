@@ -28,16 +28,8 @@
     "Name": "JobsTerminalOpener"
   },
   {
-    "Id": "flutter-pub-get",
-    "Name": "JobsFlutterPubGet"
-  },
-  {
-    "Id": "flutter-version-manager",
-    "Name": "JobsFlutterVersionMgr"
-  },
-  {
-    "Id": "flutter-sdk-inspector",
-    "Name": "JobsFlutterSdkInspector"
+    "Id": "flutter-tools",
+    "Name": "JobsFlutterTools"
   },
   {
     "Id": "codegraph-bootstrap",
@@ -52,28 +44,12 @@
     "Name": "JobsGitPuller"
   },
   {
-    "Id": "flutter-dependency-extract",
-    "Name": "JobsFlutterDependencyExtractor"
-  },
-  {
-    "Id": "flutter-run",
-    "Name": "JobsFlutterRunner"
-  },
-  {
-    "Id": "flutter-package",
-    "Name": "JobsFlutterPackager"
-  },
-  {
-    "Id": "flutter-doctor",
-    "Name": "JobsFlutterDoctor"
-  },
-  {
-    "Id": "flutter-codegen",
-    "Name": "JobsFlutterCodegen"
-  },
-  {
     "Id": "android-simulator-create",
     "Name": "JobsAndroidSimulatorCreator"
+  },
+  {
+    "Id": "android-simulator-repair",
+    "Name": "JobsAndroidSimulatorRepairer"
   },
   {
     "Id": "harmony-simulator-create",
@@ -82,5 +58,9 @@
   {
     "Id": "git-proxy-configure",
     "Name": "JobsGitProxyConfigurator"
+  },
+  {
+    "Id": "clean-build-artifacts",
+    "Name": "JobsBuildArtifactCleaner"
   }
 ]

@@ -15,7 +15,7 @@ function Assert-HarmonyThrows { param([scriptblock]$Body, [string]$Message, [str
 $temporaryBase = [IO.Path]::GetTempPath()
 if ([IO.Directory]::Exists('/private/tmp')) { $temporaryBase = '/private/tmp' }
 $temporary = Join-Path $temporaryBase ('JobsHarmonySimulator-' + [guid]::NewGuid().ToString('N'))
-$environmentNames = @('LOCALAPPDATA', 'HARMONY_EMULATOR_BIN', 'DEVECO_STUDIO_HOME', 'TOOL_HOME', 'PROCESSOR_ARCHITECTURE', 'PROCESSOR_ARCHITEW6432', 'JOBS_HARMONY_TRACE', 'JOBS_HARMONY_IMAGES', 'JOBS_HARMONY_STATE', 'JOBS_HARMONY_CREATED', 'JOBS_HARMONY_COUNT', 'JOBS_HARMONY_MODE', 'JOBS_HARMONY_FAIL', 'FZF_DEFAULT_OPTS', 'FZF_DEFAULT_OPTS_FILE')
+$environmentNames = @('LOCALAPPDATA', 'HARMONY_EMULATOR_BIN', 'DEVECO_STUDIO_HOME', 'TOOL_HOME', 'HARMONY_CLT_ARCHIVE', 'PROCESSOR_ARCHITECTURE', 'PROCESSOR_ARCHITEW6432', 'JOBS_HARMONY_TRACE', 'JOBS_HARMONY_IMAGES', 'JOBS_HARMONY_STATE', 'JOBS_HARMONY_CREATED', 'JOBS_HARMONY_COUNT', 'JOBS_HARMONY_MODE', 'JOBS_HARMONY_FAIL', 'FZF_DEFAULT_OPTS', 'FZF_DEFAULT_OPTS_FILE')
 $savedEnvironment = @{}
 foreach ($name in $environmentNames) { $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 try {
@@ -25,6 +25,7 @@ try {
     $env:PROCESSOR_ARCHITEW6432 = $null
     $env:DEVECO_STUDIO_HOME = $null
     $env:TOOL_HOME = $null
+    $env:HARMONY_CLT_ARCHIVE = $null
     foreach ($name in @('TRACE', 'IMAGES', 'STATE', 'CREATED', 'COUNT')) { [Environment]::SetEnvironmentVariable(('JOBS_HARMONY_' + $name), (Join-Path $temporary ($name.ToLowerInvariant() + '.json')), 'Process') }
     $emulator = Join-Path $temporary 'DevEco 中文 & 100%/tools/emulator/Emulator.exe'
     [void][IO.Directory]::CreateDirectory((Split-Path -Parent $emulator))
@@ -35,12 +36,14 @@ if [ "$JOBS_HARMONY_FAIL" = "$1" ]; then echo fixture-error >&2; exit 37; fi
 case "$1" in
 -help)
     if [ "$JOBS_HARMONY_MODE" = old ]; then echo '-list -start'; else printf '\033[32m-create -imageList -list -start\033[0m\n'; fi ;;
--imageList) cat "$JOBS_HARMONY_IMAGES" ;;
+-imageList) if [ "$JOBS_HARMONY_MODE" = empty-native ]; then echo "No images matching the criteria were found." >&2; else cat "$JOBS_HARMONY_IMAGES"; fi ;;
 -list)
+    if [ "$JOBS_HARMONY_MODE" = empty-native ]; then echo "[Empty]"; exit 0; fi
     count=$(cat "$JOBS_HARMONY_COUNT"); count=$((count + 1)); printf '%s' "$count" > "$JOBS_HARMONY_COUNT"
     if [ "$JOBS_HARMONY_MODE" = race ] && [ "$count" -ge 2 ]; then echo '[{"name":"TestNew"}]'; else cat "$JOBS_HARMONY_STATE"; fi ;;
 -create) cp "$JOBS_HARMONY_CREATED" "$JOBS_HARMONY_STATE" ;;
 -start) echo fixture-start ;;
+-license) echo fixture-license ;;
 *) exit 91 ;;
 esac
 '@
@@ -59,13 +62,15 @@ class EmulatorFixture {
         string mode = Environment.GetEnvironmentVariable("JOBS_HARMONY_MODE");
         switch(args[0]) {
             case "-help": Console.WriteLine(mode == "old" ? "-list -start" : "\x1b[32m-create -imageList -list -start\x1b[0m"); break;
-            case "-imageList": Console.Write(File.ReadAllText(Environment.GetEnvironmentVariable("JOBS_HARMONY_IMAGES"))); break;
+            case "-imageList": if (mode == "empty-native") Console.Error.WriteLine("No images matching the criteria were found."); else Console.Write(File.ReadAllText(Environment.GetEnvironmentVariable("JOBS_HARMONY_IMAGES"))); break;
             case "-list":
+                if (mode == "empty-native") { Console.WriteLine("[Empty]"); break; }
                 string countFile = Environment.GetEnvironmentVariable("JOBS_HARMONY_COUNT");
                 int count = Int32.Parse(File.ReadAllText(countFile)) + 1; File.WriteAllText(countFile, count.ToString());
                 Console.Write(mode == "race" && count >= 2 ? "[{\"name\":\"TestNew\"}]" : File.ReadAllText(Environment.GetEnvironmentVariable("JOBS_HARMONY_STATE"))); break;
             case "-create": File.Copy(Environment.GetEnvironmentVariable("JOBS_HARMONY_CREATED"), Environment.GetEnvironmentVariable("JOBS_HARMONY_STATE"), true); break;
             case "-start": Console.WriteLine("fixture-start"); break;
+            case "-license": Console.WriteLine("fixture-license"); break;
             default: return 91;
         }
         return 0;
@@ -81,6 +86,9 @@ class EmulatorFixture {
         & /bin/chmod 700 $emulator
         if ($LASTEXITCODE -ne 0) { throw '临时 Emulator 权限设置失败。' }
     }
+    $agreements = Join-Path (Split-Path -Parent $emulator) 'agreement'
+    [void][IO.Directory]::CreateDirectory($agreements)
+    foreach ($file in @('HarmonyOS_SDK_Agreement.txt', 'HarmonyOS_Software_Service_Agreement.txt')) { [IO.File]::WriteAllText((Join-Path $agreements $file), 'Official agreement fixture') }
     $env:HARMONY_EMULATOR_BIN = $emulator
     $imageJson = '[{"SoftWareVersion":"6.0.0.112","deviceType":"phone","downloaded":"true","osVersion":"HarmonyOS 6.0.1(21)","releaseType":"Release","upgradable":"false"}]'
     function Reset-HarmonyFixture {
@@ -120,6 +128,10 @@ class EmulatorFixture {
     Assert-Harmony ((Get-Content -LiteralPath $env:JOBS_HARMONY_TRACE) -join '~' -ceq '1|-help~3|-imageList -downloaded true~2|-list -details') 'Check 仅官方只读命令，无下载 / 创建 / 启动'
     Assert-Harmony (-not [IO.Directory]::Exists($env:LOCALAPPDATA)) 'Check 不创建日志或安装状态'
     Reset-HarmonyFixture
+    $env:JOBS_HARMONY_MODE = 'empty-native'
+    $emptyCheck = & $action { Get-JobsHarmonyCheck }
+    Assert-Harmony ($emptyCheck.Images.Count -eq 0 -and $emptyCheck.Instances.Count -eq 0) '实际 CLI 空镜像 / 空实例响应正确识别'
+    Reset-HarmonyFixture
     $env:JOBS_HARMONY_MODE = 'old'
     Assert-HarmonyThrows { & $action { Get-JobsHarmonyCheck } } '旧 Emulator / Android 工具能力不足拒绝' '未确认支持 -create'
     Assert-Harmony (@(Get-Content -LiteralPath $env:JOBS_HARMONY_TRACE).Count -eq 1) '能力失败不继续查询或创建'
@@ -143,9 +155,35 @@ class EmulatorFixture {
     Assert-Harmony (@(& $action { param($File) Get-JobsHarmonyInstances $File } $emulator).Count -eq 1) '兼容单个具 name 的 JSON 对象'
     Assert-HarmonyThrows { & $action { New-JobsHarmonyName -Existing @([pscustomobject]@{name='testnew'}) -Name 'TestNew' } } '大小写同名拒绝覆盖'
     Assert-HarmonyThrows { & $action { New-JobsHarmonyName -Name 'bad & name' } } '拒绝不合法新名称'
+    foreach ($badName in @('JobsHarmony-phone', ' phone', 'phone ', "phone`n", ('P' * 65))) {
+        Assert-HarmonyThrows { & $action { param($Value) New-JobsHarmonyName -Name $Value } $badName } '原生命名规则拒绝连字符和边界非法字符' '不支持连字符'
+    }
+    foreach ($goodName in @('JobsHarmony_phone', 'Phone + 1', ('P' * 64))) {
+        Assert-Harmony ((& $action { param($Value) New-JobsHarmonyName -Name $Value } $goodName) -ceq $goodName) '允许官方支持的空格、加号和下划线'
+    }
+    # 独立 CLT SDK 路径只写入刚创建且匹配名称的实例，已有原生配置必须保留。
+    $cltEmulator = Join-Path $temporary 'CLT 中文 & 100%/emulator/Emulator.exe'
+    $cltSdk = Join-Path (Split-Path -Parent (Split-Path -Parent $cltEmulator)) 'sdk'
+    $cltHdc = Join-Path $cltSdk 'default/openharmony/toolchains/hdc.exe'
+    [void][IO.Directory]::CreateDirectory((Split-Path -Parent $cltHdc))
+    [IO.File]::WriteAllText($cltHdc, 'fixture')
+    $newDirectory = Join-Path $temporary 'deployed/NewSdk'
+    [void][IO.Directory]::CreateDirectory($newDirectory)
+    $newConfig = Join-Path $newDirectory 'config.ini'
+    $newInstance = [pscustomobject]@{ name = 'NewSdk'; instancePath = $newDirectory }
+    [IO.File]::WriteAllText($newConfig, "name=NewSdk`r`nhw.ramSize=4096`r`nsdkPath=`r`n")
+    & $action { param($Bin, $Instance) Set-JobsHarmonyCreatedSdk $Bin $Instance } $cltEmulator $newInstance
+    Assert-Harmony ([IO.File]::ReadAllText($newConfig) -ceq ("name=NewSdk`r`nhw.ramSize=4096`r`nsdkPath=" + $cltSdk + "`r`n")) 'CLT SDK 指向同包 HDC，保留其它字段和换行'
+    $nativeConfig = "name=NewSdk`nharmonyos.sdk.path=/native/sdk`n"
+    [IO.File]::WriteAllText($newConfig, $nativeConfig)
+    & $action { param($Bin, $Instance) Set-JobsHarmonyCreatedSdk $Bin $Instance } $cltEmulator $newInstance
+    Assert-Harmony ([IO.File]::ReadAllText($newConfig) -ceq $nativeConfig) '保留官方已有 SDK 路径'
+    [IO.File]::WriteAllText($newConfig, "name=Existing`n")
+    Assert-HarmonyThrows { & $action { param($Bin, $Instance) Set-JobsHarmonyCreatedSdk $Bin $Instance } $cltEmulator $newInstance } 'SDK 写入前校验新实例名称' '名称不一致'
+    Assert-Harmony ([IO.File]::ReadAllText($newConfig) -ceq "name=Existing`n") '拒绝时配置未改动'
     $first = & $action { New-JobsHarmonyName -Existing @() }
     $second = & $action { New-JobsHarmonyName -Existing @([pscustomobject]@{name=$args[0]}) } $first
-    Assert-Harmony ($first -cne $second -and $first -cmatch '^JobsHarmony_[A-Za-z0-9_]+$') '自动名称唯一且适合 CLI'
+    Assert-Harmony ($first -cne $second -and $first -cmatch '\AJobsHarmony_[A-Za-z0-9_]+\z') '自动名称唯一且适合 CLI'
     Assert-HarmonyThrows { & $action { Get-JobsHarmonyInstanceVersion ([pscustomobject]@{'os.osVersion'='A';os=[pscustomobject]@{osVersion='B'}}) } } '平铺与嵌套系统版本冲突拒绝'
     Reset-HarmonyFixture
     & $action { Invoke-JobsHarmonySimulatorAction -Target 'fixture-desktop' -Name 'TestNew' }
@@ -153,7 +191,7 @@ class EmulatorFixture {
     Assert-Harmony ($records -join '~' -ceq '1|-help~3|-imageList -downloaded true~2|-list -details~2|-list -details~6|-create TestNew -deviceType phone -osVersion HarmonyOS 6.0.1(21)~2|-list -details') '创建前重读并使用准确 -create NAME 契约，版本完整保持单 argv'
     Assert-Harmony (@($records | Where-Object { $_ -match '-start|-install|-force|-license|-name' }).Count -eq 0) '跳过启动，始终不下载/强制/接受许可/虚构-name参数'
     Reset-HarmonyFixture
-    & $action { $script:Answers.Clear(); foreach($answer in @('', '', '')) { $script:Answers.Enqueue($answer) } }
+    & $action { $script:Answers.Clear(); foreach($answer in @('', '', '', '')) { $script:Answers.Enqueue($answer) } }
     & $action { Invoke-JobsHarmonySimulatorAction -Target 'fixture-desktop' -Name 'TestNew' }
     Assert-Harmony ((Get-Content -LiteralPath $env:JOBS_HARMONY_TRACE)[-1] -ceq '2|-start TestNew') '本人选择后才启动新实例'
     Reset-HarmonyFixture
@@ -187,7 +225,7 @@ class EmulatorFixture {
     & $installer { param($Path,$Dest) New-JobsPackageRelease -PackagePath $Path -Destination $Dest } $package $release | Out-Null
     $plan = @(& $installer { param($Manifest,$Release) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath 'powershell.exe' } $manifest $release)
     Assert-Harmony ($plan.Count -eq 2 -and $plan[0].Key.Contains('DesktopBackground') -and $plan[0].Key.Contains('shellex') -and $plan[1].Key -match '95E5B535-2EB8-48CA-98B5-A14D17A0A859') '独立桌面handler与CLSID，不扩展文件夹'
-    foreach ($file in @('Run.cmd','Scripts/Action.psm1','Scripts/CreateHarmonySimulator.ps1','Scripts/DesktopScope.h','Scripts/ContextMenu.cpp')) { Assert-Harmony ([IO.File]::Exists((Join-Path $release $file))) ('独立发布完整：'+$file) }
+    foreach ($file in @('Run.cmd','Scripts/Action.psm1','Scripts/HarmonyTools.ps1','Scripts/CreateHarmonySimulator.ps1','Scripts/DesktopScope.h','Scripts/ContextMenu.cpp')) { Assert-Harmony ([IO.File]::Exists((Join-Path $release $file))) ('独立发布完整：'+$file) }
     $selector = Import-Module (Join-Path $package 'Scripts/Action.psm1') -PassThru -DisableNameChecking -Force
     & $selector { function script:Find-JobsExecutable { param($Name,$Candidates) return $null }; function script:Read-JobsHarmonyInput { param($Prompt) return '' } }
     Assert-Harmony ((& $selector { Select-JobsHarmonyChoice '镜像' @('手机中文','平板') }) -ceq '手机中文') '无 fzf 编号回车选择第一项'

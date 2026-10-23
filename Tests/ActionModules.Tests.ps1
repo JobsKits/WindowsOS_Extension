@@ -27,13 +27,16 @@ try {
     $packages = @($catalog | ForEach-Object { Get-Item -LiteralPath (Join-Path $sourceRoot $_.Name) })
     Assert-True ($packages.Count -eq $catalog.Count) '清单登记功能包均有自己的源码'
     foreach ($package in $packages) {
-        # 只复制当前功能的清单和两个模块，父目录没有安装器或其它功能可供回调。
+        # 只复制当前功能的清单、模块和本包私有依赖；父目录没有安装器或其它功能可供回调。
         $standalone = Join-Path $testRoot $package.Name
         $scripts = Join-Path $standalone 'Scripts'
         [void][IO.Directory]::CreateDirectory($scripts)
         Copy-Item -LiteralPath (Join-Path $package.FullName 'Extension.json') -Destination $standalone
         foreach ($name in @('Common.psm1', 'Action.psm1')) {
             Copy-Item -LiteralPath (Join-Path $package.FullName ('Scripts/' + $name)) -Destination $scripts
+        }
+        if ($package.Name -eq 'JobsHarmonySimulatorCreator') {
+            Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/HarmonyTools.ps1') -Destination $scripts
         }
         $manifest = Get-Content -LiteralPath (Join-Path $standalone 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         $actionPath = Join-Path $scripts 'Action.psm1'
@@ -62,6 +65,18 @@ try {
             $installRoot = & $module { Get-JobsInstallRoot }
             $expectedRoot = Join-Path (Join-Path $testRoot 'Jobs/WindowsExtension/extensions') $manifest.Id
             Assert-True ($installRoot -eq $expectedRoot) ($package.Name + ' 安装数据归当前功能')
+            if ($manifest.Id -eq 'flutter-tools') {
+                $rejected = $false
+                try { & $module { param($Target) Invoke-JobsFeature -Target $Target -Action 'unknown-action' } $testRoot } catch { $rejected = $true }
+                Assert-True $rejected '统一 Flutter 入口只接受固定动作；有效绑定及打包另由 FlutterTools.Tests.ps1 覆盖'
+                continue
+            }
+            if ($manifest.Id -eq 'android-simulator-repair') {
+                $rejected = $false
+                try { & $module { param($Target) Invoke-JobsFeature -Target $Target } $testRoot } catch { $rejected = $true }
+                Assert-True $rejected 'Android 修复入口复检并拒绝普通目录；实际业务由 AndroidSimulatorRepairer.Tests.ps1 隔离覆盖'
+                continue
+            }
             $result = & $module {
                 param($Id, $Target)
                 function script:Set-Clipboard { param($Value) $script:Captured = $Value }
@@ -85,6 +100,7 @@ try {
                 function script:Invoke-JobsFlutterPackageAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterDoctorAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterCodegenAction { param($Target) $script:Captured = $Target }
+                function script:Invoke-JobsBuildCleanAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsFlutterAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsCodeGraphAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsGitAction { param($Directory) $script:Captured = $Directory }

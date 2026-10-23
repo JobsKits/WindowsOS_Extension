@@ -1,0 +1,11 @@
+{
+  "Id": "flutter-tools",
+  "Name": "JobsFlutterCodegen",
+  "Label": "Flutter 自动化生产代码",
+  "Description": "仅 Flutter 根目录显示；预览已配置生成器，确认后获取依赖并生成代码，删除冲突必须另行明确启用。",
+  "DirectoryOnly": true,
+  "Console": true,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

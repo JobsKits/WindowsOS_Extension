@@ -1,8 +1,8 @@
 {
   "Id": "harmony-simulator-create",
   "Name": "JobsHarmonySimulatorCreator",
-  "Label": "新建鸿蒙模拟器",
-  "Description": "仅 x64 Windows 系统桌面空白显示；选择本机已下载的 HarmonyOS 镜像，创建独立新实例并可选启动；不安装工具或下载镜像。",
+  "Label": "新建 Harmony 模拟器",
+  "Description": "仅 x64 Windows 系统桌面空白显示；缺工具从 SDL 免登录镜像补齐，缺系统镜像由官方 Emulator 下载；回车选稳定版手机、确认许可、创建唯一实例并启动。",
   "DirectoryOnly": true,
   "Console": true,
   "InfrastructureOverrides": [

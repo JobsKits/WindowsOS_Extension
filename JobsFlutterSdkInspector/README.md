@@ -1,3 +1,5 @@
+> 本功能的右键入口已迁入 [JobsFlutterTools](../JobsFlutterTools/README.md)。以下保留旧独立工程的实现说明；新安装使用统一菜单与项目 FVM。原“Flutter项目体检”在新菜单中称为“原生Flutter项目体检”。
+
 # `JobsFlutterSdkInspector`
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
@@ -57,7 +59,7 @@
 > **目的：** 只移除“查看当前 Flutter SDK 版本”，保留可追溯数据。
 
 - 确认后备份本包注册，移除本包菜单和开始菜单卸载快捷方式。
-- 保留 `settings.json` 并写入 `Enabled=false`，不让旧版总配置重新启用本项。
+- 保留 `settings.json` 并写入 `Enabled=false`，避免兼容配置重新启用本项。
 - 保留本包运行版本、日志、备份和私有工具；不删除其他软件，也不停止其他会话。
 - 需要彻底清理时，先等待本包会话退出，再手动清理本包部署目录。
 

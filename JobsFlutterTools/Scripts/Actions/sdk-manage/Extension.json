@@ -1,0 +1,8 @@
+{
+  "Id": "flutter-tools",
+  "Name": "JobsFlutterVersionMgr",
+  "Label": "Flutter SDK 安装/切换（FVM）",
+  "Description": "严格校验 Flutter 项目，在终端体检工具链并使用 fzf 选择 Flutter SDK 版本。",
+  "DirectoryOnly": true,
+  "Console": true
+}

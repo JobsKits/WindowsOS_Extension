@@ -33,7 +33,7 @@ try {
             Assert-Architecture ($source -notmatch '(?:\.\.[\\/])+(?:Scripts|Infrastructure|Jobs[A-Z])') ('包不引用父工程或其它功能：' + $script.Name)
         }
         if ($package.Id -eq 'harmony-simulator-create') {
-            foreach ($name in @('Run.cmd', 'Scripts/Build.ps1', 'Scripts/ContextMenu.cpp', 'Scripts/DesktopScope.h', 'Scripts/CreateHarmonySimulator.ps1')) {
+            foreach ($name in @('Run.cmd', 'Scripts/Build.ps1', 'Scripts/ContextMenu.cpp', 'Scripts/DesktopScope.h', 'Scripts/CreateHarmonySimulator.ps1', 'Scripts/HarmonyTools.ps1')) {
                 Assert-Architecture (Test-Path -LiteralPath (Join-Path $standalone $name) -PathType Leaf) ('鸿蒙独立运行与原生源码齐全：' + $name)
             }
             Assert-Architecture (@($package.InfrastructureOverrides).Count -eq 1 -and $package.InfrastructureOverrides[0] -ceq 'PackageInstaller.psm1') '鸿蒙安装器独立覆盖且保留其它基础设施模板'
@@ -51,12 +51,22 @@ try {
         $expected = 4
         if ($package.DirectoryOnly) { $expected = 3 }
         if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) { $expected = 4 }
-        if ($package.Id -in @('android-simulator-create', 'harmony-simulator-create')) { $expected = 2 }
+        if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create')) { $expected = 2 }
         if ($package.Id -eq 'git-proxy-configure') { $expected = 1 }
+        if ($package.Id -eq 'flutter-tools') { $expected = 68 }
         Assert-Architecture ($plan.Count -eq $expected) ('本包只注册自己的上下文：' + $package.Id)
         foreach ($item in $plan) {
-            if ($package.Id -in @('android-simulator-create', 'harmony-simulator-create')) {
+            if ($package.Id -eq 'flutter-tools') {
+                if ($item.Enabled) {
+                    Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.flutter-tools') -or $item.Key.EndsWith('CLSID\{55C8C7A9-8625-4AF0-8598-DFA975064F0C}')) '统一 Flutter 只启用自己的处理器'
+                } else {
+                    Assert-Architecture ($item.Owner -eq 'Jobs.WindowsExtension.v1' -and $item.Key -match 'Jobs\.WindowsExtension\.flutter-(pub-get|version-manager|sdk-inspector|dependency-extract|run|package|doctor|codegen)$') '迁移只停用固定旧 Flutter 入口'
+                }
+                continue
+            }
+            if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create')) {
                 $clsid = '{9591D98B-3481-4E05-BE24-470FCDFD0E23}'
+                if ($package.Id -eq 'android-simulator-repair') { $clsid = '{A6D8DCE0-B691-4CC9-A3C5-F02B8BC704E5}' }
                 if ($package.Id -eq 'harmony-simulator-create') { $clsid = '{95E5B535-2EB8-48CA-98B5-A14D17A0A859}' }
                 Assert-Architecture ($item.Key -eq ('Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $package.Id) -or $item.Key -eq ('Software\Classes\CLSID\' + $clsid)) ('模拟器只注册桌面背景及本包 CLSID：' + $package.Id)
                 if ($item.Key.EndsWith('CLSID\' + $clsid)) {
@@ -74,7 +84,8 @@ try {
         }
         $copied = Get-Content -LiteralPath (Join-Path $release 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         Assert-Architecture ($copied.Id -eq $package.Id) '部署只包含所选包的清单'
-        Assert-Architecture (@(Get-ChildItem -LiteralPath $release -Recurse -File | Where-Object { $_.Name -eq 'Action.psm1' }).Count -eq 1) '一次安装只打包一个功能业务'
+        $workers = if ($package.Id -eq 'flutter-tools') { 9 } else { 1 }
+        Assert-Architecture (@(Get-ChildItem -LiteralPath $release -Recurse -File | Where-Object { $_.Name -eq 'Action.psm1' }).Count -eq $workers) '统一组包含自己的必要 worker，其它包只含单功能业务'
     }
     Assert-Architecture (@($roots | Select-Object -Unique).Count -eq $expectedCount) '登记的功能安装状态彼此独立'
     $single = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @($packages[2].Id) -Installed @() -Mode Install)

@@ -1,7 +1,9 @@
 @echo off
 setlocal
-rem Created by Jobs on 2026-10-19. Independent feature package.
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File "%~dp0Scripts\Manage.ps1" -Mode Install
-set "jobsExitCode=%errorlevel%"
-if not "%jobsExitCode%"=="0" pause
-exit /b %jobsExitCode%
+rem Legacy entry delegates to the unified Flutter menu owner.
+if not exist "%~dp0..\JobsFlutterTools\Install.cmd" (
+  echo Please download the complete WindowsOS@Extension including JobsFlutterTools.
+  exit /b 1
+)
+call "%~dp0..\JobsFlutterTools\Install.cmd"
+exit /b %errorlevel%
