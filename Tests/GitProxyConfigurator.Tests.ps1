@@ -78,6 +78,16 @@ try {
     $candidates=@(& $policy { Get-JobsGitProxyCandidates @{Enabled=$true;Server='https=proxy.example.test:8765;http=proxy.example.test:8765;socks=[::1]:9876';Bypass=''} })
     Assert-Proxy ($candidates.Count -eq 2 -and $candidates[0] -eq 'http://proxy.example.test:8765' -and $candidates[1] -eq 'socks5h://[::1]:9876') 'WinINET candidates deduplicate in priority order'
     foreach($case in @(
+        @{Enabled=$true;Server='https=secure.example.test:8765;http=plain.example.test:8766;socks=[::1]:9876';Expected='http://secure.example.test:8765|http://plain.example.test:8766|socks5h://[::1]:9876'},
+        @{Enabled=$true;Server=' https = proxy.example.test:8765 ; http = ;socks=[::1]:0';Expected='http://proxy.example.test:8765'},
+        @{Enabled=$true;Server='https=proxy.example.test:80=unexpected;http=plain.example.test:8080';Expected='http://plain.example.test:8080'},
+        @{Enabled=$true;Server='proxy.example.test:9876';Expected='http://proxy.example.test:9876'},
+        @{Enabled=$false;Server='https=proxy.example.test:8765';Expected=''}
+    )) {
+        $actual=@(& $policy {param($Snapshot) Get-JobsGitProxyCandidates $Snapshot} $case)
+        Assert-Proxy (($actual -join '|') -ceq $case.Expected) 'Framework-compatible WinINET parsing preserves endpoint rules'
+    }
+    foreach($case in @(
         @{Host='a.example.test';Rules='.example.test';Value=$true},
         @{Host='a.example.test';Rules='*.example.test';Value=$true},
         @{Host='printer';Rules='<local>';Value=$true},

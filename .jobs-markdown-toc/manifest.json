@@ -56,6 +56,12 @@
     "JobsPathCopier/Scripts/README.md",
     "JobsTerminalOpener/Scripts/README.md",
     "JobsVSCodeOpener/Scripts/README.md",
-    "JobsVisualStudioOpener/Scripts/README.md"
+    "JobsVisualStudioOpener/Scripts/README.md",
+    "JobsHarmonySimulatorRepairer/README.md",
+    "JobsHarmonySimulatorRepairer/Scripts/README.md",
+    "JobsRunAuthorizer/README.md",
+    "JobsRunAuthorizer/Scripts/README.md",
+    "JobsRunAuthorizationRevoker/README.md",
+    "JobsRunAuthorizationRevoker/Scripts/README.md"
   ]
 }

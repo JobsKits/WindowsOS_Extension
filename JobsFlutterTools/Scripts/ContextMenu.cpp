@@ -18,6 +18,57 @@ const CLSID CLSID_JobsFlutterTools = {0x55c8c7a9,0x8625,0x4af0,{0x85,0x98,0xdf,0
 static HMODULE moduleHandle;
 static std::atomic<long> objects(0);
 
+static std::wstring ReleaseFolder() {
+    wchar_t path[32768];
+    const DWORD length = GetModuleFileNameW(moduleHandle, path, 32768);
+    if (!length || length >= 32768) return L"";
+    std::wstring folder(path);
+    folder.resize(folder.find_last_of(L"\\/"));
+    folder.resize(folder.find_last_of(L"\\/"));
+    return folder;
+}
+static bool ReadSelection(JobsFlutterTools::Selection& selected, std::wstring* currentRelease = nullptr) {
+    selected.fill(false);
+    auto folder = ReleaseFolder();
+    if (folder.empty()) return false;
+    wchar_t local[32768];
+    DWORD localLength = GetEnvironmentVariableW(L"LOCALAPPDATA", local, 32768);
+    if (!localLength || localLength >= 32768) {
+        if (FAILED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, local))) return false;
+    }
+    const auto statePath = std::wstring(local) + L"\\Jobs\\WindowsExtension\\extensions\\flutter-tools\\menu-state.txt";
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (GetFileAttributesExW(statePath.c_str(), GetFileExInfoStandard, &data)) {
+        if ((data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) || data.nFileSizeHigh || data.nFileSizeLow > 65536) return false;
+        std::ifstream state(statePath.c_str(), std::ios::binary);
+        if (!state) return false;
+        const std::string stateText((std::istreambuf_iterator<char>(state)), std::istreambuf_iterator<char>());
+        std::string release;
+        if (!JobsFlutterTools::ParseMenuState(stateText, release, selected)) return false;
+        const int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, release.data(), static_cast<int>(release.size()), nullptr, 0);
+        if (!length || release.find('\0') != std::string::npos) return false;
+        folder.resize(length);
+        if (!MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, release.data(), static_cast<int>(release.size()), &folder[0], length) || PathIsRelativeW(folder.c_str()) || PathIsUNCW(folder.c_str())) return false;
+        if (currentRelease) *currentRelease = folder;
+        return true;
+    }
+    if (GetLastError() != ERROR_FILE_NOT_FOUND && GetLastError() != ERROR_PATH_NOT_FOUND) return false;
+    const auto path = folder + L"\\menu-actions.txt";
+    if (!GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data)) {
+        if (GetLastError() != ERROR_FILE_NOT_FOUND) return false;
+        selected.fill(true); // 旧 release 没有子功能白名单，保持全开兼容。
+        if (currentRelease) *currentRelease = folder;
+        return true;
+    }
+    if ((data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) || data.nFileSizeHigh || data.nFileSizeLow > 4096) return false;
+    std::ifstream input(path.c_str(), std::ios::binary);
+    if (!input) return false;
+    const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    if (!JobsFlutterTools::ParseSelection(text, selected)) return false;
+    if (currentRelease) *currentRelease = folder;
+    return true;
+}
+
 static bool IsPlainPath(const std::wstring& path, bool directory) {
     const DWORD attributes = GetFileAttributesW(path.c_str());
     if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_REPARSE_POINT)) return false;
@@ -100,32 +151,44 @@ public:
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
         if ((flags & CMF_DEFAULTONLY) || first > last || last - first + 1 < JobsFlutterTools::Count || !IsProject(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
+        JobsFlutterTools::Selection selected;
+        if (!ReadSelection(selected)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
         HMENU development = CreatePopupMenu(), doctors = CreatePopupMenu(), repairs = CreatePopupMenu();
         if (!development || !doctors || !repairs) {
             if (development) DestroyMenu(development); if (doctors) DestroyMenu(doctors); if (repairs) DestroyMenu(repairs);
             return E_OUTOFMEMORY;
         }
         for (UINT i = 0; i < JobsFlutterTools::Count; ++i) {
+            if (!selected[i]) continue;
             HMENU parent = i < 8 || i == 10 ? development : (i < 10 ? doctors : repairs);
-            if (i == 10 && !AppendMenuW(development, MF_POPUP, reinterpret_cast<UINT_PTR>(doctors), L"Flutter项目体检")) {
+            if (!AppendMenuW(parent, MF_STRING, first + i, JobsFlutterTools::Entries[i].label)) {
                 DestroyMenu(development); DestroyMenu(doctors); DestroyMenu(repairs); return E_FAIL;
             }
-            if (!AppendMenuW(parent, MF_STRING, first + i, JobsFlutterTools::Entries[i].label)) {
-                DestroyMenu(development); if (i < 10) DestroyMenu(doctors); DestroyMenu(repairs); return E_FAIL;
-            }
         }
-        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(development), L"Flutter开发相关辅助工具")) { DestroyMenu(development); DestroyMenu(repairs); return E_FAIL; }
-        if (!InsertMenuW(menu, position + 1, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(repairs), L"Flutter项目修复")) { RemoveMenu(menu, position, MF_BYPOSITION); DestroyMenu(development); DestroyMenu(repairs); return E_FAIL; }
+        if (GetMenuItemCount(doctors) > 0) {
+            if (!AppendMenuW(development, MF_POPUP, reinterpret_cast<UINT_PTR>(doctors), L"Flutter项目体检")) {
+                DestroyMenu(development); DestroyMenu(doctors); DestroyMenu(repairs); return E_FAIL;
+            }
+        } else { DestroyMenu(doctors); }
+        bool insertedDevelopment = false;
+        if (GetMenuItemCount(development) > 0) {
+            if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(development), L"Flutter开发相关辅助工具")) { DestroyMenu(development); DestroyMenu(repairs); return E_FAIL; }
+            insertedDevelopment = true;
+        } else { DestroyMenu(development); }
+        if (GetMenuItemCount(repairs) > 0) {
+            if (!InsertMenuW(menu, position + (insertedDevelopment ? 1 : 0), MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(repairs), L"Flutter项目修复")) {
+                if (insertedDevelopment) { RemoveMenu(menu, position, MF_BYPOSITION); DestroyMenu(development); }
+                DestroyMenu(repairs); return E_FAIL;
+            }
+        } else { DestroyMenu(repairs); }
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, JobsFlutterTools::Count);
     }
 
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {
         if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) >= JobsFlutterTools::Count || !IsProject(target)) return E_INVALIDARG;
-        wchar_t modulePath[32768];
-        if (!GetModuleFileNameW(moduleHandle, modulePath, 32768)) return E_FAIL;
-        std::wstring folder(modulePath);
-        folder.resize(folder.find_last_of(L"\\/"));
-        folder.resize(folder.find_last_of(L"\\/"));
+        JobsFlutterTools::Selection selected;
+        std::wstring folder;
+        if (!ReadSelection(selected, &folder) || !selected[LOWORD(info->lpVerb)]) return E_ACCESSDENIED;
         const std::wstring script = folder + L"\\Scripts\\OpenCmd.ps1";
         wchar_t system[32768];
         if (!GetSystemDirectoryW(system, 32768)) return E_FAIL;

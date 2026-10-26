@@ -1,4 +1,4 @@
-> 本功能的右键入口已迁入 [JobsFlutterTools](../JobsFlutterTools/README.md)。以下保留旧独立工程的实现说明；新安装使用统一菜单与项目 FVM。原“Flutter项目体检”在新菜单中称为“原生Flutter项目体检”。
+> 当前 `Install.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Uninstall.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
 
 # `JobsFlutterCodegen`
 
@@ -21,21 +21,27 @@
 
 ## 🔥 <span id="前言">前言</span>
 
-仅在真实 [**Flutter**](https://flutter.dev/) 根目录提供“Flutter 自动化生产代码”资源管理器右键菜单。每包自包含，可独立复制、安装和卸载；在 CMD 中显示 PowerShell 的执行输出与日志。
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
+仅在真实 [**Flutter**](https://flutter.dev/) 根目录提供“Flutter 自动化生产代码”资源管理器右键菜单。本目录保留旧业务源码与卸载入口，新安装由统一包承接；在 CMD 中显示 PowerShell 的执行输出与日志。
 
 | 入口 / 情况 | 实际行为 |
 | --- | --- |
-| [Install.cmd](./Install.cmd) / [Uninstall.cmd](./Uninstall.cmd) | 本包独立安装 / 卸载，只处理当前用户的本功能菜单。 |
+| [Install.cmd](./Install.cmd) / [Uninstall.cmd](./Uninstall.cmd) | 安装转交同级 JobsFlutterTools；卸载只处理本旧功能。 |
 | Flutter 根目录单选或根目录空白处 | 原生 COM 检查同层 `pubspec.yaml` 的 `dependencies.flutter.sdk: flutter`，符合才插入菜单。 |
 | 普通目录、项目子目录、文件、多选、网络盘或重解析路径 | 不显示本菜单；点击后再次验证，且不查父目录或扫描子项目。 |
 | 已声明 FVM | 优先项目 `.fvm/flutter_sdk`；缺失、不完整或悬空时停止，提示先手动修复，不改用全局 Flutter。 |
 | 点击菜单 | 只读生成计划（含 pub get）→ 回车确认 → `flutter pub get` → 已启用生成器；没有可用生成器时经确认仅执行 pub get。 |
 
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**当前入口与依赖：** `Install.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Uninstall.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
+
 ## 一、<span id="installation">安装、卸载与依赖</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 需要 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面、系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop 和 .NET。安装动态菜单还需要现有 [**Visual Studio Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的 C++ 桌面工作负载（MSVC / Windows SDK 与目标架构工具）。缺少时在注册前停止；安装入口不下载编译器、不提权、不更改系统执行策略。
 
-1、双击 `Install.cmd`，查看来源、目标与影响范围，在默认取消的确认窗口选择安装。也可在[总面板](../README.md#installation)仅勾选本功能。
+1、新安装保留同级 `JobsFlutterTools`，双击 `Install.cmd` 转交统一包，或在[总面板](../README.md#installation)选择统一 Flutter 工具组。以下逐包 release / COM 事务说明对应保留的旧安装实现；本目录 `Uninstall.cmd` 仍只卸载旧功能。
 
 2、安装器先复制本包独立 release、校验哈希并编译原生 DLL，再保存当前用户菜单及状态备份，提交 COM 注册。失败则停止或按事务快照恢复。
 

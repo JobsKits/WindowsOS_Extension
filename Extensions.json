@@ -12,6 +12,14 @@
     "Name": "JobsPathCopier"
   },
   {
+    "Id": "run-authorize",
+    "Name": "JobsRunAuthorizer"
+  },
+  {
+    "Id": "run-authorization-revoke",
+    "Name": "JobsRunAuthorizationRevoker"
+  },
+  {
     "Id": "open-visual-studio",
     "Name": "JobsVisualStudioOpener"
   },
@@ -54,6 +62,10 @@
   {
     "Id": "harmony-simulator-create",
     "Name": "JobsHarmonySimulatorCreator"
+  },
+  {
+    "Id": "harmony-simulator-repair",
+    "Name": "JobsHarmonySimulatorRepairer"
   },
   {
     "Id": "git-proxy-configure",

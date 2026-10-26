@@ -223,7 +223,10 @@ function Publish-JobsHarmonyBinding {
         if ((Get-JobsHarmonyBindingStamp $Project) -cne $Stamp) { throw '发布前项目绑定已改变，未写入。' }
         [void][IO.Directory]::CreateDirectory($fvm)
         $linkType = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { 'Junction' } else { 'SymbolicLink' }
-        [void](New-Item -ItemType $linkType -Path $stageLink -Target $Sdk)
+        # Windows PowerShell 5.1 会把 Target 当通配路径，7.x 则按字面目标处理。
+        $linkTarget = $Sdk
+        if ($PSVersionTable.PSVersion.Major -eq 5) { $linkTarget = [Management.Automation.WildcardPattern]::Escape($Sdk) }
+        [void](New-Item -ItemType $linkType -Path $stageLink -Target $linkTarget)
         if ($hadLink) { [IO.Directory]::Move($link, $oldLink); $oldMoved = $true }
         [IO.Directory]::Move($stageLink, $link); $linkPublished = $true
         Complete-JobsHarmonyConfigPublication $stageConfig $configPath $hadConfig

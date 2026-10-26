@@ -25,7 +25,7 @@
 
 | 文件 | 职责 |
 | --- | --- |
-| [Action.psm1](./Action.psm1) | Android APK/AAB 与鸿蒙 HAP/APP；BUILD_MODE 默认 release，Android 可设 FLAVOR，鸿蒙需要适配 SDK 并拒绝 flavor。 |
+| [Action.psm1](./Action.psm1) | Android APK/AAB 与 OpenHarmony HAP/APP；BUILD_MODE 默认 release，Android 可设 FLAVOR，OpenHarmony 需要适配 SDK 并拒绝 flavor。 |
 | [Common.psm1](./Common.psm1) | 本模块随包运行路径、目标、进程调用和日志辅助。 |
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、调用、依赖与参数 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
@@ -34,7 +34,7 @@
 
 ## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、副作用、日志与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-Android APK/AAB 与鸿蒙 HAP/APP；BUILD_MODE 默认 release，Android 可设 FLAVOR，鸿蒙需要适配 SDK 并拒绝 flavor。
+Android APK/AAB 与 OpenHarmony HAP/APP；BUILD_MODE 默认 release，Android 可设 FLAVOR，OpenHarmony 需要适配 SDK 并拒绝 flavor。
 
 业务输出、临时会话、配置快照及产物按该 Action 与统一包说明保存，实际日志位置由终端显示。项目路径作为数据传递，先校验目标再执行；取消不自动进入其它动作。本文按源码静态核对，未操作真实 SDK、项目、模拟器、菜单或注册表。
 

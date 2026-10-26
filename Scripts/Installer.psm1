@@ -46,7 +46,16 @@ function Get-JobsFeatureSelectionLayout {
         break
     }
     if ($columns -eq 0) {
-        throw '当前桌面工作区过小，无法完整显示功能与按钮；请降低显示缩放或提高屏幕分辨率后重试。'
+        if ($WorkingWidth -lt 500 * $Scale -or $WorkingHeight -lt 360 * $Scale) {
+            throw '当前桌面工作区过小，无法显示固定操作按钮；请降低显示缩放或提高屏幕分辨率后重试。'
+        }
+        $columns = 1
+        if ($WorkingWidth -ge 900 * $Scale) { $columns = 2 }
+        $rows = [int][Math]::Ceiling($ItemCount / [double]$columns)
+        $width = [int][Math]::Min(1020 * $Scale, $WorkingWidth - 48 * $Scale)
+        $height = $maxHeight
+        $header = [int][Math]::Ceiling(118 * $Scale)
+        $footer = [int][Math]::Ceiling(104 * $Scale)
     }
     return [pscustomobject]@{
         Columns = $columns; Rows = $rows; ClientWidth = $width; ClientHeight = $height
@@ -82,7 +91,7 @@ function New-JobsFeatureSelectionForm {
         $layout = Get-JobsFeatureSelectionLayout -ItemCount $features.Count -WorkingWidth $area.Width -WorkingHeight $area.Height -RowHeight $rowHeight -Scale $scale
         $form.Text = 'Jobs Windows · 安装资源管理器扩展'
         $action = '安装'
-        $description = '勾选需要安装或更新的功能，未勾选的已安装功能继续保留。'
+        $description = '勾选需要安装的子功能；Flutter 按本次勾选替换，其它未选功能保留。'
         if ($Mode -eq 'Configure') {
             $form.Text = 'Jobs Windows · 配置资源管理器扩展'
             $action = '保存配置'
@@ -112,17 +121,44 @@ function New-JobsFeatureSelectionForm {
         $header.Padding = New-Object System.Windows.Forms.Padding($padding)
         $header.Text = "资源管理器右键扩展 · $action`r`n$description`r`n悬停查看功能说明；Windows 11：右键 → 显示更多选项。"
 
-        $grid = New-Object System.Windows.Forms.TableLayoutPanel
+        $grid = New-Object System.Windows.Forms.FlowLayoutPanel
         $grid.Dock = 'Fill'
         $grid.Padding = New-Object System.Windows.Forms.Padding($padding, 0, $padding, 0)
-        $grid.AutoScroll = $false
-        $grid.ColumnCount = $layout.Columns
-        $grid.RowCount = $layout.Rows
-        for ($column = 0; $column -lt $layout.Columns; $column++) {
-            [void]$grid.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle('Percent', (100.0 / $layout.Columns))))
+        $grid.AutoScroll = $true
+        $grid.WrapContents = $true
+        $grid.FlowDirection = 'LeftToRight'
+        $groupStates = @()
+        $groupNames = @()
+        foreach ($feature in $features) {
+            $groupName = '其它右键功能'
+            if ($null -ne $feature.PSObject.Properties['Group']) { $groupName = [string]$feature.Group }
+            if ($groupName -cnotin $groupNames) { $groupNames += $groupName }
         }
-        for ($row = 0; $row -lt $layout.Rows; $row++) {
-            [void]$grid.RowStyles.Add((New-Object System.Windows.Forms.RowStyle('Absolute', $rowHeight)))
+        $panelWidth = [int](($layout.ClientWidth - 2 * $padding - 24 * $scale) / $layout.Columns) - 8
+        $groupForId = @{}
+        foreach ($groupName in $groupNames) {
+            $items = @($features | Where-Object {
+                $name = '其它右键功能'
+                if ($null -ne $_.PSObject.Properties['Group']) { $name = [string]$_.Group }
+                $name -ceq $groupName
+            })
+            $box = New-Object System.Windows.Forms.GroupBox
+            $box.Text = $groupName
+            $box.Size = New-Object System.Drawing.Size($panelWidth, ([int](76 * $scale) + $items.Count * $rowHeight))
+            $box.Margin = New-Object System.Windows.Forms.Padding(0, 0, 8, 10)
+            $all = New-Object System.Windows.Forms.Button
+            $all.Text = '全选'
+            $all.SetBounds(([int](8 * $scale)), ([int](24 * $scale)), ([int](74 * $scale)), ([int](30 * $scale)))
+            $none = New-Object System.Windows.Forms.Button
+            $none.Text = '全不选'
+            $none.SetBounds(([int](88 * $scale)), ([int](24 * $scale)), ([int](80 * $scale)), ([int](30 * $scale)))
+            $counter = New-Object System.Windows.Forms.Label
+            $counter.SetBounds(([int](174 * $scale)), ([int](29 * $scale)), ($panelWidth - [int](180 * $scale)), ([int](24 * $scale)))
+            $box.Controls.AddRange(@($all, $none, $counter))
+            $group = [pscustomobject]@{ Name = $groupName; Box = $box; Checks = @(); All = $all; None = $none; Counter = $counter }
+            foreach ($item in $items) { $groupForId[$item.Id] = $group }
+            $groupStates += $group
+            $grid.Controls.Add($box)
         }
         $checks = @()
         for ($index = 0; $index -lt $features.Count; $index++) {
@@ -130,15 +166,15 @@ function New-JobsFeatureSelectionForm {
             $check = New-Object System.Windows.Forms.CheckBox
             $check.Text = $feature.Label
             $check.Tag = $feature.Id
-            $check.Dock = 'Fill'
             $check.AutoEllipsis = $true
             $check.Margin = New-Object System.Windows.Forms.Padding(4, 0, 4, 0)
             $check.Checked = $feature.Id -in $Selected
             $toolTip.SetToolTip($check, ($feature.Label + "`r`n" + $feature.Description))
-            $column = [int][Math]::Floor($index / [double]$layout.Rows)
-            $row = $index % $layout.Rows
+            $group = $groupForId[$feature.Id]
+            $check.SetBounds(([int](8 * $scale)), ([int](66 * $scale) + $group.Checks.Count * $rowHeight), ($panelWidth - [int](16 * $scale)), $rowHeight)
             $check.TabIndex = $index
-            $grid.Controls.Add($check, $column, $row)
+            $group.Box.Controls.Add($check)
+            $group.Checks += $check
             $checks += $check
         }
 
@@ -170,6 +206,7 @@ function New-JobsFeatureSelectionForm {
             Form = $form; Checks = $checks; ConfirmButton = $buttons[2]
             SelectAllButton = $buttons[0]; ClearButton = $buttons[1]; CancelButton = $buttons[3]
             StatusLabel = $status; Layout = $layout; Mode = $Mode; ToolTip = $toolTip; Font = $font
+            Groups = $groupStates; ContentPanel = $grid; Footer = $footer
         }
         # 闭包保留表单状态，事件不依赖已返回的构造函数局部作用域。
         $refresh = {
@@ -178,8 +215,19 @@ function New-JobsFeatureSelectionForm {
             $state.ConfirmButton.Enabled = $count -gt 0 -or $state.Mode -eq 'Configure'
             $state.Form.AcceptButton = $null
             if ($state.ConfirmButton.Enabled) { $state.Form.AcceptButton = $state.ConfirmButton }
+            foreach ($group in $state.Groups) {
+                $groupCount = @($group.Checks | Where-Object { $_.Checked }).Count
+                $group.Counter.Text = '已选 {0} / {1}' -f $groupCount, $group.Checks.Count
+                $group.All.Enabled = $groupCount -lt $group.Checks.Count
+                $group.None.Enabled = $groupCount -gt 0
+            }
         }.GetNewClosure()
         foreach ($check in $checks) { $check.Add_CheckedChanged($refresh) }
+        foreach ($group in $groupStates) {
+            $localGroup = $group
+            $group.All.Add_Click({ foreach ($check in $localGroup.Checks) { $check.Checked = $true } }.GetNewClosure())
+            $group.None.Add_Click({ foreach ($check in $localGroup.Checks) { $check.Checked = $false } }.GetNewClosure())
+        }
         $buttons[0].Add_Click({ foreach ($check in $state.Checks) { $check.Checked = $true } }.GetNewClosure())
         $buttons[1].Add_Click({ foreach ($check in $state.Checks) { $check.Checked = $false } }.GetNewClosure())
         $buttons[2].Add_Click({

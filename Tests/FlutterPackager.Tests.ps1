@@ -176,9 +176,9 @@ class FzfFixture {
         $env:JOBS_FAKE_FZF_CHOICE = 'Android'
         Assert-Packager ((& $selector { Select-JobsPackagerChoice '平台' @('Android', 'iOS') }) -ceq 'Android') 'fzf 仅返回提供的单项，并隔离用户 execute 配置'
         Assert-Packager ($env:FZF_DEFAULT_OPTS -ceq '--bind=enter:execute(unsafe)' -and $env:FZF_DEFAULT_OPTS_FILE -ceq 'untrusted-options') '选择后恢复 fzf 配置'
-        $env:JOBS_FAKE_FZF_CHOICE = 'HarmonyOS（鸿蒙）'
+        $env:JOBS_FAKE_FZF_CHOICE = 'OpenHarmony'
         $consoleEncoding = [Console]::OutputEncoding.CodePage
-        Assert-Packager ((& $selector { Select-JobsPackagerChoice '平台' @('Android', 'iOS', 'HarmonyOS（鸿蒙）') }) -ceq 'HarmonyOS（鸿蒙）') 'fzf UTF-8 支持中文鸿蒙平台名'
+        Assert-Packager ((& $selector { Select-JobsPackagerChoice '平台' @('Android', 'iOS', 'OpenHarmony') }) -ceq 'OpenHarmony') 'fzf UTF-8 支持中文 OpenHarmony 平台名'
         Assert-Packager ([Console]::OutputEncoding.CodePage -eq $consoleEncoding) 'fzf 选择后恢复终端输出编码'
         $env:JOBS_FAKE_FZF_CHOICE = 'injected'
         Assert-PackagerThrows { & $selector { Select-JobsPackagerChoice '平台' @('Android', 'iOS') } } '拒绝选择清单外的返回值'
@@ -192,7 +192,7 @@ class FzfFixture {
         foreach ($name in @('JOBS_FAKE_FZF_HEALTH', 'JOBS_FAKE_FZF_EXIT', 'JOBS_FAKE_FZF_CHOICE')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
     }
 
-    # 鸿蒙使用真实假工具进程，保留 SDK 选择、环境配置、能力检查及产物验证。
+    # OpenHarmony 使用真实假工具进程，保留 SDK 选择、环境配置、能力检查及产物验证。
     $harmony = Import-Module (Join-Path $package 'Scripts/Action.psm1') -PassThru -DisableNameChecking -Force
     $toolHome = Join-Path $temporary 'DevEco Studio 中文'
     $harmonySdk = Join-Path $temporary 'Harmony SDK 中文 & 100%'
@@ -262,7 +262,7 @@ class HarmonyTool {
             [IO.File]::WriteAllText($fixtureSource, $fixtureCode, (New-Object Text.UTF8Encoding($false)))
             $csc = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) 'csc.exe'
             & $csc /nologo /target:exe ('/out:' + $fixtureExecutable) $fixtureSource
-            if ($LASTEXITCODE -ne 0) { throw '临时鸿蒙工具夹具编译失败。' }
+            if ($LASTEXITCODE -ne 0) { throw '临时 OpenHarmony 工具夹具编译失败。' }
         }
         foreach ($relative in $harmonyTools + @('bin/flutter.bat')) {
             $file = Join-Path $toolHome $relative
@@ -277,7 +277,7 @@ class HarmonyTool {
             } else {
                 [IO.File]::WriteAllText($file, $fixtureBody.Replace("`r`n", "`n"), (New-Object Text.UTF8Encoding($false)))
                 & /bin/chmod 700 $file
-                if ($LASTEXITCODE -ne 0) { throw '临时鸿蒙工具权限设置失败。' }
+                if ($LASTEXITCODE -ne 0) { throw '临时 OpenHarmony 工具权限设置失败。' }
             }
         }
         [void][IO.Directory]::CreateDirectory((Join-Path $toolHome 'sdk'))
@@ -287,32 +287,32 @@ class HarmonyTool {
         foreach ($name in @('JAVA_HOME', 'NODE_HOME', 'TOOL_HOME', 'DEVECO_SDK_HOME', 'HOS_SDK_HOME', 'OHOS_SDK_HOME', 'OHOS_BUILD_TARGET', 'BUILD_MODE', 'FLAVOR', 'JOBS_OHOS_FAIL_TOOL', 'JOBS_OHOS_FAIL_COMMAND', 'JOBS_OHOS_HELP_MODE', 'JOBS_OHOS_OUTPUT_MODE')) { [Environment]::SetEnvironmentVariable($name, $null, 'Process') }
         $baseEnvironment = @{}
         foreach ($name in @('PATH', 'JAVA_HOME', 'NODE_HOME', 'TOOL_HOME', 'DEVECO_SDK_HOME', 'NO_COLOR', 'FORCE_COLOR', 'CLICOLOR', 'ANSI_COLORS_DISABLED', 'npm_config_color')) { $baseEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
-        & $harmony { Assert-JobsPackagerWindowsPlatform 'HarmonyOS（鸿蒙）' }
+        & $harmony { Assert-JobsPackagerWindowsPlatform 'OpenHarmony' }
         Assert-PackagerThrows { & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path } $project } '没有 ohos 平台时给出明确诊断'
         Assert-Packager (-not [IO.File]::Exists($trace)) '缺平台不调用任何工具'
         [void][IO.Directory]::CreateDirectory((Join-Path $project 'ohos'))
         foreach ($name in @('build-profile.json5', 'oh-package.json5')) { [IO.File]::WriteAllText((Join-Path $project ('ohos/' + $name)), '{}') }
-        Assert-Packager ((& $harmony { param($Path, $Sdk) Get-JobsPackagerFlutter -Project $Path -SdkRoot $Sdk } $project $harmonySdk) -ceq (Join-Path $harmonySdk 'bin/flutter.bat')) '显式鸿蒙 SDK 优先于 FVM，使用 Windows flutter.bat'
+        Assert-Packager ((& $harmony { param($Path, $Sdk) Get-JobsPackagerFlutter -Project $Path -SdkRoot $Sdk } $project $harmonySdk) -ceq (Join-Path $harmonySdk 'bin/flutter.bat')) '显式 OpenHarmony SDK 优先于 FVM，使用 Windows flutter.bat'
         Assert-PackagerThrows { & $harmony { param($Path) Get-JobsPackagerFlutter -Project $Path -SdkRoot 'not-absolute' } $project } '显式 SDK 无效不静默回退 FVM'
-        Assert-PackagerThrows { & $harmony { Get-JobsPackagerHarmonyOptions -Type 'apk' } } '鸿蒙拒绝 Android 产物类型'
-        Assert-PackagerThrows { & $harmony { Get-JobsPackagerHarmonyOptions -Flavor 'demo' } } '鸿蒙明确拒绝 flavor 静默退回 default 风险'
+        Assert-PackagerThrows { & $harmony { Get-JobsPackagerHarmonyOptions -Type 'apk' } } 'OpenHarmony 拒绝 Android 产物类型'
+        Assert-PackagerThrows { & $harmony { Get-JobsPackagerHarmonyOptions -Flavor 'demo' } } 'OpenHarmony 明确拒绝 flavor 静默退回 default 风险'
         $harmonyOptions = & $harmony { Get-JobsPackagerHarmonyOptions }
-        Assert-Packager ($harmonyOptions.Type -ceq 'hap' -and $harmonyOptions.Mode -ceq 'release') '鸿蒙默认 release HAP'
+        Assert-Packager ($harmonyOptions.Type -ceq 'hap' -and $harmonyOptions.Mode -ceq 'release') 'OpenHarmony 默认 release HAP'
         & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path } $project
         $records = @(Get-Content -LiteralPath $trace)
         Assert-Packager (($records | Where-Object { $_ -match '^flutter\|' }) -join '~' -cmatch 'flutter\|--version\|.*~flutter\|build hap --help\|.*~flutter\|pub get\|.*~flutter\|build hap --release\|') '真实假 SDK 健康及能力通过后才依赖和 release HAP'
-        foreach ($name in $baseEnvironment.Keys) { Assert-Packager ([Environment]::GetEnvironmentVariable($name, 'Process') -ceq $baseEnvironment[$name]) ('鸿蒙成功后恢复环境：' + $name) }
+        foreach ($name in $baseEnvironment.Keys) { Assert-Packager ([Environment]::GetEnvironmentVariable($name, 'Process') -ceq $baseEnvironment[$name]) ('OpenHarmony 成功后恢复环境：' + $name) }
         $env:JOBS_OHOS_HELP_MODE = 'color'
         [IO.File]::WriteAllText($trace, '')
         & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path -Type 'all' -Mode 'profile' } $project
         $records = @(Get-Content -LiteralPath $trace)
-        Assert-Packager (@($records | Where-Object { $_ -match '^flutter\|pub get\|' }).Count -eq 1) '鸿蒙 all 只获取依赖一次'
-        Assert-Packager (($records | Where-Object { $_ -match '^flutter\|build (hap|app) --profile\|' }) -join '~' -cmatch '^flutter\|build hap --profile\|.*~flutter\|build app --profile\|') '鸿蒙 HAP→APP 顺序，profile 和彩色能力 help 可用'
+        Assert-Packager (@($records | Where-Object { $_ -match '^flutter\|pub get\|' }).Count -eq 1) 'OpenHarmony all 只获取依赖一次'
+        Assert-Packager (($records | Where-Object { $_ -match '^flutter\|build (hap|app) --profile\|' }) -join '~' -cmatch '^flutter\|build hap --profile\|.*~flutter\|build app --profile\|') 'OpenHarmony HAP→APP 顺序，profile 和彩色能力 help 可用'
         [IO.File]::WriteAllText($trace, '')
         $env:BUILD_MODE = 'debug'
         $env:OHOS_BUILD_TARGET = 'app'
         & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path } $project
-        Assert-Packager (@(Get-Content -LiteralPath $trace | Where-Object { $_ -match '^flutter\|build app --debug\|' }).Count -eq 1) '鸿蒙读取 OHOS_BUILD_TARGET 与 BUILD_MODE'
+        Assert-Packager (@(Get-Content -LiteralPath $trace | Where-Object { $_ -match '^flutter\|build app --debug\|' }).Count -eq 1) 'OpenHarmony 读取 OHOS_BUILD_TARGET 与 BUILD_MODE'
         $env:BUILD_MODE = $null
         $env:OHOS_BUILD_TARGET = $null
         foreach ($mode in @('generic', 'error')) {
@@ -345,7 +345,7 @@ class HarmonyTool {
         foreach ($mode in @('missing', 'empty')) {
             foreach ($directory in @('ohos/entry/build', 'ohos/build')) { Remove-Item -LiteralPath (Join-Path $project $directory) -Force -Recurse -ErrorAction SilentlyContinue }
             $env:JOBS_OHOS_OUTPUT_MODE = $mode
-            Assert-PackagerThrows { & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path } $project } ('成功命令但缺失或空鸿蒙产物拒绝：' + $mode)
+            Assert-PackagerThrows { & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path } $project } ('成功命令但缺失或空 OpenHarmony 产物拒绝：' + $mode)
         }
         $env:JOBS_OHOS_OUTPUT_MODE = $null
         foreach ($relative in @('build/ohos/node_modules/pkg/outputs/fake.hap', 'ohos/entry/build/intermediates/outputs/fake.hap')) {
@@ -378,19 +378,19 @@ class HarmonyTool {
             function script:Select-JobsPackagerChoice {
                 param($Title, $Choices)
                 $script:MenuCalls += ($Choices -join '|')
-                if ($Title -ceq '选择打包平台') { return 'HarmonyOS（鸿蒙）' }
+                if ($Title -ceq '选择打包平台') { return 'OpenHarmony' }
                 return 'HAP + APP'
             }
             function script:Invoke-JobsPackagerHarmonyBuild { param($Project, $Type) $script:MenuBuild = $Type }
         }
         & $harmony { param($Path) Invoke-JobsFlutterPackageAction -Target $Path } $project
         $menuCalls = @(& $harmony { $script:MenuCalls })
-        Assert-Packager ($menuCalls[0] -ceq 'Android|iOS|HarmonyOS（鸿蒙）') '单一菜单的 fzf 平台列表追加鸿蒙'
-        Assert-Packager ($menuCalls[1] -ceq 'HAP|APP|HAP + APP') '鸿蒙 HAP 默认、APP 与两者'
-        Assert-Packager ((& $harmony { $script:MenuBuild }) -ceq 'all') '鸿蒙平台分支映射 all'
-        & $harmony { $script:MenuBuild = ''; function script:Select-JobsPackagerChoice { param($Title, $Choices) if ($Title -ceq '选择打包平台') { return 'HarmonyOS（鸿蒙）' }; return $null } }
+        Assert-Packager ($menuCalls[0] -ceq 'Android|iOS|OpenHarmony') '单一菜单的 fzf 平台列表追加 OpenHarmony'
+        Assert-Packager ($menuCalls[1] -ceq 'HAP|APP|HAP + APP') 'OpenHarmony HAP 默认、APP 与两者'
+        Assert-Packager ((& $harmony { $script:MenuBuild }) -ceq 'all') 'OpenHarmony 平台分支映射 all'
+        & $harmony { $script:MenuBuild = ''; function script:Select-JobsPackagerChoice { param($Title, $Choices) if ($Title -ceq '选择打包平台') { return 'OpenHarmony' }; return $null } }
         & $harmony { param($Path) Invoke-JobsFlutterPackageAction -Target $Path } $project
-        Assert-Packager ((& $harmony { $script:MenuBuild }) -ceq '') '取消鸿蒙产物不开始构建'
+        Assert-Packager ((& $harmony { $script:MenuBuild }) -ceq '') '取消 OpenHarmony 产物不开始构建'
     } finally {
         foreach ($name in $savedEnvironment.Keys) {
             if ($null -eq $savedEnvironment[$name]) { Remove-Item -LiteralPath ('Env:' + $name) -ErrorAction SilentlyContinue }

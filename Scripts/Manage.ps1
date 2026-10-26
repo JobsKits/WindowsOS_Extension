@@ -31,20 +31,24 @@ function Main {
     foreach ($package in $packages) {
         $module = Import-Module (Join-Path $package.PackagePath 'Scripts/PackageInstaller.psm1') -PassThru -DisableNameChecking
         $state = & $module { param($Path) Get-JobsPackageState -PackagePath $Path } $package.PackagePath
-        if ($state.Enabled) { $installed += $package.Id }
+        if ($state.Enabled) {
+            if ($package.Id -ceq 'flutter-tools') { $installed += @($state.ActionIds | ForEach-Object { 'flutter-' + $_ }) }
+            else { $installed += $package.Id }
+        }
     }
-    $display = $packages
+    $features = @(Get-JobsSelectableFeatures -Packages $packages)
+    $display = $features
     $selected = $installed
     if ($Mode -eq 'Uninstall') {
-        $display = @($packages | Where-Object { $_.Id -in $installed })
+        $display = @($features | Where-Object { $_.Id -in $installed })
         if ($Preview) {
-            $display = $packages
-            $selected = @($packages.Id)
+            $display = $features
+            $selected = @($features.Id)
         } elseif ($display.Count -eq 0) {
             [void][System.Windows.Forms.MessageBox]::Show('没有已安装的扩展。', 'Jobs Windows 独立扩展')
             return
         }
-    } elseif ($Mode -eq 'Install') { $selected = @($packages.Id) }
+    } elseif ($Mode -eq 'Install') { $selected = @($features.Id) }
     $choice = Show-JobsFeatureSelection -Packages $display -Selected $selected -Mode $Mode -Preview:$Preview
     if ($null -eq $choice) { return }
     if ($Preview) {

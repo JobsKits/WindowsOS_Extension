@@ -227,7 +227,7 @@ function Get-JobsGitProxyCandidates {
     if ($Snapshot.Server -notmatch '=') { $entries.https=$Snapshot.Server; $entries.http=$Snapshot.Server }
     else {
         foreach ($part in ($Snapshot.Server -split ';')) {
-            $pair=$part.Split(@('='),2)
+            $pair=$part.Split([char[]]'=',2,[StringSplitOptions]::None)
             if ($pair.Count -eq 2) { $entries[$pair[0].Trim().ToLowerInvariant()]=$pair[1].Trim() }
         }
     }

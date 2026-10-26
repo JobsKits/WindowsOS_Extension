@@ -399,7 +399,7 @@ function Invoke-JobsFlutterRunAction {
     param([string]$Target)
     Assert-JobsFlutterProject $Target
     if ($Target.StartsWith('\\')) { throw '本菜单只处理本机项目目录，不处理 UNC 共享。' }
-    Write-Host 'Jobs · 运行 Flutter 项目（CMD）' -ForegroundColor Red
+    Write-Host 'Jobs · 从终端运行 Flutter 项目（CMD）' -ForegroundColor Red
     Write-Host ('来源：' + $PSScriptRoot) -ForegroundColor Cyan
     Write-Host ('项目：' + $Target)
     Write-Host '设备选择后启动 flutter run --machine；运行日志进入 CMD 和本功能日志目录。'

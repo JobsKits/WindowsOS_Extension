@@ -51,7 +51,8 @@ try {
         $expected = 4
         if ($package.DirectoryOnly) { $expected = 3 }
         if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) { $expected = 4 }
-        if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create')) { $expected = 2 }
+        if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create', 'harmony-simulator-repair')) { $expected = 2 }
+        if ($package.Id -in @('run-authorize', 'run-authorization-revoke')) { $expected = 2 }
         if ($package.Id -eq 'git-proxy-configure') { $expected = 1 }
         if ($package.Id -eq 'flutter-tools') { $expected = 68 }
         Assert-Architecture ($plan.Count -eq $expected) ('本包只注册自己的上下文：' + $package.Id)
@@ -64,10 +65,11 @@ try {
                 }
                 continue
             }
-            if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create')) {
+            if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create', 'harmony-simulator-repair')) {
                 $clsid = '{9591D98B-3481-4E05-BE24-470FCDFD0E23}'
                 if ($package.Id -eq 'android-simulator-repair') { $clsid = '{A6D8DCE0-B691-4CC9-A3C5-F02B8BC704E5}' }
                 if ($package.Id -eq 'harmony-simulator-create') { $clsid = '{95E5B535-2EB8-48CA-98B5-A14D17A0A859}' }
+                if ($package.Id -eq 'harmony-simulator-repair') { $clsid = '{C91A8F93-CA7B-4F28-B705-A0AC90C5F231}' }
                 Assert-Architecture ($item.Key -eq ('Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $package.Id) -or $item.Key -eq ('Software\Classes\CLSID\' + $clsid)) ('模拟器只注册桌面背景及本包 CLSID：' + $package.Id)
                 if ($item.Key.EndsWith('CLSID\' + $clsid)) {
                     Assert-Architecture ($item.InProcServer -eq (Join-Path $release ('bin/' + $package.Name + 'ContextMenu.dll'))) ('原生 DLL 归属于本包 release：' + $package.Id)
@@ -76,6 +78,12 @@ try {
             }
             if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) {
                 Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.' + $package.Id) -or $item.Key.EndsWith('CLSID\{239D7884-83C5-4D66-AB0C-14A2667DCD61}') -or $item.Key.EndsWith('CLSID\{64A7C5BE-E031-4E89-A2D7-75C3F62B1AC9}') -or $item.Key.EndsWith('CLSID\{A41E939F-64E7-49DD-85FA-81F9B8CFD5E2}') -or $item.Key.EndsWith('CLSID\{DD71AE09-8A16-4B08-9868-5A40A9F39F63}')) '原生 COM 只注册本包处理器及 CLSID'
+                continue
+            }
+            if ($package.Id -in @('run-authorize', 'run-authorization-revoke')) {
+                $clsid = '{AE09A13F-EF17-4CE3-8BA1-F557C34280DE}'
+                if ($package.Id -eq 'run-authorization-revoke') { $clsid = '{6AC50F49-6915-4130-8474-F99DA4D074D6}' }
+                Assert-Architecture ($item.Key -eq ('Software\Classes\*\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $package.Id) -or $item.Key -eq ('Software\Classes\CLSID\' + $clsid)) '权限包只注册普通文件动态处理器和自己的 CLSID'
                 continue
             }
             Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.' + $package.Id)) '菜单计划不包含其它功能'

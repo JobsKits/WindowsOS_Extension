@@ -38,6 +38,9 @@ try {
         if ($package.Name -eq 'JobsHarmonySimulatorCreator') {
             Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/HarmonyTools.ps1') -Destination $scripts
         }
+        if ($package.Name -in @('JobsRunAuthorizer', 'JobsRunAuthorizationRevoker')) {
+            Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/RunPermissions.ps1') -Destination $scripts
+        }
         $manifest = Get-Content -LiteralPath (Join-Path $standalone 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         $actionPath = Join-Path $scripts 'Action.psm1'
         $bytes = [IO.File]::ReadAllBytes($actionPath)
@@ -95,6 +98,8 @@ try {
                 function script:Invoke-JobsFlutterDependencyAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsFlutterVersionAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsAndroidSimulatorAction { param($Target) $script:Captured = $Target }
+                function script:Invoke-JobsHarmonyRepairAction { param($Target) $script:Captured = $Target }
+                function script:Invoke-JobsRunPermissionAction { param($Target, $Mode) $script:Captured = $Target }
                 function script:Invoke-JobsHarmonySimulatorAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterRunAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterPackageAction { param($Target) $script:Captured = $Target }

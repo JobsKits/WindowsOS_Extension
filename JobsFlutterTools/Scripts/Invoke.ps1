@@ -16,6 +16,12 @@ try {
     if ($settings.Version -ne 2 -or $settings.Id -cne $manifest.Id -or $settings.Enabled -ne $true) {
         throw '此功能尚未安装或已经卸载，请重新打开右键菜单。'
     }
+    Import-Module (Join-Path $PSScriptRoot 'FeatureActions.psm1') -DisableNameChecking
+    if ($Action -cnotin @(Get-JobsFlutterStateActionIds -Settings $settings)) { throw '此 Flutter 子功能未安装，请先在安装面板中勾选。' }
+    if (-not [string]::Equals([IO.Path]::GetFullPath([string]$settings.ReleasePath).TrimEnd('\', '/'),
+        [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot)).TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase)) {
+        throw '此菜单来自旧版本。请结束正在使用的资源管理器窗口后重启 Explorer，或注销再登录后重试。'
+    }
     $path = Resolve-JobsTarget $Target
     if ($manifest.DirectoryOnly -and -not (Test-Path -LiteralPath $path -PathType Container)) {
         throw '此功能只适用于文件夹。'

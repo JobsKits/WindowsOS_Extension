@@ -7,6 +7,7 @@
 param()
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'NativeFixtures.ps1')
 $script:assertions = 0
 
 function Assert-Inspector {
@@ -30,48 +31,6 @@ function Get-InspectorSnapshot {
     return (@(Get-ChildItem -LiteralPath $Path -Recurse -File -Force | Sort-Object FullName | ForEach-Object {
         $_.FullName.Substring($Path.Length) + ':' + (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
     }) -join "`n")
-}
-function New-InspectorTestSymbolicLink {
-    param([string]$Path, [string]$Target, [switch]$Directory)
-    # 字面路径 API 保留 [] 等特殊字符，兼容 Windows PowerShell 5.1。
-    $linkType = [IO.File]
-    if ($Directory) { $linkType = [IO.Directory] }
-    $create = $linkType.GetMethod('CreateSymbolicLink', [type[]]@([string], [string]))
-    if ($null -ne $create) {
-        [void]$create.Invoke($null, [object[]]@($Path, $Target))
-    }
-    elseif ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
-        if (-not ('Jobs.InspectorTestSymbolicLink' -as [type])) {
-            Add-Type -TypeDefinition @'
-using System.ComponentModel;
-using System.Runtime.InteropServices;
-namespace Jobs {
-    public static class InspectorTestSymbolicLink {
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.U1)]
-        private static extern bool CreateSymbolicLinkW(string linkPath, string targetPath, uint flags);
-        public static void Create(string linkPath, string targetPath, bool directory) {
-            uint flags = directory ? 1u : 0u;
-            if (CreateSymbolicLinkW(linkPath, targetPath, flags | 2u)) return;
-            int error = Marshal.GetLastWin32Error();
-            if (error == 87) {
-                if (CreateSymbolicLinkW(linkPath, targetPath, flags)) return;
-                error = Marshal.GetLastWin32Error();
-            }
-            throw new Win32Exception(error);
-        }
-    }
-}
-'@
-        }
-        [Jobs.InspectorTestSymbolicLink]::Create($Path, $Target, $Directory.IsPresent)
-    }
-    else {
-        throw '当前运行时不提供符号链接 API，无法建立真实测试夹具。'
-    }
-    if (([IO.File]::GetAttributes($Path) -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
-        throw ('符号链接夹具未正确创建：' + $Path)
-    }
 }
 function Invoke-InspectorFixture {
     param([string]$Directory, [AllowNull()][string]$SystemFlutter, [string]$MachineOutput)
@@ -248,11 +207,13 @@ try {
     Assert-InspectorThrows { & $module { Assert-JobsSdkDirectory 'relative-project' } } '拒绝相对目录'
     # 所有链接目标都在本次临时目录内，不通过 PowerShell 路径模式解析目标。
     $linkedProject = Join-Path $temporary 'Linked project'
-    New-InspectorTestSymbolicLink -Path $linkedProject -Target $project -Directory
-    Assert-InspectorThrows { & $module { param($Path) Assert-JobsSdkDirectory $Path } $linkedProject } '拒绝链接项目目录'
+    if (New-JobsTestSymbolicLink -Path $linkedProject -Target $project -Directory) {
+        Assert-InspectorThrows { & $module { param($Path) Assert-JobsSdkDirectory $Path } $linkedProject } '拒绝链接项目目录'
+    }
     $linkedConfig = Join-Path $temporary 'linked-config.json'
-    New-InspectorTestSymbolicLink -Path $linkedConfig -Target (Join-Path $project '.fvmrc')
-    Assert-InspectorThrows { & $module { param($Path) Assert-JobsSdkPlainFile $Path } $linkedConfig } '拒绝链接配置文件'
+    if (New-JobsTestSymbolicLink -Path $linkedConfig -Target (Join-Path $project '.fvmrc')) {
+        Assert-InspectorThrows { & $module { param($Path) Assert-JobsSdkPlainFile $Path } $linkedConfig } '拒绝链接配置文件'
+    }
     Write-Host ('PASS: FlutterSdkInspector.Tests.ps1 (' + $script:assertions + ' assertions; fixtures only)')
 }
 finally {

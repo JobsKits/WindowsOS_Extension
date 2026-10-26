@@ -61,4 +61,10 @@
 "/JobsTerminalOpener/Scripts/README.md" filter=jobs-markdown-toc
 "/JobsVSCodeOpener/Scripts/README.md" filter=jobs-markdown-toc
 "/JobsVisualStudioOpener/Scripts/README.md" filter=jobs-markdown-toc
+"/JobsHarmonySimulatorRepairer/README.md" filter=jobs-markdown-toc
+"/JobsHarmonySimulatorRepairer/Scripts/README.md" filter=jobs-markdown-toc
+"/JobsRunAuthorizer/README.md" filter=jobs-markdown-toc
+"/JobsRunAuthorizer/Scripts/README.md" filter=jobs-markdown-toc
+"/JobsRunAuthorizationRevoker/README.md" filter=jobs-markdown-toc
+"/JobsRunAuthorizationRevoker/Scripts/README.md" filter=jobs-markdown-toc
 # jobs-markdown-toc:end

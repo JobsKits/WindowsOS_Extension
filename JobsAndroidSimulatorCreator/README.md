@@ -19,6 +19,8 @@
 
 ## 🔥 <span id="前言">前言</span>
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 在 [**Windows**](https://www.microsoft.com/windows) 系统桌面空白右键加入“新建 [**Android**](https://developer.android.com/studio/run/managing-avds) 模拟器”。独立源码目录可以整体复制运行、安装或卸载，并登记到上级组合安装面板。普通文件夹背景、选中文件 / 文件夹和磁盘不出现此入口；Windows 11 使用“显示更多选项”。
 
 | 入口 | 行为 |
@@ -27,6 +29,10 @@
 | `Uninstall.cmd` | 只移除此功能菜单，保留 SDK、AVD、日志及备份。 |
 | `Run.cmd` | 无须先安装右键菜单，直接进入同一创建 / 启动流程。 |
 | `Scripts/CreateAndroidSimulator.ps1 -Check` | 只读检查宿主、Java、SDK 命令行工具及硬件加速，不下载或创建。 |
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。创建 / 启动 Android Emulator 仅面向 AMD64（x64）Windows 10 / 11，Windows ARM / 32 位不支持；需要 BIOS 虚拟化与 WHPX 等加速。菜单可在虚拟机检查，模拟器业务须在符合官方要求的物理机验收；虚拟机 / 嵌套虚拟化中的结果不作为受支持结论。`Run.cmd` 无须菜单编译器。
 
 ## 一、<span id="installation">安装与运行前提</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 

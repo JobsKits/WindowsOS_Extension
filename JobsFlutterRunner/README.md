@@ -1,6 +1,6 @@
-> 本功能的右键入口已迁入 [JobsFlutterTools](../JobsFlutterTools/README.md)。以下保留旧独立工程的实现说明；新安装使用统一菜单与项目 FVM。原“Flutter项目体检”在新菜单中称为“原生Flutter项目体检”。
+> 当前 `Install.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Uninstall.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
 
-# JobsFlutterRunner · 右键运行 Flutter 项目
+# JobsFlutterRunner · 从终端运行 Flutter 项目
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
@@ -22,20 +22,26 @@
 
 ## 🔥 <span id="前言">前言</span>
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 在 [**Windows**](https://www.microsoft.com/windows) 资源管理器右键运行 [**Flutter**](https://flutter.dev/) 项目。只有目标目录自身的 `pubspec.yaml` 声明 `dependencies.flutter.sdk: flutter` 才插入菜单；普通目录、纯 Dart 工程、只依赖 flutter_test 的目录和父子工程目录均不显示。菜单同时支持选中文件夹及工程内空白处；Windows 11 位于“显示更多选项”。
 
 | 操作 | 结果 |
 | --- | --- |
-| 右键 Flutter 根目录 → 运行 Flutter 项目 | 打开 CMD，显示工具来源，选择实际设备或启动已有 Android AVD。 |
+| 右键 Flutter 根目录 → 从终端运行 Flutter 项目 | 打开 CMD，显示工具来源，选择实际设备或启动已有 Android AVD。 |
 | 选定设备 | 独立后台执行 `flutter run --machine`，CMD 持续显示日志。 |
 | 按 `r` / `R` | 热重载 / 热重启。 |
 | 按 `s` | 请求停止当前应用；10 秒后仍未退出则终止本次 Flutter 专属进程树。 |
 | 按 `q` 或直接关闭 CMD | 退出日志，Flutter 继续后台运行。 |
 | 再次右键同一项目 | 自动连接已有运行会话，从日志开头重看；不重复启动第二个 Flutter。 |
 
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**当前入口与依赖：** `Install.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Uninstall.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
+
 ## 一、<span id="installation">安装与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-完整复制本目录即可独立安装，不依赖父目录和其它功能包。双击 `Install.cmd` 安装 / 更新；双击 `Uninstall.cmd` 卸载菜单及本包 COM 注册。也可在上级组合面板只勾选“运行 Flutter 项目”。安装确认仍由本包生命周期处理。
+新安装保留同级完整 `JobsFlutterTools`，双击本目录 `Install.cmd` 转交统一菜单，或在上级组合面板选择统一 Flutter 工具组；也可直接复制统一包独立交付。`Uninstall.cmd` 只卸载本旧功能与其 COM 注册。以下逐包构建、事务和路径说明对应保留的旧实现。
 
 需要 Windows 10 / 11、系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop，以及已经安装的 [**Visual Studio Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 或 Visual Studio：勾选“使用 C++ 的桌面开发”、MSVC 与 Windows SDK。ARM64 还需要对应 ARM64 编译工具。安装器用 `vswhere` 复用这些组件；缺失时停止并给出说明，不自动下载编译器、不写入半成品菜单。
 
@@ -55,7 +61,7 @@ Android AVD 通过官方 [**Android Emulator**](https://developer.android.com/st
 
 ```text
 JobsFlutterRunner/
-├── Install.cmd / Uninstall.cmd  独立安装与卸载
+├── Install.cmd / Uninstall.cmd  转交统一安装 / 卸载本旧功能
 ├── Extension.json              功能清单和自定义安装器白名单
 ├── README.md
 └── Scripts/

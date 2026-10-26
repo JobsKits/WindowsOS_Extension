@@ -1,4 +1,4 @@
-> 本功能的右键入口已迁入 [JobsFlutterTools](../JobsFlutterTools/README.md)。以下保留旧独立工程的实现说明；新安装使用统一菜单与项目 FVM。原“Flutter项目体检”在新菜单中称为“原生Flutter项目体检”。
+> 当前 `Install.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Uninstall.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
 
 # `JobsFlutterPubGet`
 
@@ -25,15 +25,21 @@
 
 ## <span id="jobs-toc-heading-1" data-jobs-toc="v2">🔥 <font id=前言>前言</font></span><!-- jobs-toc:heading-end -->
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 **右键功能：Flutter 安装依赖（pub get）。** 在经过校验的 [**Flutter**](https://flutter.dev/) 工程目录中确认后执行 `flutter pub get`。
 
-这是可独立复制和使用的 [**Windows**](https://www.microsoft.com/windows) 功能包，自带安装、卸载和运行源码，不需要总目录或其他功能包。**只复制整个 `JobsFlutterPubGet` 文件夹，双击 [`Install.cmd`](./Install.cmd) 即可安装本项；[`Uninstall.cmd`](./Uninstall.cmd) 只卸载本项。**
+这是保留旧业务与卸载能力的 [**Windows**](https://www.microsoft.com/windows) 源码目录。**新安装必须带同级完整 `JobsFlutterTools`，或直接复制统一包；本目录 [`Install.cmd`](./Install.cmd) 转交统一安装，[`Uninstall.cmd`](./Uninstall.cmd) 只卸载本旧功能。**
 
 | 操作 | 结果 |
 | --- | --- |
 | 右键包含 `pubspec.yaml` 与 `lib/` 的 Flutter 工程 → Flutter 安装依赖（pub get） | 校验 SDK 与工程后，在独立终端会话确认并获取当前工程依赖。 |
-| 单独运行包内 `Install.cmd` | 仅安装或更新 `flutter-pub-get`。 |
+| 运行包内 `Install.cmd` | 转交同级 JobsFlutterTools 安装统一菜单；旧目录不能单独新装。 |
 | 单独运行包内 `Uninstall.cmd` | 仅移除本包菜单，保留其他包。 |
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**当前入口与依赖：** `Install.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Uninstall.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
 
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、适用范围与前提 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -47,7 +53,7 @@
 
 ### <span id="jobs-toc-heading-4" data-jobs-toc="v2">[Install.cmd](./Install.cmd)</span><!-- jobs-toc:heading-end -->
 
-> **目的：** 只安装或更新“Flutter 安装依赖（pub get）”。
+> **目的：** 将安装请求转交同级 JobsFlutterTools；下面保留的逐包安装事务说明适用于旧实现。
 
 - 打印脚本来源、包身份、目标目录与注册表范围，确认后部署本包。
 - 复制本包运行文件到独立版本目录，逐文件核对 SHA-256，备份本包菜单注册。
@@ -87,7 +93,7 @@ JobsFlutterPubGet/
     └── Action.psm1             本功能业务实现
 ```
 
-全部运行文件均在包内。即使移走总目录及其他包，本包仍能独立安装、运行和卸载。
+旧业务运行文件与卸载器保留在包内；当前新安装还必须有同级 `JobsFlutterTools`，不能移走它后继续使用本目录的 `Install.cmd`。
 
 状态位于当前用户本地应用数据的 `Jobs\WindowsExtension\extensions\flutter-pub-get` 中；`settings.json` 保存 `Version: 2`、`Enabled` 和 `ReleasePath`。`releases/`、`logs/`、`backups/` 和 `tools/` 分别保存本包运行版本、日志、菜单快照和私有依赖；实际日志及备份位置由运行入口打印。菜单直接运行本包业务，不使用总目录的集中请求队列。
 

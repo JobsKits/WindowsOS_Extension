@@ -40,6 +40,18 @@ jobs:
       - name: Selection panel layout, confirmation gates, and package plans
         shell: powershell
         run: .\Tests\SelectionPanel.Tests.ps1
+      - name: Flutter leaf selection and legacy state compatibility
+        shell: powershell
+        run: .\Tests\FlutterFeatureSelection.Tests.ps1
+      - name: Unified Flutter package and dispatch guards
+        shell: powershell
+        run: .\Tests\FlutterTools.Tests.ps1
+      - name: Build selected Flutter native menu with MSVC
+        shell: powershell
+        run: |
+          .\JobsFlutterTools\Scripts\Build.ps1 `
+            -SourceRoot (Join-Path $PWD 'JobsFlutterTools') `
+            -OutputRoot (Join-Path $env:RUNNER_TEMP 'JobsFlutterTools-native')
       - name: Infrastructure copies stay in sync
         shell: powershell
         run: .\Scripts\Sync-PackageInfrastructure.ps1
@@ -106,3 +118,15 @@ jobs:
       - name: Harmony simulator desktop and installed-image creation guardrails
         shell: powershell
         run: .\Tests\HarmonySimulatorCreator.Tests.ps1
+      - name: Harmony emulator identity and coldboot repair
+        shell: powershell
+        run: .\Tests\HarmonySimulatorRepairer.Tests.ps1
+      - name: Current user single-file ExecuteFile grant and revoke
+        shell: powershell
+        run: .\Tests\RunPermissions.Tests.ps1
+      - name: Build Harmony repair and file permission handlers with MSVC
+        shell: powershell
+        run: |
+          foreach ($name in @('JobsHarmonySimulatorRepairer', 'JobsRunAuthorizer', 'JobsRunAuthorizationRevoker')) {
+            & (Join-Path $PWD ($name + '/Scripts/Build.ps1')) -SourceRoot (Join-Path $PWD $name) -OutputRoot (Join-Path $env:RUNNER_TEMP ($name + '-native'))
+          }

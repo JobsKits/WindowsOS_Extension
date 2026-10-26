@@ -1,4 +1,4 @@
-> 本功能的右键入口已迁入 [JobsFlutterTools](../JobsFlutterTools/README.md)。以下保留旧独立工程的实现说明；新安装使用统一菜单与项目 FVM。原“Flutter项目体检”在新菜单中称为“原生Flutter项目体检”。
+> 当前 `Install.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Uninstall.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
 
 # `JobsFlutterVersionMgr`
 
@@ -25,9 +25,11 @@
 
 ## 🔥 <span id="前言">前言</span>
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 **右键功能：Flutter SDK 安装/切换（FVM）。** 对目标文件夹做 [**Flutter**](https://flutter.dev/) 项目校验，在可见的终端里体检工具链、查询官方历史及最新版本，通过 [**fzf**](https://github.com/junegunn/fzf) 单选后，为当前工程安装或切换指定的 [**FVM**](https://fvm.app/) Flutter SDK 版本。
 
-**整个 `JobsFlutterVersionMgr` 文件夹可以单独复制到 Windows；双击 [`Install.cmd`](./Install.cmd) 安装本项，双击 [`Uninstall.cmd`](./Uninstall.cmd) 卸载本项。** 不依赖总目录或其他扩展包，也不需要现成 Flutter / Dart 来引导安装 FVM。
+**本目录 [`Install.cmd`](./Install.cmd) 需要同级完整 `JobsFlutterTools`，并转交统一菜单安装；单独复制旧目录不能新装。可直接复制统一包独立交付。[`Uninstall.cmd`](./Uninstall.cmd) 只卸载本旧功能。** 以下保留的 FVM 引导业务不需要现成 Flutter / Dart，当前统一入口另外受其项目 FVM 门禁约束。
 
 | 操作 | 实际行为 |
 | --- | --- |
@@ -40,6 +42,10 @@
 | 右键普通目录、仅有 `flutter_test` 或描述文字的目录 | 终端立即拒绝，尚未调用工具体检、安装或 SDK 下载。 |
 
 静态注册表菜单无法在弹出时解析项目文件，所以目录菜单可能显示在普通文件夹中；**只有通过运行时项目门禁的目录才会继续。Windows 11 请打开“显示更多选项”或按 `Shift+F10`。**
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**当前入口与依赖：** `Install.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Uninstall.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
 
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、前提与工具链</span><!-- jobs-toc:heading-end -->
 
@@ -79,7 +85,7 @@ IDE 的 Flutter SDK 路径应设置为项目内 `.fvm/flutter_sdk`。普通 `flu
 
 ### <span id="jobs-toc-heading-5" data-jobs-toc="v2">[Install.cmd](./Install.cmd)</span><!-- jobs-toc:heading-end -->
 
-> **目的：** 只安装或更新本项当前用户右键菜单。
+> **目的：** 转交同级 JobsFlutterTools 安装统一菜单；下面的逐包事务步骤保留为旧实现说明。
 
 - 从自身位置定位清单和源码，打印来源、独立安装目录与注册表范围。
 - 默认取消的图形确认后，只复制本包运行文件，逐文件核对 SHA-256。

@@ -103,13 +103,15 @@ try {
     New-CleanFile $outside 'keep'
     $linkType = 'SymbolicLink'
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { $linkType = 'Junction' }
-    [void](New-Item -ItemType $linkType -Path (Join-Path $flutter '.dart_tool') -Target $outside)
+    $linkTarget = $outside
+    if ($PSVersionTable.PSVersion.Major -eq 5) { $linkTarget = [Management.Automation.WildcardPattern]::Escape($outside) }
+    [void](New-Item -ItemType $linkType -Path (Join-Path $flutter '.dart_tool') -Target $linkTarget)
     $rejected = $false
     try { & $action { param($Path) Invoke-JobsFeature $Path } $flutter } catch { $rejected = $true }
     Assert-Clean $rejected '清理目标是符号链接或联接时拒绝'
     Assert-Clean (Test-Path -LiteralPath (Join-Path $flutter 'build/keep')) '先验证全部路径再删除'
     [IO.Directory]::Delete((Join-Path $flutter '.dart_tool'))
-    [void](New-Item -ItemType $linkType -Path (Join-Path $flutter 'build/link') -Target $outside)
+    [void](New-Item -ItemType $linkType -Path (Join-Path $flutter 'build/link') -Target $linkTarget)
     & $action { param($Path) Invoke-JobsFeature $Path } $flutter
     Assert-Clean (Test-Path -LiteralPath (Join-Path $outside 'keep')) '产物内链接只删除链接，不跟随到外部目录'
     Assert-Clean (-not (Test-Path -LiteralPath (Join-Path $flutter 'build'))) '含内部链接的产物正常移除'

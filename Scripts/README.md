@@ -28,11 +28,11 @@
 | --- | --- | --- |
 | [Manage.ps1](./Manage.ps1) | 读取清单和安装状态，打开组合面板，按 `Install / Configure / Uninstall` 编排各独立包。 | 优先通过根目录 `.cmd` 启动；需要 Windows 图形桌面和 `STA` 进程，`-Preview` 只返回选择而不部署。 |
 | [Catalog.psm1](./Catalog.psm1) | 校验总清单与各包身份、文件完整性，生成操作计划，再调用各包自己的安装模块。 | 内部模块，由 `Manage.ps1` 导入；不直接执行右键业务。 |
-| [Installer.psm1](./Installer.psm1) | 显示固定无滚动的复选框面板，按内容与工作区使用一至三列；提供全选、全不选、对应模式操作和取消。 | 内部界面模块；安装 / 卸载空选时禁用操作按钮与回车；不写注册表，不安装扩展包。 |
+| [Installer.psm1](./Installer.psm1) | 按用途分组显示复选框，组内及全局提供全选、全不选；内容可滚动，底部操作按钮固定。 | 内部界面模块；安装 / 卸载空选时禁用操作按钮与回车；不写注册表，不安装扩展包。 |
 | [Sync-PackageInfrastructure.ps1](./Sync-PackageInfrastructure.ps1) | 对照 `../Infrastructure/` 核对各包内嵌的四份通用模板。 | 默认只检查；显式传入 `-Write` 才覆盖对应模板副本。 |
 | [MarkdownToc.mjs](./MarkdownToc.mjs) | 提供目录过滤器的同源码兼容入口。 | 正式过滤器统一从 `../.jobs-markdown-toc/` 运行，按[目录维护说明](#toc-maintenance)操作。 |
 
-总清单位于 [Extensions.json](../Extensions.json)，包含 16 项现行安装功能；磁盘保留的八个旧 Flutter 包不再各占一项面板入口；[Flutter SDK 安装/切换包](../JobsFlutterVersionMgr/README.md) 同样只由面板编排，其工具链体检、fzf 选版与项目绑定在本包终端内进行。包内的 `Extension.json` 声明功能身份与菜单信息；`PackageInstaller.psm1` 承担本包部署、注册、备份和回滚；`Invoke.ps1` 是已安装菜单的运行入口。[Git 拉取包](../JobsGitPuller/README.md) 同样独立处理上游拉取、改动快照与冲突恢复。[Flutter 第三方依赖提取包](../JobsFlutterDependencyExtractor/README.md) 通过本包健康 Dart 读取锁文件与解析记录，输出父目录空行默认系统桌面，不安装工具或自动获取依赖。[Flutter打包 包](../JobsFlutterPackager/README.md) 也独立编译 Flutter 根目录专属菜单，在 CMD 用 fzf 选择 Android / iOS / HarmonyOS 及 APK / AAB / HAP / APP；鸿蒙核对已有 ohos 平台、适配 SDK 和 DevEco 工具链，不自动安装或创建平台，Windows 选择 iOS 时提前停止。组合面板保存后按清单逐包执行，一包失败即停止，已完成的包保持结果，失败包由自己的安装器回滚。
+总清单位于 [Extensions.json](../Extensions.json)，登记 19 个现行安装包，面板展开为 32 项可选功能，其中 Flutter 含 14 项叶动作；磁盘保留的八个旧 Flutter 包不再各占一项面板入口；[Flutter SDK 安装/切换包](../JobsFlutterVersionMgr/README.md) 同样只由面板编排，其工具链体检、fzf 选版与项目绑定在本包终端内进行。包内的 `Extension.json` 声明功能身份与菜单信息；`PackageInstaller.psm1` 承担本包部署、注册、备份和回滚；`Invoke.ps1` 是已安装菜单的运行入口。[Git 拉取包](../JobsGitPuller/README.md) 同样独立处理上游拉取、改动快照与冲突恢复。[Flutter 第三方依赖提取包](../JobsFlutterDependencyExtractor/README.md) 通过本包健康 Dart 读取锁文件与解析记录，输出父目录空行默认系统桌面，不安装工具或自动获取依赖。[Flutter打包 包](../JobsFlutterPackager/README.md) 也独立编译 Flutter 根目录专属菜单，在 CMD 用 fzf 选择 Android / iOS / HarmonyOS 及 APK / AAB / HAP / APP；OpenHarmony 核对已有 ohos 平台、适配 SDK 和 DevEco 工具链，不自动安装或创建平台，Windows 选择 iOS 时提前停止。组合面板保存后按清单逐包执行，一包失败即停止，已完成的包保持结果，失败包由自己的安装器回滚。
 
 [Flutter 项目体检包](../JobsFlutterDoctor/README.md)与[Flutter 代码生成包](../JobsFlutterCodegen/README.md)同样独立构建根目录动态菜单；前者只运行版本与 doctor，后者经确认执行 pub get 和已配置的生成器。二者各自的 `Scripts/Check.ps1 -Target` 只读打印计划，不调用 SDK；FVM 已声明但项目 SDK 缺失时停止。
 
@@ -52,7 +52,7 @@
 | [【Windows】🧩卸载资源管理器扩展.cmd](../【Windows】🧩卸载资源管理器扩展.cmd) | 只列出已安装功能并默认全选；点击“卸载”只移除勾选项，保留未勾选项。 |
 | [Uninstall.cmd](../Uninstall.cmd) | 英文兼容入口，直接调用相同的 `Uninstall` 模式。 |
 
-五个入口都直接调用本目录的 `Manage.ps1`，并从自身位置定位源码。面板的功能名称一项一行，悬停查看完整说明；选项区固定无滚动，窗口按内容和屏幕工作区自动定尺寸，按包数与工作区选择一至三列。底栏统一提供“全选 / 全不选 / 安装、卸载或保存配置 / 取消”；安装和卸载空选时按钮置灰且回车不能绕过，配置允许空选关闭全部。取消或关闭面板不修改包。每个功能包也有自己的独立安装和卸载入口；只复制某一包时不需要这个总 `Scripts/` 目录。
+五个入口都直接调用本目录的 `Manage.ps1`，并从自身位置定位源码。面板的功能名称一项一行，悬停查看完整说明；选项按用途分组，各组提供全选 / 全不选和实时计数；Flutter 逐项列出 14 个实际动作。选项区可滚动，底栏固定在窗口内，窗口按屏幕工作区定尺寸。底栏统一提供“全选 / 全不选 / 安装、卸载或保存配置 / 取消”；安装和卸载空选时按钮置灰且回车不能绕过，配置允许空选关闭全部。Flutter 安装按本次勾选精确替换；整个组未选时保留原安装。卸载仅移除已选叶动作，最后一项移除时注销整个包；旧包级标识仍兼容全选。取消或关闭面板不修改包。每个功能包也有自己的独立安装和卸载入口；只复制某一包时不需要这个总 `Scripts/` 目录。
 
 运行环境是 Windows 10 / 11、系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1 Desktop`、系统 `.NET` 与图形桌面。`.cmd` 仅为当前进程设置执行策略参数，不提权、不联网安装工具；各功能自身的依赖和操作确认见对应包说明。[Flutter 运行包](../JobsFlutterRunner/README.md) 使用现有 MSVC / Windows SDK 编译原生动态菜单，在 CMD 选择设备与连接独立后台日志；缺编译器时停止，不自动安装。
 
@@ -87,7 +87,7 @@ powershell.exe `
 
 ## 三、<span id="template-sync">通用模板检查与同步</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-维护模板位于 `../Infrastructure/`。同步范围只有 `Common.psm1`、`Invoke.ps1`、`Manage.ps1`、`PackageInstaller.psm1`，目标为总清单登记的各包 `Scripts/` 副本；不会覆盖 `Action.psm1`、`Extension.json` 或功能业务配置。原生 Flutter 与 Android / Harmony 模拟器包声明仅覆盖 `PackageInstaller.psm1`，同步器对这项明确白名单跳过；本包原生构建与 COM 安装事务独立维护。各包运行时使用自己内嵌的副本，不依赖模板目录。
+维护模板位于 `../Infrastructure/`。同步范围只有 `Common.psm1`、`Invoke.ps1`、`Manage.ps1`、`PackageInstaller.psm1`，目标为总清单登记的各包 `Scripts/` 副本；不会覆盖 `Action.psm1`、`Extension.json` 或功能业务配置。原生 Flutter、Android / Harmony 模拟器和单文件权限包声明仅覆盖 `PackageInstaller.psm1`，同步器对这项明确白名单跳过；本包原生构建与 COM 安装事务独立维护。各包运行时使用自己内嵌的副本，不依赖模板目录。
 
 在本目录只读检查，一致时输出成功信息，发现差异时返回失败：
 
@@ -154,3 +154,5 @@ node ../.jobs-markdown-toc/MarkdownToc.mjs uninstall
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>
 
 [构建产物清理包](../JobsBuildArtifactCleaner/README.md)以 `clean-build-artifacts` 登记，沿用单功能安装器和文件夹菜单；运行时仅识别 Flutter / Android。总面板安装或卸载该包均不会执行清理。
+
+[Harmony 模拟器检测与修复](../JobsHarmonySimulatorRepairer/README.md)、[运行授权](../JobsRunAuthorizer/README.md)与[解除运行授权](../JobsRunAuthorizationRevoker/README.md)同样按独立包编排；前者仅桌面空白，后两者仅普通单文件。安装和卸载不会重启实例或修改目标权限。

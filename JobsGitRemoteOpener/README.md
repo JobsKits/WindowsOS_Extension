@@ -23,6 +23,8 @@
 
 ## <span id="jobs-toc-heading-1" data-jobs-toc="v2">🔥 <font id=前言>前言</font></span><!-- jobs-toc:heading-end -->
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 **右键功能：打开 Git 远程地址。** 找到所选文件或目录所属的 [**Git**](https://git-scm.com/) 工作树，通过系统默认浏览器打开对应远程仓库网页。
 
 这是可独立复制和使用的 [**Windows**](https://www.microsoft.com/windows) 功能包，自带安装、卸载和运行源码，不需要总目录或其他功能包。**只复制整个 `JobsGitRemoteOpener` 文件夹，双击 [`Install.cmd`](./Install.cmd) 即可安装本项；[`Uninstall.cmd`](./Uninstall.cmd) 只卸载本项。**
@@ -32,6 +34,10 @@
 | 右键仓库子目录 → 打开 Git 远程地址 | 将 `git@github.com:org/repo.git` 转成 `https://github.com/org/repo` 后打开。 |
 | 单独运行包内 `Install.cmd` | 仅安装或更新 `open-git-remote`。 |
 | 单独运行包内 `Uninstall.cmd` | 仅移除本包菜单，保留其他包。 |
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+）后，也仅可探索基础静态菜单，不构成对本包完整功能的支持承诺。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**本包依赖与测试范围：** 本包采用静态菜单，安装无需 MSVC；Git for Windows、默认浏览器及其网络 / 认证能力的系统要求单独满足。虚拟机可验证路径解析与浏览器打开，菜单能显示不代表旧系统浏览器已具备访问远端的能力。
 
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、适用范围与前提 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 

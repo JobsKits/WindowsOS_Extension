@@ -1,0 +1,4 @@
+﻿LIBRARY JobsRunAuthorizationRevokerContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

@@ -59,6 +59,7 @@ function Expand-JobsHarmonyToolArchive {
     param([string]$Archive, [string]$Destination, $Package)
     if ((Get-Item -LiteralPath $Archive).Length -ne $Package.Size) { throw 'SDL 工具包大小不符，未解压。' }
     if ((Get-FileHash -LiteralPath $Archive -Algorithm SHA256).Hash -ine $Package.Sha256) { throw 'SDL 工具包 SHA-256 不符，未解压。' }
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip = [IO.Compression.ZipFile]::OpenRead($Archive)
     try {

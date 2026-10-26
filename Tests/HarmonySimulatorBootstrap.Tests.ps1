@@ -17,6 +17,7 @@ try {
     $realPackage = & $module { Get-JobsHarmonyToolPackage }
     Assert-Tools ($realPackage.Url -ceq 'https://libsdl.org/harmonyos-devtools/commandline-tools-windows-x64-6.1.1.280.zip') 'Windows x64 SDL source'
     Assert-Tools ($realPackage.Size -eq 2601671927) 'Package size uses Int64'
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     function New-FixtureZip {
         param([string[]]$Names = @('command-line-tools/version.txt','command-line-tools/emulator/Emulator.exe'), [switch]$Symlink)

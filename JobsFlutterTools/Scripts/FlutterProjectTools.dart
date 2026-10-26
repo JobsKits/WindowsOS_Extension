@@ -89,7 +89,7 @@ String? findExecutable(String name, List<String> candidates) {
 }
 
 Future<void> diagnose(Project p, bool harmony) async {
-  stdout.writeln('${harmony ? '鸿蒙Flutter环境体检' : '原生Flutter项目体检'}\n项目：${p.root}\nFVM：${p.pin}\nSDK：${p.sdk}');
+  stdout.writeln('${harmony ? 'OpenHarmony Flutter 环境体检' : '原生Flutter项目体检'}\n项目：${p.root}\nFVM：${p.pin}\nSDK：${p.sdk}');
   stdout.writeln('检查可能访问工具配置的网络并初始化 SDK 缓存；不安装、切换或升级 SDK。');
   final checks = Checks();
   final environment = <String, String>{};

@@ -42,7 +42,8 @@ $nineteen = Get-JobsFeatureSelectionLayout -ItemCount 19 -WorkingWidth 1280 -Wor
 Assert-Selection ($nineteen.Columns -eq 3 -and $nineteen.Rows -eq 7 -and $nineteen.ClientWidth -le 1232) '19项短屏使用三列且保留左右边框'
 $twentyOne = Get-JobsFeatureSelectionLayout -ItemCount 21 -WorkingWidth 1280 -WorkingHeight 540
 Assert-Selection ($twentyOne.Columns -eq 3 -and $twentyOne.Rows -eq 7 -and $twentyOne.ClientHeight -le 496) '含鸿蒙的21项短屏保持三列完整点击区域'
-Assert-SelectionThrows { Get-JobsFeatureSelectionLayout -ItemCount 28 -WorkingWidth 1280 -WorkingHeight 540 } '三列仍无法容纳时明确停止'
+$many = Get-JobsFeatureSelectionLayout -ItemCount 40 -WorkingWidth 1280 -WorkingHeight 540
+Assert-Selection ($many.ClientHeight -le 496 -and $many.FooterHeight -ge 90) '更多子功能使用内容区滚动回退并保留固定按钮'
 $scaled = Get-JobsFeatureSelectionLayout -ItemCount $packages.Count -WorkingWidth 2560 -WorkingHeight 1440 -RowHeight 51 -Scale 1.5
 Assert-Selection ($scaled.RowHeight -ge 51) '高 DPI 下点击区域随比例放大'
 Assert-Selection ($scaled.ClientWidth -le 2560 -and $scaled.ClientHeight -le 1440) '高 DPI 布局仍在工作区内'
@@ -98,12 +99,12 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
     $state = New-SelectionTestState -Items $packages -Selected @($packages[1].Id) -Mode Install
     try {
         Assert-Selection (@($state.Checks).Count -eq $packages.Count) '面板为每项功能提供独立复选框'
-        Assert-Selection (-not $state.Form.AutoScroll -and -not $state.Form.MaximizeBox) '内容固定显示且不依赖滚动或最大化'
+        Assert-Selection (-not $state.Form.AutoScroll -and $state.ContentPanel.AutoScroll -and -not $state.Form.MaximizeBox) '只滚动分组内容，操作区固定可见'
         Assert-Selection ($state.Form.FormBorderStyle -in @([Windows.Forms.FormBorderStyle]::FixedDialog, [Windows.Forms.FormBorderStyle]::FixedSingle)) '窗口按内容定尺寸并保持固定边框'
         for ($i = 0; $i -lt $packages.Count; $i++) {
             Assert-Selection ($state.Checks[$i].Text -eq $packages[$i].Label) ('功能标题不混入长说明：' + $packages[$i].Id)
             Assert-Selection ($state.ToolTip.GetToolTip($state.Checks[$i]).Contains($packages[$i].Description)) ('悬停保留功能说明：' + $packages[$i].Id)
-            Assert-Selection ($state.Checks[$i].Bottom -le $state.Form.ClientSize.Height -and $state.Checks[$i].Right -le $state.Form.ClientSize.Width) ('每项功能均位于窗口内：' + $packages[$i].Id)
+            Assert-Selection ($state.Checks[$i].Bottom -le $state.Checks[$i].Parent.Height -and $state.Checks[$i].Right -le $state.Checks[$i].Parent.Width) ('每项功能均在可滚动分组内完整显示：' + $packages[$i].Id)
         }
         Assert-Selection ($state.ConfirmButton.Enabled -and [object]::ReferenceEquals($state.Form.AcceptButton, $state.ConfirmButton)) '已有选择时安装按钮和回车均可确认'
         Invoke-SelectionTestClick $state.SelectAllButton

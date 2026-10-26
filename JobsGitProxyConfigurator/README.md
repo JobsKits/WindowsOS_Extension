@@ -23,6 +23,8 @@
 
 ## 🔥 <span id="前言">前言</span>
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 **系统桌面空白处右键 → 配置 Git 动态代理 → 回车安装、C 检查、R 恢复。** 本包由 Jobs 维护，与 [macOS 对应模块](../../MacOS@Extension/JobsGitProxyConfigurator/README.md)提供同名入口，可单独复制整个目录使用。核对日期：**2026-10-22**。
 
 | 操作 | 实际结果 |
@@ -34,6 +36,10 @@
 | 卸载菜单 | 仅移除本包菜单，保留另行安装的动态 Git、日志和恢复快照。 |
 
 运行环境是 [**Windows**](https://www.microsoft.com/windows) 10 / 11、系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop 与系统 .NET；配置时还需要已经安装且健康的 [**Git for Windows**](https://gitforwindows.org/)。不提权、不下载工具、不修改系统代理、VPN、`.gitconfig` 或项目远端。Windows 11 入口位于经典菜单的“显示更多选项”。
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+）后，也仅可探索基础静态菜单，不构成对本包完整功能的支持承诺。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**本包依赖与测试范围：** 本包静态菜单安装无需 MSVC；另行确认配置 Git 时，系统 .NET / C# 编译能力用于生成 `git.exe` 入口。Git for Windows、curl、终端及 GUI 的版本和架构必须各自可运行；虚拟机中应分别验证菜单、编译后的入口和真实网络选路，不能只以注册成功认定完整兼容。
 
 ## 一、<span id="installation">安装、使用与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 

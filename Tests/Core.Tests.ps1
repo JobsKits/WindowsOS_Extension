@@ -6,6 +6,7 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'NativeFixtures.ps1')
 Set-StrictMode -Version Latest
 $project = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $project 'JobsPathCopier/Scripts/Common.psm1') -Force -DisableNameChecking
@@ -130,10 +131,9 @@ try {
     Assert-True ($null -eq (Find-JobsExecutable -Name 'JobsTestFakeApplication')) '不执行同名函数'
     Assert-True ($null -eq (Find-JobsExecutable -Name 'JobsTestFakeAlias')) '不执行同名别名'
 
-    $argumentProbe = Join-Path $testRoot 'probe arguments.ps1'
-    [IO.File]::WriteAllText($argumentProbe, '[Console]::Write((ConvertTo-Json -InputObject @($args) -Compress))', (New-Object Text.UTF8Encoding($true)))
+    $argumentProbe = New-JobsTestArgumentProbe -Directory $testRoot
     $probeArguments = @('simple', '', 'C:\', 'path with spaces\', 'a"b', 'a\"b', "中文 ' & ; `$() %PATH%", "line1`nline2")
-    $roundTrip = Invoke-JobsProcess -FilePath $powerShell -Arguments (@('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $argumentProbe) + $probeArguments) -WorkingDirectory $testRoot
+    $roundTrip = Invoke-JobsProcess -FilePath $argumentProbe.Executable -Arguments (@($argumentProbe.Prefix) + $probeArguments) -WorkingDirectory $testRoot
     Assert-Equal $roundTrip.ExitCode 0 '原生子进程正常返回'
     $decoded = $roundTrip.StdOut | ConvertFrom-Json
     $received = @($decoded)

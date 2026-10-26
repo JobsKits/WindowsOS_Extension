@@ -1,4 +1,4 @@
-> 本功能的右键入口已迁入 [JobsFlutterTools](../JobsFlutterTools/README.md)。以下保留旧独立工程的实现说明；新安装使用统一菜单与项目 FVM。原“Flutter项目体检”在新菜单中称为“原生Flutter项目体检”。
+> 当前 `Install.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Uninstall.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
 
 # `JobsFlutterDependencyExtractor`：提取 Flutter 第三方依赖
 
@@ -22,7 +22,9 @@
 
 ## 🔥 <span id="前言">前言</span>
 
-独立的 [**Windows**](https://www.microsoft.com/windows) 文件夹右键扩展。读取精确所选 [**Flutter**](https://flutter.dev/) 项目的锁定依赖与解析记录，把直接、间接、开发用的非 SDK [**Pub**](https://dart.dev/tools/pub/dependencies) 包源码及许可证复制到指定父目录。输入或拖入目录；直接回车采用系统 API 返回的桌面，兼容桌面重定向和 OneDrive。
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
+保留旧实现的 [**Windows**](https://www.microsoft.com/windows) 文件夹右键扩展源码。读取精确所选 [**Flutter**](https://flutter.dev/) 项目的锁定依赖与解析记录，把直接、间接、开发用的非 SDK [**Pub**](https://dart.dev/tools/pub/dependencies) 包源码及许可证复制到指定父目录。输入或拖入目录；直接回车采用系统 API 返回的桌面，兼容桌面重定向和 OneDrive。
 
 | 操作 | 实际结果 |
 | --- | --- |
@@ -32,11 +34,15 @@
 | 缺少锁文件、解析记录、源码缓存或记录已过期 | 停止并提示手动执行 `flutter pub get`，不会自动联网修复。 |
 | 非 Flutter 或选择项目父目录 | 明确停止，不向下递归猜测项目。 |
 
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**当前入口与依赖：** `Install.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Uninstall.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
+
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、安装与卸载</span><!-- jobs-toc:heading-end -->
 
-将本目录完整复制到 Windows 10 / 11，双击 [Install.cmd](./Install.cmd)。安装窗口默认取消；确认后只复制本包运行文件并注册当前用户 `HKCU\Software\Classes` 中的菜单，无须管理员权限。Windows 11 在“显示更多选项”中使用。也可从父仓组合安装面板选择本功能。
+新安装在 Windows 10 / 11 保留同级完整 `JobsFlutterTools`，本目录 [Install.cmd](./Install.cmd) 转交统一包；也可直接复制统一包，或在父仓面板选择统一 Flutter 工具组。统一安装仍只写当前用户菜单，无须管理员权限；Windows 11 在“显示更多选项”中使用。
 
-本包包含自己的清单、业务模块、Dart 提取引擎及安装 / 卸载器；不依赖总面板或其他功能包。只安装此包时，需要保留完整 `Scripts/` 目录。菜单在文件夹、目录空白处和磁盘根目录可见，点击后严格验证所选目录，不在文件菜单出现。
+本目录保留自己的清单、业务模块、Dart 提取引擎及旧生命周期实现；新安装入口另需同级统一包，保留旧源码时也须保留完整 `Scripts/`。下述静态菜单在文件夹、目录空白处和磁盘根目录可见，点击后严格验证目录，这是旧实现；当前统一菜单按精确 Flutter 根目录显示。
 
 双击 [Uninstall.cmd](./Uninstall.cmd) 只注销本功能，保留当前用户本地应用数据中的运行版本、日志、注册表备份和禁用状态；不删除已经导出的依赖。
 

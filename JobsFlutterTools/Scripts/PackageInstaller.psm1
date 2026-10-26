@@ -3,6 +3,7 @@
 # 只管理传入功能包自己的文件、状态和菜单；导入模块不会修改系统。
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'FeatureActions.psm1') -DisableNameChecking
 
 function Get-JobsPackageBase {
     $local = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
@@ -44,6 +45,7 @@ function Get-JobsPackageState {
     $enabled = $false
     $release = $null
     $source = 'None'
+    $actionIds = @(Get-JobsFlutterActionCatalog | ForEach-Object { $_.Id })
     if (Test-Path -LiteralPath $settingsPath -PathType Leaf) {
         $settings = Get-Content -LiteralPath $settingsPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
         if ($null -eq $settings.PSObject.Properties['Version'] -or $settings.Version -ne 2 -or
@@ -53,6 +55,7 @@ function Get-JobsPackageState {
         $enabled = $settings.Enabled
         $release = [string]$settings.ReleasePath
         $source = 'Package'
+        $actionIds = @(Get-JobsFlutterStateActionIds -Settings $settings)
     }
     else {
         $legacyPath = Join-Path $base 'settings.json'
@@ -71,7 +74,7 @@ function Get-JobsPackageState {
             }
         }
     }
-    return [pscustomobject]@{ Id = $manifest.Id; Enabled = $enabled; ReleasePath = $release; Root = $root; Source = $source }
+    return [pscustomobject]@{ Id = $manifest.Id; Enabled = $enabled; ReleasePath = $release; Root = $root; Source = $source; ActionIds = $actionIds }
 }
 
 function ConvertTo-JobsPackageArgument {
@@ -319,7 +322,8 @@ function Invoke-JobsPackageChange {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)][string]$PackagePath,
-        [Parameter(Mandatory = $true)][ValidateSet('Install', 'Uninstall')][string]$Mode
+        [Parameter(Mandatory = $true)][ValidateSet('Install', 'Uninstall')][string]$Mode,
+        [AllowEmptyCollection()][string[]]$ActionIds
     )
 
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '安装与卸载仅支持 Windows。' }
@@ -327,6 +331,9 @@ function Invoke-JobsPackageChange {
         throw '请使用系统 Windows PowerShell 5.1 或本包 .cmd 入口执行安装与卸载。'
     }
     $manifest = Get-JobsPackageManifest -PackagePath $PackagePath
+    if (-not $PSBoundParameters.ContainsKey('ActionIds')) { $ActionIds = @(Get-JobsFlutterActionCatalog | ForEach-Object { $_.Id }) }
+    $ActionIds = @(Resolve-JobsFlutterActionIds -ActionIds $ActionIds)
+    if ($Mode -eq 'Install' -and $ActionIds.Count -eq 0) { throw '至少选择一个 Flutter 子功能才能安装。' }
     $base = Get-JobsPackageBase
     $root = Join-Path (Join-Path $base 'extensions') $manifest.Id
     [void][IO.Directory]::CreateDirectory($base)
@@ -349,25 +356,38 @@ function Invoke-JobsPackageChange {
         $hadSettings = Test-Path -LiteralPath $settingsPath -PathType Leaf
         $oldSettings = $null
         if ($hadSettings) { $oldSettings = [IO.File]::ReadAllBytes($settingsPath) }
+        $menuStatePath = Join-Path $root 'menu-state.txt'
+        $hadMenuState = Test-Path -LiteralPath $menuStatePath -PathType Leaf
+        $oldMenuState = $null
+        if ($hadMenuState) { $oldMenuState = [IO.File]::ReadAllBytes($menuStatePath) }
         $backupDirectory = Join-Path $root 'backups'
         [void][IO.Directory]::CreateDirectory($backupDirectory)
         $backup = Join-Path $backupDirectory ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N') + '.clixml')
-        @{ Id = $manifest.Id; Registry = $snapshot; Settings = @{ Exists = $hadSettings; Bytes = $oldSettings }; Created = [DateTime]::Now } |
+        @{ Id = $manifest.Id; Registry = $snapshot; Settings = @{ Exists = $hadSettings; Bytes = $oldSettings }; MenuState = @{ Exists = $hadMenuState; Bytes = $oldMenuState }; Created = [DateTime]::Now } |
             Export-Clixml -LiteralPath $backup -Depth 40 -ErrorAction Stop
         if ($Mode -eq 'Install') {
             [void](New-JobsPackageRelease -PackagePath $PackagePath -Destination $release)
+            # 随不可变 release 固定菜单白名单，DLL 不解析 JSON 或启动脚本。
+            [IO.File]::WriteAllLines((Join-Path $release 'menu-actions.txt'), $ActionIds, [Text.Encoding]::ASCII)
             # 先完成构建，再进入注册表 / 状态事务；缺编译器时不产生半安装菜单。
             & (Join-Path $release 'Scripts/Build.ps1') -SourceRoot $release -OutputRoot (Join-Path $release 'bin')
         }
         # 卸载保留 v2 禁用墓碑；旧版全局清单随后仍存在也不能重新启用本包。
-        $settings = [ordered]@{ Version = 2; Id = $manifest.Id; Enabled = ($Mode -eq 'Install'); ReleasePath = $release }
+        $settings = [ordered]@{ Version = 2; Id = $manifest.Id; Enabled = ($Mode -eq 'Install'); ReleasePath = $release; ActionIds = @($ActionIds) }
         $encoding = New-Object System.Text.UTF8Encoding($true)
         $newSettings = $encoding.GetPreamble() + $encoding.GetBytes(($settings | ConvertTo-Json -Depth 4))
+        $nativeActions = @()
+        if ($Mode -eq 'Install') { $nativeActions = @($ActionIds) }
+        $newMenuState = (New-Object Text.UTF8Encoding($false)).GetBytes("JobsFlutterTools-v1`n" + $release + "`n" + ($nativeActions -join "`n"))
         $installerModule = $ExecutionContext.SessionState.Module
         $commit = {
+            & $installerModule { param($Path, $Bytes) Set-JobsPackageSettingsFile -Path $Path -Bytes $Bytes } $menuStatePath $newMenuState
             & $installerModule { param($Path, $Bytes) Set-JobsPackageSettingsFile -Path $Path -Bytes $Bytes } $settingsPath $newSettings
         }.GetNewClosure()
         $rollback = {
+            if ($hadMenuState) {
+                & $installerModule { param($Path, $Bytes) Set-JobsPackageSettingsFile -Path $Path -Bytes $Bytes } $menuStatePath $oldMenuState
+            } elseif (Test-Path -LiteralPath $menuStatePath -PathType Leaf) { [IO.File]::Delete($menuStatePath) }
             if ($hadSettings) {
                 & $installerModule { param($Path, $Bytes) Set-JobsPackageSettingsFile -Path $Path -Bytes $Bytes } $settingsPath $oldSettings
             }

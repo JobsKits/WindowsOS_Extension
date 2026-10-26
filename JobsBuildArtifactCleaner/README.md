@@ -1,6 +1,12 @@
 # JobsBuildArtifactCleaner
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 文件夹右键菜单“清理构建产物”。Windows 只支持 Flutter / Android，不提供 iOS 工程清理；Flutter 的 `ios/`、`macos/`、`build/ios/` 和 `build/macos/` 目录保留。
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+）后，也仅可探索基础静态菜单，不构成对本包完整功能的支持承诺。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**本包依赖与测试范围：** 本包采用静态菜单，安装无需 MSVC，清理本身也不要求 Flutter SDK / Gradle。可先在虚拟机临时工程验收识别、预览、取消及删除边界，再在目标系统复核；菜单可安装与清理业务通过分别记录。
 
 ## 安装与使用
 

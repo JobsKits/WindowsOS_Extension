@@ -5,6 +5,7 @@
 param()
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'NativeFixtures.ps1')
 $script:assertions = 0
 function Assert-Extractor {
     param([bool]$Condition, [string]$Message)
@@ -142,16 +143,15 @@ try {
     Assert-Extractor (Test-Path -LiteralPath $engine -PathType Leaf) '独立 release 含 Dart 引擎'
     Assert-Extractor ((Get-FileHash -LiteralPath $engine).Hash -ceq (Get-FileHash -LiteralPath (Join-Path $standalone 'Scripts/ExtractFlutterDependencies.dart')).Hash) '部署引擎逐字节一致'
     # 使用真实原生进程回传参数，验证 Common argv 遇中文、空格、引号和 Shell 符号仍是数据。
-    $argvScript = Join-Path $temporary 'argv.ps1'
-    [IO.File]::WriteAllText($argvScript, 'ConvertTo-Json -InputObject @($args) -Compress', (New-Object Text.UTF8Encoding($true)))
-    $shell = Join-Path $PSHOME 'pwsh'
-    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { $shell = Join-Path $PSHOME 'powershell.exe' }
+    $argvProbe = New-JobsTestArgumentProbe -Directory $temporary
     $common = Import-Module (Join-Path $standalone 'Scripts/Common.psm1') -PassThru -DisableNameChecking
     $special = @($project, (Join-Path $temporary 'a"b'), '--destination', (Join-Path $temporary '$(whoami); & %PATH% !'))
-    $native = & $common { param($Shell, $Script, $Values, $Directory) Invoke-JobsProcess -FilePath $Shell -Arguments (@('-NoLogo', '-NoProfile', '-File', $Script) + $Values) -WorkingDirectory $Directory } $shell $argvScript $special $temporary
+    $native = & $common { param($Probe, $Values, $Directory) Invoke-JobsProcess -FilePath $Probe.Executable -Arguments (@($Probe.Prefix) + $Values) -WorkingDirectory $Directory } $argvProbe $special $temporary
     Assert-Extractor ($native.ExitCode -eq 0) '真实原生进程回传成功'
-    $actual = @($native.StdOut | ConvertFrom-Json)
-    Assert-Extractor ($actual.Count -eq $special.Count) '原生参数数量保持'
+    # 5.1 把 JSON 数组作为一个管道对象输出，先赋值再枚举真实参数。
+    $decoded = $native.StdOut | ConvertFrom-Json
+    $actual = @($decoded)
+    Assert-Extractor ($actual.Count -eq $special.Count) ('原生参数数量保持：实际 {0}，预期 {1}' -f $actual.Count, $special.Count)
     for ($i = 0; $i -lt $special.Count; $i++) { Assert-Extractor ($actual[$i] -ceq $special[$i]) '特殊字符未经 Shell 展开'
     }
     Write-Host ('PASS: FlutterDependencyExtractor.Tests.ps1 (' + $script:assertions + ' assertions)')

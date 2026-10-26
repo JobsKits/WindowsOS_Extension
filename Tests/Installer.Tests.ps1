@@ -44,17 +44,25 @@ $powerShell = Join-Path $PSHOME 'powershell.exe'
 $all = @(Get-JobsRegistryPlan -Features @($features.Id) -ReleasePath $release -PowerShellPath $powerShell)
 Assert-JobsTest ($all.Count -gt 0) '注册计划非空'
 Assert-JobsTest (@($all.Key | Select-Object -Unique).Count -eq $all.Count) '每个菜单键唯一'
-Assert-JobsTest (@($all | Where-Object { -not $_.Enabled }).Count -eq 0) '全选计划全部启用'
+Assert-JobsTest (@($all | Where-Object { -not $_.Enabled -and $_.Key -notmatch 'Jobs\.WindowsExtension\.flutter-(pub-get|version-manager|sdk-inspector|dependency-extract|run|package|doctor|codegen)$' }).Count -eq 0) '全选当前功能启用；仅固定旧 Flutter 菜单按迁移计划停用'
 
 foreach ($feature in $features) {
+    if ($feature.Id -eq 'flutter-tools') {
+        $native = @($all | Where-Object { $_.Enabled -and ($_.Key.EndsWith('Jobs.WindowsExtension.flutter-tools') -or $_.Key.EndsWith('CLSID\{55C8C7A9-8625-4AF0-8598-DFA975064F0C}')) })
+        Assert-JobsTest ($native.Count -eq 4) '统一 Flutter 只启用三个项目 handler 和 CLSID'
+        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) '统一 Flutter 不启用始终可见的静态菜单'
+        continue
+    }
     if ($feature.Id -eq 'git-proxy-configure') {
         $desktop = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.git-proxy-configure') })
         Assert-JobsTest ($desktop.Count -eq 1) 'Git 配置只注册一个桌面空白入口'
         Assert-JobsTest ($desktop[0].Key -eq 'Software\Classes\DesktopBackground\shell\Jobs.WindowsExtension.git-proxy-configure') 'Git 配置不进入普通目录、磁盘和选中项'
         continue
     }
-    if ($feature.Id -in @('android-simulator-create', 'harmony-simulator-create')) {
+    if ($feature.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create', 'harmony-simulator-repair')) {
         $clsid = '{9591D98B-3481-4E05-BE24-470FCDFD0E23}'
+        if ($feature.Id -eq 'android-simulator-repair') { $clsid = '{A6D8DCE0-B691-4CC9-A3C5-F02B8BC704E5}' }
+        if ($feature.Id -eq 'harmony-simulator-repair') { $clsid = '{C91A8F93-CA7B-4F28-B705-A0AC90C5F231}' }
         if ($feature.Id -eq 'harmony-simulator-create') { $clsid = '{95E5B535-2EB8-48CA-98B5-A14D17A0A859}' }
         $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.' + $feature.Id) -or $_.Key.EndsWith('CLSID\' + $clsid) })
         Assert-JobsTest ($native.Count -eq 2) ('模拟器桌面 handler 与 CLSID 独立：' + $feature.Id)
@@ -70,6 +78,14 @@ foreach ($feature in $features) {
         $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.' + $feature.Id) -or $_.Key.EndsWith('CLSID\' + $clsid) })
         Assert-JobsTest ($native.Count -eq 4) 'Flutter 运行包只注册三个动态处理器和独立 CLSID'
         Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) 'Flutter 运行包不残留始终可见的静态菜单'
+        continue
+    }
+    if ($feature.Id -in @('run-authorize', 'run-authorization-revoke')) {
+        $clsid = '{AE09A13F-EF17-4CE3-8BA1-F557C34280DE}'
+        if ($feature.Id -eq 'run-authorization-revoke') { $clsid = '{6AC50F49-6915-4130-8474-F99DA4D074D6}' }
+        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.' + $feature.Id) -or $_.Key.EndsWith('CLSID\' + $clsid) })
+        Assert-JobsTest ($native.Count -eq 2) '权限包仅普通单文件原生 handler 和 CLSID'
+        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\Directory|\\Drive|DesktopBackground' }).Count -eq 0) '运行权限不注册目录或背景'
         continue
     }
     $items = @($all | Where-Object { $_.Key.EndsWith('\Jobs.WindowsExtension.' + $feature.Id) })

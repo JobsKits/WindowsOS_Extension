@@ -50,7 +50,9 @@ try {
     [void][IO.Directory]::CreateDirectory($oldSdk)
     [void][IO.Directory]::CreateDirectory((Join-Path $project '.fvm'))
     $linkType = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { 'Junction' } else { 'SymbolicLink' }
-    [void](New-Item -ItemType $linkType -Path (Join-Path $project '.fvm/flutter_sdk') -Target $oldSdk)
+    $linkTarget = $oldSdk
+    if ($PSVersionTable.PSVersion.Major -eq 5) { $linkTarget = [Management.Automation.WildcardPattern]::Escape($oldSdk) }
+    [void](New-Item -ItemType $linkType -Path (Join-Path $project '.fvm/flutter_sdk') -Target $linkTarget)
     $before = [IO.File]::ReadAllText((Join-Path $project '.fvmrc'))
     $beforeIde = [IO.File]::ReadAllText((Join-Path $project '.vscode/settings.json'))
     $beforeIgnore = [IO.File]::ReadAllText((Join-Path $project '.gitignore'))
@@ -78,7 +80,7 @@ try {
     Assert-HarmonySdk ([IO.File]::ReadAllText((Join-Path $project '.vscode/settings.json')) -ceq $beforeIde -and [IO.File]::ReadAllText((Join-Path $project '.gitignore')) -ceq $beforeIgnore) 'failure preserves IDE and ignore'
     $module = Import-Module $path -PassThru -Force -DisableNameChecking
     & $module { param($Project,$Sdk,$Config,$Stamp) Publish-JobsHarmonyBinding $Project $Sdk $Config $Stamp } $project $sdk $body $stamp
-    Assert-HarmonySdk ((Get-Content -LiteralPath (Join-Path $project '.fvmrc') -Raw | ConvertFrom-Json).flutter -ceq ('custom_jobs_ohos_' + $sha)) 'successful project config published'
+    Assert-HarmonySdk ((Get-Content -LiteralPath (Join-Path $project '.fvmrc') -Raw -Encoding UTF8 | ConvertFrom-Json).flutter -ceq ('custom_jobs_ohos_' + $sha)) 'successful project config published'
     Assert-HarmonySdk ([string]@(Get-Item -LiteralPath (Join-Path $project '.fvm/flutter_sdk')).Target -ceq $sdk) 'published SDK link is absolute selected cache'
     Assert-HarmonySdk ([IO.File]::ReadAllText((Join-Path $project '.vscode/settings.json')) -ceq $beforeIde -and [IO.File]::ReadAllText((Join-Path $project '.gitignore')) -ceq $beforeIgnore) 'success preserves IDE and ignore'
     Assert-HarmonySdk ([IO.File]::ReadAllText((Join-Path (Split-Path -Parent $project) '.fvmrc')) -ceq '{"flutter":"3.16.0","parent":true}') 'parent project untouched'
@@ -109,7 +111,9 @@ try {
                     [void][IO.Directory]::CreateDirectory((Join-Path $Directory '.fvm'))
                     $target = Join-Path $env:FVM_CACHE_PATH ('versions/' + $Arguments[1])
                     $kind = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { 'Junction' } else { 'SymbolicLink' }
-                    [void](New-Item -ItemType $kind -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $target)
+                    $linkTarget = $target
+                    if ($PSVersionTable.PSVersion.Major -eq 5) { $linkTarget = [Management.Automation.WildcardPattern]::Escape($target) }
+                    [void](New-Item -ItemType $kind -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $linkTarget)
                     return [pscustomobject]@{ExitCode=0;StdOut='';StdErr=''}
                 }
                 if ($Arguments[1] -ceq '--version') { return [pscustomobject]@{ExitCode=0;StdOut=('{"frameworkRevision":"' + $script:TestCommit + '"}');StdErr=''} }
@@ -158,7 +162,9 @@ try {
                     [void][IO.Directory]::CreateDirectory((Join-Path $Directory '.fvm'))
                     $target = Join-Path $env:FVM_CACHE_PATH ('versions/' + $Arguments[1])
                     $kind = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { 'Junction' } else { 'SymbolicLink' }
-                    [void](New-Item -ItemType $kind -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $target)
+                    $linkTarget = $target
+                    if ($PSVersionTable.PSVersion.Major -eq 5) { $linkTarget = [Management.Automation.WildcardPattern]::Escape($target) }
+                    [void](New-Item -ItemType $kind -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $linkTarget)
                     return [pscustomobject]@{ExitCode=0;StdOut='';StdErr=''}
                 }
                 if ($script:NativeFails) { return [pscustomobject]@{ExitCode=1;StdOut='';StdErr='fake initialization failure'} }
@@ -171,7 +177,7 @@ try {
     Assert-HarmonySdk ([IO.File]::ReadAllText((Join-Path $project '.fvmrc')) -ceq $beforeNativeFailure -and [string]@(Get-Item -LiteralPath (Join-Path $project '.fvm/flutter_sdk')).Target -ceq $sdk) 'failed OH-to-native initialization preserves complete OH binding'
     & $module { & $script:HarmonyManager { $script:NativeFails = $false } }
     & $module { param($Project) Invoke-JobsNativeSdkFromHarmony -Target $Project } $project
-    $nativeConfig = Get-Content -LiteralPath (Join-Path $project '.fvmrc') -Raw | ConvertFrom-Json
+    $nativeConfig = Get-Content -LiteralPath (Join-Path $project '.fvmrc') -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-HarmonySdk ($nativeConfig.flutter -ceq '3.38.5' -and $nativeConfig.flutterUrl -ceq 'https://github.com/flutter/flutter.git' -and $nativeConfig.cachePath -ceq (Join-Path (Split-Path -Parent $cache) 'official')) 'OH-to-native return selects explicit official source and separate cache'
     Assert-HarmonySdk ($nativeConfig.custom.keep -eq $true -and $nativeConfig.flavors.dev -ceq '3.38.4') 'native return preserves user config fields'
     Assert-HarmonySdk ([IO.File]::ReadAllText((Join-Path $project '.vscode/settings.json')) -ceq $beforeIde -and [IO.File]::ReadAllText((Join-Path $project '.gitignore')) -ceq $beforeIgnore) 'round-trip preserves live IDE and ignore'
@@ -186,7 +192,9 @@ try {
         Assert-HarmonySdk ([IO.File]::ReadAllText((Join-Path $root ('JobsFlutterTools/Scripts/' + $name))).Contains("'ohos-sdk-manage'")) ('dispatch whitelist includes OH: ' + $name)
     }
     $native = [IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/ContextMenu.cpp'))
-    Assert-HarmonySdk ($native.Contains('i < 8 || i == 10') -and $native.Contains('(i < 10 ? doctors : repairs)') -and $native.Contains('if (i == 10 &&')) 'all native submenu indices shifted together'
+    Assert-HarmonySdk ($native.Contains('HMENU parent = i < 8 || i == 10 ? development : (i < 10 ? doctors : repairs);')) 'all native submenu indices shifted together'
+    Assert-HarmonySdk ($native.Contains('if (!selected[i]) continue;') -and $native.Contains('!selected[LOWORD(info->lpVerb)]')) 'selected actions are checked both while displaying and invoking'
+    Assert-HarmonySdk ($native.Contains('GetMenuItemCount(doctors) > 0') -and $native.Contains('GetMenuItemCount(repairs) > 0')) 'empty diagnostic and repair submenus stay hidden'
     foreach ($file in @('JobsFlutterTools/Scripts/HarmonySdk.psm1','JobsFlutterTools/Scripts/CheckHarmonySdk.ps1')) {
         $tokens = $null; $errors = $null
         [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $root $file), [ref]$tokens, [ref]$errors)

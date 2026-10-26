@@ -20,6 +20,8 @@
 
 ## 🔥 <span id="前言">前言</span>
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 在 **x64 Windows 10 / 11** 的系统桌面空白处右键，点击 **新建 Harmony 模拟器**，通过 CMD 补齐工具与系统镜像，回车默认选择最新稳定版手机 [**HarmonyOS**](https://developer.huawei.com/consumer/cn/harmonyos/) 镜像，调用官方 DevEco Emulator 创建独立新实例，回读验证后由本人决定是否启动。普通文件夹、选中文件 / 目录和多选不显示本入口；Windows ARM / 32 位宿主不支持。
 
 | 操作 | 结果 |
@@ -29,6 +31,10 @@
 | 没有已下载镜像 | 读取官方可下载清单；默认最新稳定版手机，阅读原文并本人回车同意后下载、复检，然后继续创建。 |
 | 已有同名实例 | 拒绝覆盖；未指定名称时自动生成唯一名称。 |
 | `Run.cmd -Check` | 只查询帮助、已下载镜像和实例；不创建、下载、启动或写安装状态。 |
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**本包依赖与测试范围：** 仅支持 AMD64（x64）Windows 10 / 11 物理机；Windows ARM、32 位系统及虚拟机不在 [DevEco 本地模拟器官方支持范围](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-emulator-requirements)。安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。`Run.cmd` 不要求编译菜单，但仍受相同宿主、SDK、镜像与硬件虚拟化限制。
 
 ## 一、<span id="installation">安装、卸载与菜单范围</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 

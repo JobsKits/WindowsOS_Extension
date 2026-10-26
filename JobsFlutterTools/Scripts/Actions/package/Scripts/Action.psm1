@@ -234,7 +234,7 @@ function Select-JobsPackagerChoice {
 function Assert-JobsPackagerWindowsPlatform {
     param([string]$Platform)
     if ($Platform -ceq 'iOS') { throw 'Windows 无法构建 iOS 安装包。请在 macOS + Xcode 上使用同名 Flutter打包 菜单；本次没有运行 pub get 或 build。' }
-    if ($Platform -cnotin @('Android', 'HarmonyOS（鸿蒙）')) { throw '无效打包平台。' }
+    if ($Platform -cnotin @('Android', 'OpenHarmony')) { throw '无效打包平台。' }
 }
 
 function Get-JobsPackagerOptions {
@@ -348,7 +348,7 @@ function Get-JobsPackagerHarmonyOptions {
     param([string]$Type = $env:OHOS_BUILD_TARGET, [string]$Mode = $env:BUILD_MODE, [string]$Flavor = $env:FLAVOR)
     if ([string]::IsNullOrEmpty($Type)) { $Type = 'hap' }
     if ($Type -cnotin @('hap', 'app', 'all')) { throw 'OHOS_BUILD_TARGET / Type 只支持 hap、app、all。' }
-    if ($Flavor) { throw '鸿蒙暂不接受 FLAVOR / Flavor；部分适配 SDK 会将未知 flavor 静默退回 default，请先移除该参数并核对工程产品配置。' }
+    if ($Flavor) { throw 'OpenHarmony 暂不接受 FLAVOR / Flavor；部分适配 SDK 会将未知 flavor 静默退回 default，请先移除该参数并核对工程产品配置。' }
     $options = Get-JobsPackagerOptions -Mode $Mode -Flavor ''
     return [pscustomobject]@{ Type = $Type; Mode = $options.Mode }
 }
@@ -444,7 +444,7 @@ function Assert-JobsPackagerHarmonyToolchain {
         $result = Invoke-JobsPackagerProbe -File $Flutter -Arguments @('build', $target, '--help') -Project $Project
         if ($result.ExitCode -ne 0 -or (ConvertTo-JobsPackagerPlainText $result.Output) -cnotmatch ('flutter\s+build\s+' + $target + '\b')) {
             if ($result.Output) { Write-JobsPackagerMessage $result.Output }
-            throw ('此 Flutter SDK 未确认支持 flutter build ' + $target + '，请指定匹配工程的鸿蒙适配 SDK；普通 Android / iOS SDK 无法打鸿蒙包。')
+            throw ('此 Flutter SDK 未确认支持 flutter build ' + $target + '，请指定匹配工程的 OpenHarmony 适配 SDK；普通 Android / iOS SDK 无法打 OpenHarmony 包。')
         }
         Write-JobsPackagerMessage ('已确认 SDK 能力：flutter build ' + $target)
     }
@@ -500,16 +500,16 @@ function Invoke-JobsPackagerHarmonyBuild {
         Assert-JobsPackagerHarmonyToolchain -Project $Project -Flutter $flutter -Targets $targets
         Write-JobsPackagerMessage ('工程：' + $Project)
         Write-JobsPackagerMessage ('Flutter SDK：' + $flutter)
-        Write-JobsPackagerMessage ('鸿蒙产物：' + $options.Type + '；模式：' + $options.Mode + '；签名沿用工程现有配置。')
+        Write-JobsPackagerMessage ('OpenHarmony 产物：' + $options.Type + '；模式：' + $options.Mode + '；签名沿用工程现有配置。')
         Invoke-JobsPackagerTool -File $flutter -Arguments @('pub', 'get') -Project $Project
         foreach ($target in $targets) {
             $started = [DateTime]::UtcNow
             Invoke-JobsPackagerTool -File $flutter -Arguments @('build', $target, ('--' + $options.Mode)) -Project $Project
             foreach ($artifact in @(Get-JobsPackagerHarmonyArtifacts -Project $Project -Type $target)) {
                 $file = Get-Item -LiteralPath $artifact
-                if ($file.Name -match '-unsigned\.') { Write-JobsPackagerMessage ('未签名鸿蒙产物：' + $artifact + '；安装或上架前必须完成签名。') }
-                elseif ($file.LastWriteTimeUtc -lt $started) { Write-JobsPackagerMessage ('现存鸿蒙产物（构建命令成功，可能复用 Hvigor 缓存，请核对）：' + $artifact) }
-                else { Write-JobsPackagerMessage ('鸿蒙产物已验证：' + $artifact) }
+                if ($file.Name -match '-unsigned\.') { Write-JobsPackagerMessage ('未签名 OpenHarmony 产物：' + $artifact + '；安装或上架前必须完成签名。') }
+                elseif ($file.LastWriteTimeUtc -lt $started) { Write-JobsPackagerMessage ('现存 OpenHarmony 产物（构建命令成功，可能复用 Hvigor 缓存，请核对）：' + $artifact) }
+                else { Write-JobsPackagerMessage ('OpenHarmony 产物已验证：' + $artifact) }
             }
         }
     } finally {
@@ -522,25 +522,25 @@ function Invoke-JobsPackagerHarmonyBuild {
 
 function Invoke-JobsFlutterPackageAction {
     param([string]$Target)
-    Write-Host 'Flutter打包：仅处理所选 Flutter 根目录，用 fzf 选择 Android / iOS / HarmonyOS（鸿蒙）及产物。'
-    Write-Host 'Android / 鸿蒙会执行 pub get / build 并写入工程；鸿蒙须已有 ohos 平台和适配 SDK，iOS 需要 macOS + Xcode。'
+    Write-Host 'Flutter打包：仅处理所选 Flutter 根目录，用 fzf 选择 Android / iOS / OpenHarmony 及产物。'
+    Write-Host 'Android / OpenHarmony 会执行 pub get / build 并写入工程；OpenHarmony 须已有 ohos 平台和适配 SDK，iOS 需要 macOS + Xcode。'
     Write-Host '模式默认 release，BUILD_MODE 可设 debug / profile，FLAVOR 指定 flavor；Esc / Ctrl+C 取消。'
     Assert-JobsFlutterProject $Target
     $logDirectory = Join-Path (Get-JobsInstallRoot) 'logs'
     [void][IO.Directory]::CreateDirectory($logDirectory)
     $script:PackagerLog = Join-Path $logDirectory ('package-' + (Get-Date -Format 'yyyy-MM-dd-HH-mm-ss') + '-' + [guid]::NewGuid().ToString('N') + '.log')
     Write-JobsPackagerMessage ('日志：' + $script:PackagerLog)
-    $platform = Select-JobsPackagerChoice '选择打包平台' @('Android', 'iOS', 'HarmonyOS（鸿蒙）')
+    $platform = Select-JobsPackagerChoice '选择打包平台' @('Android', 'iOS', 'OpenHarmony')
     if ($null -eq $platform) { Write-JobsPackagerMessage '已取消，没有开始打包。'; return }
     Assert-JobsPackagerWindowsPlatform $platform
-    if ($platform -ceq 'HarmonyOS（鸿蒙）') {
+    if ($platform -ceq 'OpenHarmony') {
         $options = Get-JobsPackagerHarmonyOptions
         $labels = @{ hap = 'HAP'; app = 'APP'; all = 'HAP + APP' }
         $defaultLabel = $labels[$options.Type]
         $choices = @($defaultLabel) + @('HAP', 'APP', 'HAP + APP' | Where-Object { $_ -cne $defaultLabel })
-        $choice = Select-JobsPackagerChoice '选择鸿蒙产物' $choices
+        $choice = Select-JobsPackagerChoice '选择 OpenHarmony 产物' $choices
         if ($null -eq $choice) { Write-JobsPackagerMessage '已取消，没有开始打包。'; return }
-        $type = switch -CaseSensitive ($choice) { 'HAP' { 'hap' } 'APP' { 'app' } 'HAP + APP' { 'all' } default { throw '无效鸿蒙产物选择。' } }
+        $type = switch -CaseSensitive ($choice) { 'HAP' { 'hap' } 'APP' { 'app' } 'HAP + APP' { 'all' } default { throw '无效 OpenHarmony 产物选择。' } }
         Invoke-JobsPackagerHarmonyBuild -Project $Target -Type $type
         Write-JobsPackagerMessage 'Flutter HarmonyOS 打包完成；发布要求请结合工程签名配置核对。'
         return

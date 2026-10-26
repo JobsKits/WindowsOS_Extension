@@ -99,7 +99,7 @@ public:
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
         if ((flags & CMF_DEFAULTONLY) || first > last || !IsProject(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
-        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING, first, L"运行 Flutter 项目")) return HRESULT_FROM_WIN32(GetLastError());
+        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING, first, L"从终端运行 Flutter 项目")) return HRESULT_FROM_WIN32(GetLastError());
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
     }
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {

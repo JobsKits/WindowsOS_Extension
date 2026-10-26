@@ -21,6 +21,8 @@
 
 ## 🔥 <span id="前言">前言</span>
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 > 独立 [**Windows**](https://www.microsoft.com/windows) 扩展。系统桌面空白右键 → `Android 模拟器检测与修复` → 可见终端，处理 [**Android Emulator**](https://developer.android.com/studio/run/emulator) 的 `INSTALL_FAILED_INSUFFICIENT_STORAGE`。安装菜单不修复设备；点击后先展示用途与影响，回车才开始。双击 `Run.cmd` 使用相同内置核心，无须父工程、兄弟包或 JobsCommand。
 
 | 场景 | 操作及结果 |
@@ -29,6 +31,10 @@
 | `/data` 可用空间不足 | 精确 `YES` 后可重置编译状态，或卸载本人输入的单一精确包名，再复测空间。 |
 | 仍然不足且需要调容量 | 完整备份 AVD 后改容量，冷启动后复核实际 `/data`；写配置不等于已经扩容。 |
 | 只想检查 | `-Check` 只查询，不创建日志、改设备、备份、改配置或启动模拟器。异常非零退出。 |
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。Android Emulator 本机运行及容量调整按 AMD64（x64）Windows 10 / 11 宿主验收，Windows ARM / 32 位不作支持承诺；只读 ADB 检查通过不代表宿主能启动模拟器。虚拟机菜单验证与真实 AVD 加速、停机、备份及扩容验收分开；模拟器完整业务在符合官方要求的物理机验证。`Run.cmd` 无须菜单编译器。
 
 ## 一、<span id="quick-start">安装与使用</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 

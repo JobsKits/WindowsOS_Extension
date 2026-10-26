@@ -21,6 +21,8 @@
 
 ## 🔥 <span id="前言">前言</span>
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 **右键功能：拉取 Git 到最新。** 将当前文件夹所属 [**Git**](https://git-scm.com/) 工作树的当前分支整合到其已配置 upstream 最新提交；保留本地已提交历史，不强制对齐远端。
 
 这是可独立复制的 [**Windows**](https://www.microsoft.com/windows) 功能包。复制整个 `JobsGitPuller` 文件夹，双击 [`Install.cmd`](./Install.cmd) 安装本项；[`Uninstall.cmd`](./Uninstall.cmd) 只卸载本项。运行源码、安装器和基础模块都在包内，不依赖总目录或相邻功能包。
@@ -32,6 +34,10 @@
 | 有未提交内容 | 列出改动；直接回车确认，任意非空输入（包括空格）或 EOF 取消。 |
 | 拉取或恢复本地改动产生冲突 | 提供下列三个选项；提交后仍可能再次冲突。 |
 | 网络、认证、权限或快照失败 | 报错停止；不会误进入放弃改动菜单。 |
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+）后，也仅可探索基础静态菜单，不构成对本包完整功能的支持承诺。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**本包依赖与测试范围：** 本包采用静态菜单，安装无需 MSVC；Git for Windows、凭据组件和仓库 hooks 的系统 / 架构要求单独满足。虚拟机业务验证应使用临时仓库和临时远端，覆盖拉取、冲突与恢复，不能由菜单显示推定实际 Git 兼容。
 
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、冲突三选项 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 

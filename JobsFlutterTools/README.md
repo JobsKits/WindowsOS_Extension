@@ -1,12 +1,18 @@
 # Flutter 开发、体检、修复与维护
 
+**最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
+
 `JobsFlutterTools` 是 Flutter 工程右键菜单的统一入口。只有同层 `pubspec.yaml` 声明 Flutter SDK 的工程文件夹才展示菜单；支持选中文件夹或工程内空白处。菜单由单个扩展创建，子菜单顺序固定，不再由多个独立扩展竞争排列。其他软件提供的菜单相对于本组的位置由操作系统决定。
+
+**系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
+
+**本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。运行宿主另需系统 .NET Framework 的 `csc.exe`。Flutter / Dart / FVM、Java、Android / DevEco 工具链随实际版本可能提高系统或 build 下限；Android / Harmony 本地模拟器按 AMD64 物理机单独验收，不能由 Windows ARM 虚拟机菜单测试推定可运行。
 
 ## 固定菜单结构
 
 ```text
 Flutter开发相关辅助工具
-├─ 运行Flutter项目
+├─ 从终端运行 Flutter 项目
 ├─ 拉取Flutter第三方依赖
 ├─ 提取Flutter第三方依赖
 ├─ 查看当前Flutter项目的SDK版本
@@ -16,7 +22,7 @@ Flutter开发相关辅助工具
 ├─ Flutter自动化生产代码
 ├─ Flutter项目体检
 │  ├─ 原生Flutter项目体检
-│  └─ 鸿蒙Flutter环境体检
+│  └─ OpenHarmony Flutter 环境体检
 └─ Flutter清理维护工具
 Flutter项目修复
 ├─ 修复 Android SDK / platforms 缺失
@@ -48,7 +54,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -Target 'D:\Projects\MyFlutterApp'
 ```
 
-SDK 安装/切换完成后使用“鸿蒙 Flutter 环境体检”核对 DevEco/CLT、插件与项目适配，真实签名和 HAP 构建另验。多套 DevEco/CLT 并存时通过本次终端的 `TOOL_HOME` 或 `DEVECO_STUDIO_HOME` 指定。Java 安装/切换菜单目前仅在 macOS 提供，本 Windows 入口不安装或切换 Java。
+SDK 安装/切换完成后使用“OpenHarmony Flutter 环境体检”核对 DevEco/CLT、插件与项目适配，真实签名和 HAP 构建另验。多套 DevEco/CLT 并存时通过本次终端的 `TOOL_HOME` 或 `DEVECO_STUDIO_HOME` 指定。Java 安装/切换菜单目前仅在 macOS 提供，本 Windows 入口不安装或切换 Java。
 
 需要切回原生 SDK 时，使用相邻的“安装/切换Flutter SDK版本”。仅当当前绑定符合本工具的 CPF 来源、`custom_jobs_ohos_<commit>` 与隔离 `harmony` 缓存约定时，进入专用反向流程：在影子项目选择官方 Flutter 版本，明确使用 `https://github.com/flutter/flutter.git` 和同级独立 `official` 缓存，安装、实际版本及来源核验通过后再发布真实项目绑定。失败或取消保留原 OpenHarmony SDK 与配置；SDK 缓存保留，可再次从 OpenHarmony 菜单切回。未知 fork 不自动迁移，也不会用官方发布清单从未知来源下载安装。
 
@@ -74,7 +80,11 @@ SDK 安装/切换完成后使用“鸿蒙 Flutter 环境体检”核对 DevEco/C
 
 ## Windows 安装与验证
 
-运行 `Install.cmd`，或在总安装面板选择 `Flutter开发相关辅助工具`。需要 Windows PowerShell 5.1、MSVC C++ 桌面构建工具和 Windows SDK；安装期间本地编译原生菜单 DLL 及运行宿主，不将 PowerShell/CLR/Flutter 注入 Explorer。Windows 11 在“显示更多选项”中显示。没有对 Windows 进行冒充实机验收：当前验证环境是 macOS，已验证 PowerShell 语法、包复制、FVM 绑定与注册表计划，Windows 原生 DLL 编译、注册及点击仍需 Windows 机器验证。
+运行 `Install.cmd` 安装全部子功能；需要逐项选择时，使用上级总安装面板。面板展开上方菜单的全部 **14 项叶功能**，分为开发辅助、项目体检、项目修复三组，每组和底部均有全选 / 全不选，短屏只滚动内容区。至少勾选一个功能才能安装；所有选中项仍由同一个包构建注册一次。重新安装 Flutter 组时，以本次勾选精确替换该组；整个 Flutter 组未选时保留原安装。配置面板可全不选关闭全部；卸载面板可仅移除某些叶功能，剩余动作继续保留。空体检或修复子菜单自动隐藏。
+
+安装状态的 `ActionIds` 保存实际动作白名单；同一事务发布包根的 `menu-state.txt`，包含当前 release 和相同动作白名单。原生 DLL 每次展开和点击都读该稳定指针并派发当前 release，后续重新选择不依赖 Explorer 重新载入 DLL；卸载墓碑使用空白名单。release 内另存 `menu-actions.txt` 作为兼容白名单。PowerShell 执行再次检查当前选择和 release。旧安装没有子功能字段时按全部现有动作兼容；损坏、重复或未知动作不会自动变成全开。**首次从不支持子功能选择的旧 DLL 升级后，需要先关闭正在操作的资源管理器窗口，再重启 Explorer，或注销重新登录**；安装器不会主动终止窗口。独立 `Install.cmd` 默认安装全部，独立 `Uninstall.cmd` 卸载整个包。
+
+需要 Windows PowerShell 5.1、MSVC C++ 桌面构建工具和 Windows SDK；安装期间本地编译原生菜单 DLL 及运行宿主，不将 PowerShell/CLR/Flutter 注入 Explorer。Windows 11 在“显示更多选项”中显示。当前 macOS 已验证选择计划、兼容状态、白名单解析、包复制及语法；Windows 原生 DLL 编译、WinForms 控件与 Explorer 点击仍需 Windows 机器验证。
 
 迁移与统一注册写入同一事务，只处理带本仓库 `JobsOwner` 的旧 Flutter 注册项。归属不明时停止并回滚；不删旧工具、工程、SDK 或缓存。卸载运行 `Uninstall.cmd`。
 

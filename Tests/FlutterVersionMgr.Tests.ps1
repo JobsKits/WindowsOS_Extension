@@ -7,6 +7,7 @@
 param()
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'NativeFixtures.ps1')
 $script:assertions = 0
 function Assert-Fvm {
     param([bool]$Condition, [string]$Message)
@@ -117,14 +118,16 @@ try {
     [IO.File]::WriteAllText($outsideFile, 'outside-retained')
     foreach ($relative in @('.fvm/fvm_config.json', '.fvm/version', '.fvm/release', '.fvm/.gitignore', 'unsafe.code-workspace')) {
         $link = Join-Path $guardProject $relative
-        [void](New-Item -ItemType SymbolicLink -Path $link -Target $outsideFile)
-        Assert-FvmThrows { & $module { param($Project) Assert-JobsFvmWritePaths $Project } $guardProject } ('FVM已知写路径拒绝链接：' + $relative)
-        [IO.File]::Delete($link)
+        if (New-JobsTestSymbolicLink -Path $link -Target $outsideFile) {
+            Assert-FvmThrows { & $module { param($Project) Assert-JobsFvmWritePaths $Project } $guardProject } ('FVM已知写路径拒绝链接：' + $relative)
+            [IO.File]::Delete($link)
+        }
     }
     $dangling = Join-Path $guardProject '.fvm/version'
-    [void](New-Item -ItemType SymbolicLink -Path $dangling -Target (Join-Path $temporary 'missing-outside'))
-    Assert-FvmThrows { & $module { param($Project) Assert-JobsFvmWritePaths $Project } $guardProject } '悬空配置链接不得伪装不存在'
-    [IO.File]::Delete($dangling)
+    if (New-JobsTestSymbolicLink -Path $dangling -Target (Join-Path $temporary 'missing-outside')) {
+        Assert-FvmThrows { & $module { param($Project) Assert-JobsFvmWritePaths $Project } $guardProject } '悬空配置链接不得伪装不存在'
+        [IO.File]::Delete($dangling)
+    }
     Assert-Fvm ([IO.File]::ReadAllText($outsideFile) -ceq 'outside-retained') '门禁没有写出项目边界'
     & $module {
         function script:Read-JobsFvmWebJson {
@@ -189,7 +192,10 @@ try {
                 [IO.File]::WriteAllText((Join-Path $sdk 'bin/flutter.bat'), '@echo fixture')
                 [void][IO.Directory]::CreateDirectory((Join-Path $Directory '.fvm'))
                 if (-not (Test-Path -LiteralPath (Join-Path $Directory '.fvm/flutter_sdk'))) {
-                    [void](New-Item -ItemType SymbolicLink -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $sdk)
+                    $kind = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { 'Junction' } else { 'SymbolicLink' }
+                    $linkTarget = $sdk
+                    if ($PSVersionTable.PSVersion.Major -eq 5) { $linkTarget = [Management.Automation.WildcardPattern]::Escape($sdk) }
+                    [void](New-Item -ItemType $kind -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $linkTarget)
                 }
             }
             return [pscustomobject]@{ ExitCode = 0; StdOut = '{"frameworkVersion":"3.22.0"}'; StdErr = '' }

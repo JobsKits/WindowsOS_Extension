@@ -24,18 +24,58 @@ function Get-JobsFeaturePackages {
     }
 }
 
+function Get-JobsSelectableFeatures {
+    param([object[]]$Packages)
+    $actions = Import-Module (Join-Path $PSScriptRoot '../JobsFlutterTools/Scripts/FeatureActions.psm1') -PassThru -DisableNameChecking
+    foreach ($package in $Packages) {
+        if ($package.Id -cne 'flutter-tools') { $package; continue }
+        foreach ($entry in @(& $actions { Get-JobsFlutterActionCatalog })) {
+            [pscustomobject]@{
+                Id = 'flutter-' + $entry.Id; Label = $entry.Label; Description = $package.Description
+                PackageId = $package.Id; ActionId = $entry.Id; Group = $entry.Group
+            }
+        }
+    }
+}
+
+function Expand-JobsFeatureSelection {
+    param([object[]]$Packages, [string[]]$Selected)
+    $features = @(Get-JobsSelectableFeatures -Packages $Packages)
+    foreach ($id in @($Selected)) {
+        if ($id -ceq 'flutter-tools' -and $id -cin @($Packages.Id)) {
+            $features | Where-Object { $_.Id -clike 'flutter-*' } | ForEach-Object { $_.Id }
+        } elseif ($id -cin @($features.Id)) { $id }
+        else { throw ('未知功能标识：' + $id) }
+    }
+}
+
 function Get-JobsPackageOperationPlan {
     param([object[]]$Packages, [string[]]$Selected, [string[]]$Installed, [ValidateSet('Install', 'Configure', 'Uninstall')][string]$Mode)
-    $known = @($Packages | ForEach-Object { $_.Id })
-    foreach ($id in @($Selected) + @($Installed)) {
-        if ($id -notin $known) { throw ('未知功能标识：' + $id) }
-    }
+    $selectedFeatures = @(Expand-JobsFeatureSelection -Packages $Packages -Selected $Selected)
+    $installedFeatures = @(Expand-JobsFeatureSelection -Packages $Packages -Selected $Installed)
     foreach ($package in $Packages) {
+        if ($package.Id -ceq 'flutter-tools') {
+            $prefix = 'flutter-'
+            $chosen = @($selectedFeatures | Where-Object { $_ -clike 'flutter-*' })
+            $existing = @($installedFeatures | Where-Object { $_ -clike 'flutter-*' })
+            $remaining = $chosen
+            if ($Mode -eq 'Uninstall') { $remaining = @($existing | Where-Object { $_ -cnotin $chosen }) }
+            $change = ($Mode -eq 'Configure' -and ($chosen.Count -gt 0 -or $existing.Count -gt 0)) -or
+                ($Mode -eq 'Install' -and $chosen.Count -gt 0) -or
+                ($Mode -eq 'Uninstall' -and @($existing | Where-Object { $_ -cin $chosen }).Count -gt 0)
+            if ($change) {
+                $operation = 'Install'
+                if ($remaining.Count -eq 0) { $operation = 'Uninstall' }
+                [pscustomobject]@{ Id = $package.Id; Label = $package.Label; PackagePath = $package.PackagePath
+                    Mode = $operation; ActionIds = @($remaining | ForEach-Object { $_.Substring($prefix.Length) }) }
+            }
+            continue
+        }
         $operation = $null
         if ($Mode -eq 'Uninstall') {
-            if ($package.Id -in $Selected -and $package.Id -in $Installed) { $operation = 'Uninstall' }
-        } elseif ($package.Id -in $Selected) { $operation = 'Install' }
-        elseif ($Mode -eq 'Configure' -and $package.Id -in $Installed) { $operation = 'Uninstall' }
+            if ($package.Id -in $selectedFeatures -and $package.Id -in $installedFeatures) { $operation = 'Uninstall' }
+        } elseif ($package.Id -in $selectedFeatures) { $operation = 'Install' }
+        elseif ($Mode -eq 'Configure' -and $package.Id -in $installedFeatures) { $operation = 'Uninstall' }
         if ($operation) {
             [pscustomobject]@{ Id = $package.Id; Label = $package.Label; PackagePath = $package.PackagePath; Mode = $operation }
         }
@@ -51,7 +91,11 @@ function Invoke-JobsPackageOperations {
             else {
                 # 使用包自己的安装模块；不加载 Action，也不复制未选择功能的运行代码。
                 $installer = Import-Module (Join-Path $operation.PackagePath 'Scripts/PackageInstaller.psm1') -PassThru -DisableNameChecking
-                & $installer { param($Path, $Mode) Invoke-JobsPackageChange -PackagePath $Path -Mode $Mode } $operation.PackagePath $operation.Mode | Out-Null
+                if ($null -ne $operation.PSObject.Properties['ActionIds']) {
+                    & $installer { param($Path, $Mode, $Ids) Invoke-JobsPackageChange -PackagePath $Path -Mode $Mode -ActionIds $Ids } $operation.PackagePath $operation.Mode @($operation.ActionIds) | Out-Null
+                } else {
+                    & $installer { param($Path, $Mode) Invoke-JobsPackageChange -PackagePath $Path -Mode $Mode } $operation.PackagePath $operation.Mode | Out-Null
+                }
             }
             $completed += ($operation.Mode + ':' + $operation.Id)
         } catch {
@@ -61,4 +105,4 @@ function Invoke-JobsPackageOperations {
     return [pscustomobject]@{ Success = $true; Completed = $completed; Failed = $null; Message = $null }
 }
 
-Export-ModuleMember -Function Get-JobsFeaturePackages, Get-JobsPackageOperationPlan, Invoke-JobsPackageOperations
+Export-ModuleMember -Function Get-JobsFeaturePackages, Get-JobsSelectableFeatures, Expand-JobsFeatureSelection, Get-JobsPackageOperationPlan, Invoke-JobsPackageOperations
