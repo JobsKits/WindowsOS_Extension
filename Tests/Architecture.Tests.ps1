@@ -50,7 +50,7 @@ try {
         $plan = @(& $installer { param($Manifest, $Release, $PowerShell) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath $PowerShell -Enabled $true } $package $release (Join-Path $PSHOME 'powershell.exe'))
         $expected = 4
         if ($package.DirectoryOnly) { $expected = 3 }
-        if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) { $expected = 4 }
+        if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen', 'git-rollback')) { $expected = 4 }
         if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create', 'harmony-simulator-repair')) { $expected = 2 }
         if ($package.Id -in @('run-authorize', 'run-authorization-revoke')) { $expected = 2 }
         if ($package.Id -eq 'git-proxy-configure') { $expected = 1 }
@@ -74,6 +74,10 @@ try {
                 if ($item.Key.EndsWith('CLSID\' + $clsid)) {
                     Assert-Architecture ($item.InProcServer -eq (Join-Path $release ('bin/' + $package.Name + 'ContextMenu.dll'))) ('原生 DLL 归属于本包 release：' + $package.Id)
                 }
+                continue
+            }
+            if ($package.Id -eq 'git-rollback') {
+                Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.git-rollback') -or $item.Key.EndsWith('CLSID\{E58D6868-A650-42EB-9629-E97338918229}')) 'Git 回退只注册自己的动态处理器和 CLSID'
                 continue
             }
             if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) {

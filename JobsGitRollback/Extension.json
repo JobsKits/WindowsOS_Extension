@@ -1,0 +1,11 @@
+{
+  "Id": "git-rollback",
+  "Name": "JobsGitRollback",
+  "Label": "Git 提交回退",
+  "Description": "仅 Git 工作树文件夹显示；识别子仓库，soft 保留索引及工作区，hard 必须精确 YES。",
+  "DirectoryOnly": true,
+  "Console": true,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

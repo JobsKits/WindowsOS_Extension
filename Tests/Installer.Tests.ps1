@@ -53,6 +53,19 @@ foreach ($feature in $features) {
         Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) '统一 Flutter 不启用始终可见的静态菜单'
         continue
     }
+    if ($feature.Id -eq 'git-rollback') {
+        $clsid = '{E58D6868-A650-42EB-9629-E97338918229}'
+        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.git-rollback') -or $_.Key.EndsWith('CLSID\' + $clsid) })
+        Assert-JobsTest ($native.Count -eq 4) 'Git 回退只注册三个动态处理器和独立 CLSID'
+        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) 'Git 回退不注册始终可见的静态菜单'
+        foreach ($class in @('Directory', 'Directory\Background', 'Drive')) {
+            $key='Software\Classes\' + $class + '\shellex\ContextMenuHandlers\Jobs.WindowsExtension.git-rollback'
+            Assert-JobsTest (@($native | Where-Object { $_.Key -ceq $key -and $_.Values[''] -ceq $clsid }).Count -eq 1) ('Git 回退精确上下文：' + $class)
+        }
+        $server=@($native | Where-Object { $_.Key.EndsWith('CLSID\' + $clsid) })
+        Assert-JobsTest ($server.Count -eq 1 -and $server[0].InProcServer -ceq (Join-Path $release 'bin/JobsGitRollbackContextMenu.dll')) 'Git 回退 CLSID 精确归属于本包 DLL'
+        continue
+    }
     if ($feature.Id -eq 'git-proxy-configure') {
         $desktop = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.git-proxy-configure') })
         Assert-JobsTest ($desktop.Count -eq 1) 'Git 配置只注册一个桌面空白入口'

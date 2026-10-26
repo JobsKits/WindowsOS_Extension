@@ -1,0 +1,4 @@
+LIBRARY JobsGitRollbackContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

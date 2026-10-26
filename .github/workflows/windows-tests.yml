@@ -82,6 +82,34 @@ jobs:
       - name: Git pull snapshots and conflict choices against temporary bare remotes
         shell: powershell
         run: .\Tests\GitPuller.Tests.ps1
+      - name: Git rollback native menu, metadata gate, UTF8 transport and isolated resets
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $nativeOutput = Join-Path $env:RUNNER_TEMP 'JobsGitRollback-native'
+          # Dot-source retains the same discovered MSVC environment for the two test-only executables.
+          . .\JobsGitRollback\Scripts\Build.ps1 `
+            -SourceRoot (Join-Path $PWD 'JobsGitRollback') `
+            -OutputRoot $nativeOutput
+          foreach ($probeName in @('GitRollbackMetadataProbe', 'GitRollbackFzfProbe')) {
+            $probeSource = Join-Path $PWD ('Tests/' + $probeName + '.cpp')
+            $probeExecutable = Join-Path $nativeOutput ($probeName + '.exe')
+            $probeObject = Join-Path $nativeOutput ($probeName + '.obj')
+            $probeStart = New-Object Diagnostics.ProcessStartInfo
+            $probeStart.FileName = $compiler
+            $probeStart.Arguments = '/nologo /MT /EHsc /std:c++14 /utf-8 /W4 /Fo"' + $probeObject + '" /Fe"' + $probeExecutable + '" "' + $probeSource + '"'
+            $probeStart.WorkingDirectory = $nativeOutput
+            $probeStart.UseShellExecute = $false
+            foreach ($key in $buildEnvironment.Keys) { $probeStart.EnvironmentVariables[$key] = $buildEnvironment[$key] }
+            $probeProcess = [Diagnostics.Process]::Start($probeStart)
+            try {
+              if (-not $probeProcess.WaitForExit(60000)) { $probeProcess.Kill(); throw 'Native Git rollback probe build timed out.' }
+              if ($probeProcess.ExitCode -ne 0) { throw ('Native Git rollback probe build failed: ' + $probeName) }
+            } finally { $probeProcess.Dispose() }
+          }
+          & (Join-Path $nativeOutput 'GitRollbackMetadataProbe.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Git metadata probe failed.' }
+          .\Tests\GitRollback.Tests.ps1 -FzfProbeExecutable (Join-Path $nativeOutput 'GitRollbackFzfProbe.exe')
       - name: Flutter dependency extraction guards and native argument transport
         shell: powershell
         run: .\Tests\FlutterDependencyExtractor.Tests.ps1

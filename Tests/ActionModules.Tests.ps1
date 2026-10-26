@@ -74,6 +74,13 @@ try {
                 Assert-True $rejected '统一 Flutter 入口只接受固定动作；有效绑定及打包另由 FlutterTools.Tests.ps1 覆盖'
                 continue
             }
+            if ($manifest.Id -eq 'git-rollback') {
+                $rejected = $false
+                try { & $module { param($Target) Invoke-JobsFeature -Target $Target } $testRoot } catch { $rejected = $true }
+                Assert-True $rejected 'Git 回退拒绝非交互入口，不放宽确认；业务由 GitRollback.Tests.ps1 隔离覆盖'
+                Assert-True (-not (Test-Path -LiteralPath (Join-Path $installRoot 'logs'))) 'Git 回退在自述确认前不写日志或执行业务'
+                continue
+            }
             if ($manifest.Id -eq 'android-simulator-repair') {
                 $rejected = $false
                 try { & $module { param($Target) Invoke-JobsFeature -Target $Target } $testRoot } catch { $rejected = $true }
