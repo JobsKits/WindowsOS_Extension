@@ -44,13 +44,43 @@ $powerShell = Join-Path $PSHOME 'powershell.exe'
 $all = @(Get-JobsRegistryPlan -Features @($features.Id) -ReleasePath $release -PowerShellPath $powerShell)
 Assert-JobsTest ($all.Count -gt 0) '注册计划非空'
 Assert-JobsTest (@($all.Key | Select-Object -Unique).Count -eq $all.Count) '每个菜单键唯一'
-Assert-JobsTest (@($all | Where-Object { -not $_.Enabled -and $_.Key -notmatch 'Jobs\.WindowsExtension\.flutter-(pub-get|version-manager|sdk-inspector|dependency-extract|run|package|doctor|codegen)$' }).Count -eq 0) '全选当前功能启用；仅固定旧 Flutter 菜单按迁移计划停用'
+Assert-JobsTest (@($all | Where-Object { -not $_.Enabled -and $_.Key -notmatch 'Jobs\.WindowsExtension\.flutter-(pub-get|version-manager|sdk-inspector|dependency-extract|run|package|doctor|codegen)$' -and $_.Key -notmatch '\\shell\\Jobs\.WindowsExtension\.open-(android-studio|vscode)$' }).Count -eq 0) '全选当前功能启用；仅固定旧 Flutter / IDE 静态菜单按迁移计划停用'
 
 foreach ($feature in $features) {
     if ($feature.Id -eq 'flutter-tools') {
         $native = @($all | Where-Object { $_.Enabled -and ($_.Key.EndsWith('Jobs.WindowsExtension.flutter-tools') -or $_.Key.EndsWith('CLSID\{55C8C7A9-8625-4AF0-8598-DFA975064F0C}')) })
         Assert-JobsTest ($native.Count -eq 4) '统一 Flutter 只启用三个项目 handler 和 CLSID'
         Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) '统一 Flutter 不启用始终可见的静态菜单'
+        continue
+    }
+    if ($feature.Id -eq 'hidden-files-toggle') {
+        $clsid = '{F92F7AF9-65B6-41CB-A6D8-712F01F79126}'
+        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.hidden-files-toggle') -or $_.Key.EndsWith('CLSID\' + $clsid) })
+        Assert-JobsTest ($native.Count -eq 2) '隐藏文件只注册桌面 handler 和独立 CLSID'
+        Assert-JobsTest (@($native | Where-Object { $_.Key -eq 'Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.hidden-files-toggle' }).Count -eq 1) '隐藏文件只适用于桌面背景'
+        continue
+    }
+    if ($feature.Id -in @('open-android-studio', 'open-vscode')) {
+        $clsid = '{9D337A22-B981-4C26-B586-9CC8CE7B3292}'
+        if ($feature.Id -eq 'open-vscode') { $clsid = '{5B0C107E-53D8-4787-AE32-13D11CC5A07A}' }
+        $native = @($all | Where-Object { $_.Enabled -and ($_.Key.EndsWith('Jobs.WindowsExtension.' + $feature.Id) -or $_.Key.EndsWith('CLSID\' + $clsid)) })
+        Assert-JobsTest ($native.Count -eq 4) 'IDE 只启用三个目录 handler 和独立 CLSID'
+        Assert-JobsTest (@($native | Where-Object { $_.Key.Contains('\shell\') }).Count -eq 0) 'IDE 不启用旧静态入口'
+        $legacy = @($all | Where-Object { -not $_.Enabled -and $_.Key.EndsWith('\shell\Jobs.WindowsExtension.' + $feature.Id) })
+        Assert-JobsTest ($legacy.Count -eq 4) 'IDE 精确停用四个旧静态入口'
+        continue
+    }
+    if ($feature.Id -eq 'open-sourcetree') {
+        $clsid = '{CF4D4697-749B-4C37-98EC-0952B2EF1E16}'
+        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.open-sourcetree') -or $_.Key.EndsWith('CLSID\' + $clsid) })
+        Assert-JobsTest ($native.Count -eq 4) 'Sourcetree只注册三个动态处理器和独立 CLSID'
+        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) 'Sourcetree不注册始终可见的静态菜单'
+        foreach ($class in @('Directory', 'Directory\Background', 'Drive')) {
+            $key='Software\Classes\' + $class + '\shellex\ContextMenuHandlers\Jobs.WindowsExtension.open-sourcetree'
+            Assert-JobsTest (@($native | Where-Object { $_.Key -ceq $key -and $_.Values[''] -ceq $clsid }).Count -eq 1) ('Sourcetree精确上下文：' + $class)
+        }
+        $server=@($native | Where-Object { $_.Key.EndsWith('CLSID\' + $clsid) })
+        Assert-JobsTest ($server.Count -eq 1 -and $server[0].InProcServer -ceq (Join-Path $release 'bin/JobsSourcetreeOpenerContextMenu.dll')) 'Sourcetree CLSID 精确归属于本包 DLL'
         continue
     }
     if ($feature.Id -eq 'git-rollback') {

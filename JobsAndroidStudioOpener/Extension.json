@@ -2,7 +2,10 @@
   "Id": "open-android-studio",
   "Name": "JobsAndroidStudioOpener",
   "Label": "🧭 用 Android Studio 打开项目",
-  "Description": "打开目标项目目录。",
-  "DirectoryOnly": false,
-  "Console": false
+  "Description": "仅非空的原生 Android 或有效 Flutter（官方 / 鸿蒙）项目根目录可见，点击前复核。",
+  "DirectoryOnly": true,
+  "Console": false,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
 }

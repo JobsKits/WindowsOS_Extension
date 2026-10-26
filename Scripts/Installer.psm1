@@ -248,6 +248,7 @@ function New-JobsFeatureSelectionForm {
     }
 }
 
+# 只展示 Catalog 传入的 Id/Label/Group 并返回选择；业务门禁写在对应包，不写进 UI 文案或点击回调。
 function Show-JobsFeatureSelection {
     param(
         [object[]]$Packages,

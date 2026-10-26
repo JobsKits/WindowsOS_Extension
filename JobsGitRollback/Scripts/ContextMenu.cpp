@@ -83,6 +83,19 @@ static std::wstring Quote(const std::wstring& value) {
     result.append(slashes * 2, L'\\');
     return result + L"\"";
 }
+// 多个独立 Git handler 共享已插入的父菜单，调用顺序不产生重复分组。
+static HMENU ExistingGitMenu(HMENU menu) {
+    for (int index = 0; index < GetMenuItemCount(menu); ++index) {
+        wchar_t title[128];
+        MENUITEMINFOW item = {};
+        item.cbSize = sizeof(item);
+        item.fMask = MIIM_STRING | MIIM_SUBMENU;
+        item.dwTypeData = title;
+        item.cch = 128;
+        if (GetMenuItemInfoW(menu, index, TRUE, &item) && item.hSubMenu && std::wstring(title) == L"🌿 Git操作") return item.hSubMenu;
+    }
+    return nullptr;
+}
 class Menu final : public IShellExtInit, public IContextMenu {
     std::atomic<ULONG> references;
     std::wstring target;
@@ -123,11 +136,13 @@ public:
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
         if ((flags & CMF_DEFAULTONLY) || first > last || !IsProject(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
-        HMENU group = CreatePopupMenu();
+        HMENU group = ExistingGitMenu(menu);
+        const bool created = !group;
+        if (created) group = CreatePopupMenu();
         if (!group) return HRESULT_FROM_WIN32(GetLastError());
-        if (!InsertMenuW(group, 0, MF_BYPOSITION | MF_STRING, first, L"⏪ Git 提交回退") ||
-            !InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(group), L"🌿 Git操作")) {
-            DestroyMenu(group);
+        if (!InsertMenuW(group, GetMenuItemCount(group), MF_BYPOSITION | MF_STRING, first, L"⏪ Git 提交回退") ||
+            (created && !InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(group), L"🌿 Git操作"))) {
+            if (created) DestroyMenu(group);
             return E_FAIL;
         }
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);

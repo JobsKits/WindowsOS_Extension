@@ -1,0 +1,12 @@
+{
+  "Id": "hidden-files-toggle",
+  "Name": "JobsHiddenFilesToggler",
+  "Label": "👁️ 显示 / 隐藏文件",
+  "Description": "仅系统桌面空白显示下一动作；点击切换当前用户 Explorer 隐藏文件显示，不改受保护系统文件设置。",
+  "DirectoryOnly": true,
+  "Console": false,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1",
+    "Invoke.ps1"
+  ]
+}

@@ -2,7 +2,10 @@
   "Id": "open-vscode",
   "Name": "JobsVSCodeOpener",
   "Label": "📝 用 VSCode 打开项目",
-  "Description": "打开目标项目目录。",
-  "DirectoryOnly": false,
-  "Console": false
+  "Description": "非空且非 iOS 工程的普通目录可见；Flutter 根目录保持支持，点击前复核。",
+  "DirectoryOnly": true,
+  "Console": false,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
 }

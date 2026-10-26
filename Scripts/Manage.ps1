@@ -3,6 +3,15 @@ Manage.ps1 | WindowsOS@Extension 组合安装入口
 Created by Jobs on 2026年10月18日，星期日.
 读取独立包清单，显示复选框；仅编排各包自己的安装与卸载，不承载右键业务。
 每包独立事务，失败停止并显示已完成项；不联网、不提权、不改变系统执行策略。
+MAINTENANCE_INDEX（菜单与安装的唯一维护入口）
+- 总面板：Extensions.json 的 Id/Name -> Catalog.psm1/Get-JobsSelectableFeatures -> Installer.psm1/Show-JobsFeatureSelection。
+- 单项：<Name>/Extension.json -> Scripts/PackageInstaller.psm1；静态标题来自清单，原生标题/显隐来自 ContextMenu.cpp 或共享菜单表，Action.psm1 负责后台执行。
+- Flutter 多叶：JobsFlutterTools/Scripts/FeatureActions.psm1 管面板 ActionId/分组，FlutterToolsMenu.h 管原生标题；Catalog 只聚合为一个安装单元。
+- 隐藏文件：JobsHiddenFilesToggler 的 HiddenFilesMenu.h 管全局状态/动态标题，Action.psm1 只写当前用户 Hidden；Show/Hide 明确传入，安装不切状态。
+- Sourcetree：JobsSourcetreeOpener 的 ContextMenu.cpp + SourcetreeInstallation.h 同时检查 Git 元数据和已安装应用；Action.psm1 点击后复检，入口位于 Git操作 首项；与 GitRollback 共用已插入的父 HMENU。
+- IDE 门禁：AndroidStudio/VSCode 两包的 IDEProject.h + FlutterProject.h 管菜单，IDEProject.cs + ProjectEligibility.ps1 管后台；同字节副本须配对同步并跑 IDEProject.Tests.ps1。
+- 产物/注册/状态：原生包 Build.ps1 -> 独立 release/bin DLL；PackageInstaller 仅写自己的 HKCU\Software\Classes 键；LOCALAPPDATA/Jobs/WindowsExtension/extensions/<Id>/settings.json 保存启用与 ReleasePath。
+- 副本边界：只改源码包，release 的 Extension.json/脚本由 New-JobsPackageRelease 按字节哈希复制；Infrastructure 只生成通用模板，按包 InfrastructureOverrides 保留专用 Invoke/安装器，勿覆盖业务或修补已部署副本。
 #>
 [CmdletBinding()]
 param(
@@ -56,6 +65,7 @@ function Main {
         return
     }
     if (@($choice.Features).Count -eq 0 -and $Mode -ne 'Configure') { return }
+    # 最终选择先变成逐包计划；此处只编排，不根据展示文字猜业务。
     $plan = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @($choice.Features) -Installed $installed -Mode $Mode)
     $result = Invoke-JobsPackageOperations -Plan $plan
     $completed = '无变更'

@@ -1,0 +1,4 @@
+LIBRARY JobsAndroidStudioOpenerContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

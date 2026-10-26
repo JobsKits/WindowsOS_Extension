@@ -5,6 +5,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'ProjectEligibility.ps1')
 
 function Show-JobsMessage {
     param([string]$Message)
@@ -46,7 +47,10 @@ function Invoke-JobsFeature {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Target)
 
-    $directory = Get-JobsDirectory -Target $Target
+    $directory = Resolve-JobsTarget -Target $Target
+    if (-not (Test-JobsIDEProject -Directory $directory -IDE 'vscode')) {
+        throw '当前目标不符合此 IDE 的项目打开条件；请重新右键有效的非空目录。'
+    }
     $executable = Get-JobsVSCode
     if (-not $executable) {
         Open-JobsMissingTool 'VSCode' 'https://code.visualstudio.com/download'

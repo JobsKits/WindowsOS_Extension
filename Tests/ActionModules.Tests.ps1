@@ -22,6 +22,8 @@ $testRoot = Join-Path $temporary ("JobsFeatureModules [中文] '& " + [guid]::Ne
 $savedLocalData = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
 try {
     $env:LOCALAPPDATA = $testRoot
+    [IO.File]::WriteAllText((Join-Path $testRoot 'settings.gradle'), 'rootProject.name = "fixture"')
+    [IO.File]::WriteAllText((Join-Path $testRoot 'build.gradle'), 'plugins { id "com.android.application" }')
     $parsedCatalog = Get-Content -LiteralPath (Join-Path $sourceRoot 'Extensions.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $catalog = @($parsedCatalog)
     $packages = @($catalog | ForEach-Object { Get-Item -LiteralPath (Join-Path $sourceRoot $_.Name) })
@@ -40,6 +42,11 @@ try {
         }
         if ($package.Name -in @('JobsRunAuthorizer', 'JobsRunAuthorizationRevoker')) {
             Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/RunPermissions.ps1') -Destination $scripts
+        }
+        if ($package.Name -in @('JobsAndroidStudioOpener', 'JobsVSCodeOpener')) {
+            foreach ($name in @('IDEProject.cs', 'ProjectEligibility.ps1')) {
+                Copy-Item -LiteralPath (Join-Path $package.FullName ('Scripts/' + $name)) -Destination $scripts
+            }
         }
         $manifest = Get-Content -LiteralPath (Join-Path $standalone 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         $actionPath = Join-Path $scripts 'Action.psm1'
@@ -74,6 +81,12 @@ try {
                 Assert-True $rejected '统一 Flutter 入口只接受固定动作；有效绑定及打包另由 FlutterTools.Tests.ps1 覆盖'
                 continue
             }
+            if ($manifest.Id -eq 'open-sourcetree') {
+                $rejected = $false
+                try { & $module { param($Target) Invoke-JobsFeature -Target $Target } $testRoot } catch { $rejected = $true }
+                Assert-True $rejected 'Sourcetree 拒绝非 Git 目录；安装检测与传输由 SourcetreeOpener.Tests.ps1 覆盖'
+                continue
+            }
             if ($manifest.Id -eq 'git-rollback') {
                 $rejected = $false
                 try { & $module { param($Target) Invoke-JobsFeature -Target $Target } $testRoot } catch { $rejected = $true }
@@ -85,6 +98,12 @@ try {
                 $rejected = $false
                 try { & $module { param($Target) Invoke-JobsFeature -Target $Target } $testRoot } catch { $rejected = $true }
                 Assert-True $rejected 'Android 修复入口复检并拒绝普通目录；实际业务由 AndroidSimulatorRepairer.Tests.ps1 隔离覆盖'
+                continue
+            }
+            if ($manifest.Id -eq 'hidden-files-toggle') {
+                $rejected = $false
+                try { & $module { param($Target) Invoke-JobsFeature -Target $Target } $testRoot } catch { $rejected = $true }
+                Assert-True $rejected '隐藏文件切换拒绝普通目录；真实偏好由专用隔离夹具替代，不改变用户状态'
                 continue
             }
             $result = & $module {

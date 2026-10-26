@@ -64,6 +64,10 @@
     "JobsRunAuthorizationRevoker/README.md",
     "JobsRunAuthorizationRevoker/Scripts/README.md",
     "JobsGitRollback/README.md",
-    "JobsGitRollback/Scripts/README.md"
+    "JobsGitRollback/Scripts/README.md",
+    "JobsHiddenFilesToggler/README.md",
+    "JobsHiddenFilesToggler/Scripts/README.md",
+    "JobsSourcetreeOpener/README.md",
+    "JobsSourcetreeOpener/Scripts/README.md"
   ]
 }

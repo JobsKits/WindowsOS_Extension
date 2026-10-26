@@ -91,7 +91,7 @@ jobs:
           . .\JobsGitRollback\Scripts\Build.ps1 `
             -SourceRoot (Join-Path $PWD 'JobsGitRollback') `
             -OutputRoot $nativeOutput
-          foreach ($probeName in @('GitRollbackMetadataProbe', 'GitRollbackFzfProbe', 'RunPermissionMenuProbe')) {
+          foreach ($probeName in @('GitRollbackMetadataProbe', 'GitRollbackFzfProbe', 'RunPermissionMenuProbe', 'HiddenFilesMenuProbe', 'IDEProjectMenuProbe', 'SourcetreeInstallationProbe')) {
             $probeSource = Join-Path $PWD ('Tests/' + $probeName + '.cpp')
             $probeExecutable = Join-Path $nativeOutput ($probeName + '.exe')
             $probeObject = Join-Path $nativeOutput ($probeName + '.obj')
@@ -111,6 +111,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Git metadata probe failed.' }
           & (Join-Path $nativeOutput 'RunPermissionMenuProbe.exe')
           if ($LASTEXITCODE -ne 0) { throw 'Run permission menu probe failed.' }
+          & (Join-Path $nativeOutput 'HiddenFilesMenuProbe.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Hidden files menu probe failed.' }
+          & (Join-Path $nativeOutput 'IDEProjectMenuProbe.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'IDE project menu probe failed.' }
+          & (Join-Path $nativeOutput 'SourcetreeInstallationProbe.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Sourcetree installation probe failed.' }
           .\Tests\GitRollback.Tests.ps1 -FzfProbeExecutable (Join-Path $nativeOutput 'GitRollbackFzfProbe.exe')
       - name: Flutter dependency extraction guards and native argument transport
         shell: powershell
@@ -154,9 +160,18 @@ jobs:
       - name: Current user single-file ExecuteFile grant and revoke
         shell: powershell
         run: .\Tests\RunPermissions.Tests.ps1
-      - name: Build Harmony repair and file permission handlers with MSVC
+      - name: Dynamic desktop hidden-file state and isolated preference toggles
+        shell: powershell
+        run: .\Tests\HiddenFiles.Tests.ps1
+      - name: IDE nonempty and project-type eligibility
+        shell: powershell
+        run: .\Tests\IDEProject.Tests.ps1
+      - name: Build dynamic handlers with MSVC
         shell: powershell
         run: |
-          foreach ($name in @('JobsHarmonySimulatorRepairer', 'JobsRunAuthorizer', 'JobsRunAuthorizationRevoker')) {
+          foreach ($name in @('JobsHarmonySimulatorRepairer', 'JobsRunAuthorizer', 'JobsRunAuthorizationRevoker', 'JobsHiddenFilesToggler', 'JobsAndroidStudioOpener', 'JobsVSCodeOpener', 'JobsSourcetreeOpener')) {
             & (Join-Path $PWD ($name + '/Scripts/Build.ps1')) -SourceRoot (Join-Path $PWD $name) -OutputRoot (Join-Path $env:RUNNER_TEMP ($name + '-native'))
           }
+      - name: Sourcetree installation visibility and nearest Git repository
+        shell: powershell
+        run: .\Tests\SourcetreeOpener.Tests.ps1

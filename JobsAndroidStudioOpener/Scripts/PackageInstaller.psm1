@@ -91,25 +91,26 @@ function Get-JobsPackageRegistryPlan {
     )
 
     if ($Manifest.Id -cnotmatch '^[a-z][a-z0-9-]+$' -or $Manifest.Name -cnotmatch '^Jobs[A-Za-z0-9]+$') { throw '功能清单标识不合法。' }
-    $classes = @('Directory', 'Directory\Background', 'Drive')
-    if (-not $Manifest.DirectoryOnly) { $classes += '*' }
-    $windowStyle = 'Hidden'
-    if ($Manifest.Console) { $windowStyle = 'Normal' }
-    foreach ($class in $classes) {
-        $placeholder = '%1'
-        if ($class -eq 'Directory\Background') { $placeholder = '%V' }
-        $command = (ConvertTo-JobsPackageArgument $PowerShellPath) +
-            ' -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -WindowStyle ' + $windowStyle + ' -File ' +
-            (ConvertTo-JobsPackageArgument (Join-Path $ReleasePath 'Scripts/Invoke.ps1')) +
-            ' -Target "' + $placeholder + '|JobsPathEnd"'
+    foreach ($class in @('*', 'Directory', 'Directory\Background', 'Drive')) {
         [pscustomobject]@{
             Key = 'Software\Classes\' + $class + '\shell\Jobs.WindowsExtension.' + $Manifest.Id
-            Enabled = $Enabled
-            Label = $Manifest.Label
-            Command = $command
-            Owner = 'Jobs.WindowsExtension.v1'
-            Icon = $PowerShellPath + ',0'
+            Enabled = $false; Owner = 'Jobs.WindowsExtension.v1'
         }
+    }
+    $clsid = '{9D337A22-B981-4C26-B586-9CC8CE7B3292}'
+    $owner = 'Jobs.WindowsExtension.v1'
+    foreach ($class in @('Directory', 'Directory\Background', 'Drive')) {
+        [pscustomobject]@{
+            Key = 'Software\Classes\' + $class + '\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $Manifest.Id
+            Enabled = $Enabled; Owner = $owner
+            Values = @{ '' = $clsid; JobsOwner = $owner }
+        }
+    }
+    [pscustomobject]@{
+        Key = 'Software\Classes\CLSID\' + $clsid
+        Enabled = $Enabled; Owner = $owner
+        Values = @{ '' = $Manifest.Label; JobsOwner = $owner }
+        InProcServer = Join-Path $ReleasePath 'bin/JobsAndroidStudioOpenerContextMenu.dll'
     }
 }
 
@@ -145,7 +146,7 @@ function New-JobsPackageRelease {
     }
     # 只取当前包的直属脚本；开发测试、日志及相邻功能从不进入 release。
     foreach ($item in Get-ChildItem -LiteralPath $scripts -File -Force -ErrorAction Stop) {
-        if ($item.Extension -in @('.ps1', '.psm1', '.dart') -and $item.Name -notmatch '(?i)\.Tests?\.') {
+        if ($item.Extension -in @('.ps1', '.psm1', '.dart', '.cs', '.cpp', '.h', '.def') -and $item.Name -notmatch '(?i)\.Tests?\.') {
             $files += 'Scripts/' + $item.Name
         }
     }
@@ -221,12 +222,12 @@ function Set-JobsPackageRegistry {
         if (-not $item.Enabled) { continue }
         $key = $RegistryRoot.CreateSubKey($item.Key)
         try {
-            $key.SetValue('MUIVerb', $item.Label)
-            $key.SetValue('JobsOwner', $item.Owner)
-            $key.SetValue('MultiSelectModel', 'Single')
-            $key.SetValue('Icon', $item.Icon)
-            $command = $key.CreateSubKey('command')
-            try { $command.SetValue('', $item.Command) } finally { $command.Dispose() }
+            foreach ($name in $item.Values.Keys) { $key.SetValue($name, $item.Values[$name]) }
+            if ($null -ne $item.PSObject.Properties['InProcServer']) {
+                $server = $key.CreateSubKey('InprocServer32')
+                try { $server.SetValue('', $item.InProcServer); $server.SetValue('ThreadingModel', 'Apartment') }
+                finally { $server.Dispose() }
+            }
         }
         finally { $key.Dispose() }
     }
@@ -343,7 +344,11 @@ function Invoke-JobsPackageChange {
         $backup = Join-Path $backupDirectory ((Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N') + '.clixml')
         @{ Id = $manifest.Id; Registry = $snapshot; Settings = @{ Exists = $hadSettings; Bytes = $oldSettings }; Created = [DateTime]::Now } |
             Export-Clixml -LiteralPath $backup -Depth 40 -ErrorAction Stop
-        if ($Mode -eq 'Install') { [void](New-JobsPackageRelease -PackagePath $PackagePath -Destination $release) }
+        if ($Mode -eq 'Install') {
+            [void](New-JobsPackageRelease -PackagePath $PackagePath -Destination $release)
+            # 先完成构建，再进入注册表 / 状态事务；缺编译器时不产生半安装菜单。
+            & (Join-Path $release 'Scripts/Build.ps1') -SourceRoot $release -OutputRoot (Join-Path $release 'bin')
+        }
         # 卸载保留 v2 禁用墓碑；旧版全局清单随后仍存在也不能重新启用本包。
         $settings = [ordered]@{ Version = 2; Id = $manifest.Id; Enabled = ($Mode -eq 'Install'); ReleasePath = $release }
         $encoding = New-Object System.Text.UTF8Encoding($true)

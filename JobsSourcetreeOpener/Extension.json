@@ -1,0 +1,11 @@
+{
+  "Id": "open-sourcetree",
+  "Name": "JobsSourcetreeOpener",
+  "Label": "🌳 用 Sourcetree 打开",
+  "Description": "仅已安装 Sourcetree 的有效 Git 工作树文件夹显示；打开最近内层仓库。",
+  "DirectoryOnly": true,
+  "Console": false,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

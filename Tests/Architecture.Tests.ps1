@@ -50,9 +50,11 @@ try {
         $plan = @(& $installer { param($Manifest, $Release, $PowerShell) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath $PowerShell -Enabled $true } $package $release (Join-Path $PSHOME 'powershell.exe'))
         $expected = 4
         if ($package.DirectoryOnly) { $expected = 3 }
-        if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen', 'git-rollback')) { $expected = 4 }
+        if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen', 'git-rollback', 'open-sourcetree')) { $expected = 4 }
         if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create', 'harmony-simulator-repair')) { $expected = 2 }
         if ($package.Id -in @('run-authorize', 'run-authorization-revoke')) { $expected = 2 }
+        if ($package.Id -eq 'hidden-files-toggle') { $expected = 2 }
+        if ($package.Id -in @('open-android-studio', 'open-vscode')) { $expected = 8 }
         if ($package.Id -eq 'git-proxy-configure') { $expected = 1 }
         if ($package.Id -eq 'flutter-tools') { $expected = 68 }
         Assert-Architecture ($plan.Count -eq $expected) ('本包只注册自己的上下文：' + $package.Id)
@@ -74,6 +76,23 @@ try {
                 if ($item.Key.EndsWith('CLSID\' + $clsid)) {
                     Assert-Architecture ($item.InProcServer -eq (Join-Path $release ('bin/' + $package.Name + 'ContextMenu.dll'))) ('原生 DLL 归属于本包 release：' + $package.Id)
                 }
+                continue
+            }
+            if ($package.Id -in @('open-android-studio', 'open-vscode')) {
+                if ($item.Enabled) {
+                    Assert-Architecture ($item.Key.Contains('\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $package.Id) -or $item.Key.Contains('\CLSID\')) 'IDE 原生门禁只注册自己的目录上下文与 CLSID'
+                } else {
+                    Assert-Architecture ($item.Key.EndsWith('\shell\Jobs.WindowsExtension.' + $package.Id)) 'IDE 迁移只停用自己的四个旧静态入口'
+                }
+                continue
+            }
+            if ($package.Id -eq 'hidden-files-toggle') {
+                $clsid = '{F92F7AF9-65B6-41CB-A6D8-712F01F79126}'
+                Assert-Architecture ($item.Key -eq ('Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $package.Id) -or $item.Key -eq ('Software\Classes\CLSID\' + $clsid)) '隐藏文件切换只注册桌面背景和本包 CLSID'
+                continue
+            }
+            if ($package.Id -eq 'open-sourcetree') {
+                Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.open-sourcetree') -or $item.Key.EndsWith('CLSID\{CF4D4697-749B-4C37-98EC-0952B2EF1E16}')) 'Sourcetree 只注册自己的动态处理器和 CLSID'
                 continue
             }
             if ($package.Id -eq 'git-rollback') {

@@ -1,0 +1,4 @@
+LIBRARY JobsVSCodeOpenerContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

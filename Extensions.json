@@ -12,6 +12,10 @@
     "Name": "JobsPathCopier"
   },
   {
+    "Id": "hidden-files-toggle",
+    "Name": "JobsHiddenFilesToggler"
+  },
+  {
     "Id": "run-authorize",
     "Name": "JobsRunAuthorizer"
   },
@@ -54,6 +58,10 @@
   {
     "Id": "git-rollback",
     "Name": "JobsGitRollback"
+  },
+  {
+    "Id": "open-sourcetree",
+    "Name": "JobsSourcetreeOpener"
   },
   {
     "Id": "android-simulator-create",

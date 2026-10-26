@@ -87,7 +87,7 @@ powershell.exe `
 
 ## 三、<span id="template-sync">通用模板检查与同步</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-维护模板位于 `../Infrastructure/`。同步范围只有 `Common.psm1`、`Invoke.ps1`、`Manage.ps1`、`PackageInstaller.psm1`，目标为总清单登记的各包 `Scripts/` 副本；不会覆盖 `Action.psm1`、`Extension.json` 或功能业务配置。原生 Flutter、Android / Harmony 模拟器和单文件权限包声明仅覆盖 `PackageInstaller.psm1`，同步器对这项明确白名单跳过；本包原生构建与 COM 安装事务独立维护。各包运行时使用自己内嵌的副本，不依赖模板目录。
+维护模板位于 `../Infrastructure/`。同步范围只有 `Common.psm1`、`Invoke.ps1`、`Manage.ps1`、`PackageInstaller.psm1`，目标为总清单登记的各包 `Scripts/` 副本；不会覆盖 `Action.psm1`、`Extension.json` 或功能业务配置。Sourcetree 入口从 `Extensions.json` 的 `open-sourcetree` 映射到 `JobsSourcetreeOpener/`，安装检测、Git 门禁和后台分别见该包的 `ContextMenu.cpp`、`SourcetreeInstallation.h`、`GitRepository.h` 与 `Action.psm1`；新项置于 Git 父菜单首项。原生 Flutter、Android / Harmony 模拟器和单文件权限和 Sourcetree 打开包声明仅覆盖 `PackageInstaller.psm1`，同步器对这项明确白名单跳过；本包原生构建与 COM 安装事务独立维护。各包运行时使用自己内嵌的副本，不依赖模板目录。
 
 在本目录只读检查，一致时输出成功信息，发现差异时返回失败：
 

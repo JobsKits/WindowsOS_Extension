@@ -24,6 +24,7 @@ function Get-JobsFeaturePackages {
     }
 }
 
+# 面板来源：普通 Id 来自 Extensions.json/包清单；Flutter 叶子来自唯一 FeatureActions，勿在此复制动作表。
 function Get-JobsSelectableFeatures {
     param([object[]]$Packages)
     $actions = Import-Module (Join-Path $PSScriptRoot '../JobsFlutterTools/Scripts/FeatureActions.psm1') -PassThru -DisableNameChecking
@@ -49,6 +50,7 @@ function Expand-JobsFeatureSelection {
     }
 }
 
+# 选择映射：普通选项一包一事务；flutter-* 叶子折叠成 flutter-tools 的 ActionIds，未选功能保留既有策略。
 function Get-JobsPackageOperationPlan {
     param([object[]]$Packages, [string[]]$Selected, [string[]]$Installed, [ValidateSet('Install', 'Configure', 'Uninstall')][string]$Mode)
     $selectedFeatures = @(Expand-JobsFeatureSelection -Packages $Packages -Selected $Selected)
