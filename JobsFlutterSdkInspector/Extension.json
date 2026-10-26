@@ -1,7 +1,7 @@
 {
   "Id": "flutter-sdk-inspector",
   "Name": "JobsFlutterSdkInspector",
-  "Label": "查看当前 Flutter SDK 版本",
+  "Label": "🔎 查看当前 Flutter SDK 版本",
   "Description": "严格校验 Flutter 项目，在终端只读显示当前实际使用的 Flutter SDK 版本（FVM 项目 SDK 或系统 SDK），并与 .fvmrc 和 pubspec environment 约束核对。",
   "DirectoryOnly": true,
   "Console": true

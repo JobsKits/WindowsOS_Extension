@@ -1,7 +1,7 @@
 {
   "Id": "copy-git-remote",
   "Name": "JobsGitRemoteCopier",
-  "Label": "复制 Git 远程地址",
+  "Label": "🔗 复制 Git 远程地址",
   "Description": "复制当前分支对应的远端原始地址。",
   "DirectoryOnly": false,
   "Console": false

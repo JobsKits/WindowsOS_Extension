@@ -1,7 +1,7 @@
 {
   "Id": "flutter-package",
   "Name": "JobsFlutterPackager",
-  "Label": "Flutter打包",
+  "Label": "📦 Flutter打包",
   "Description": "仅 Flutter 根目录显示；CMD 内通过 fzf 选择 Android / iOS / HarmonyOS，支持 APK / AAB 与 HAP / APP。iOS 提示使用 macOS 与 Xcode。",
   "DirectoryOnly": true,
   "Console": true,

@@ -1,7 +1,7 @@
 {
   "Id": "run-authorization-revoke",
   "Name": "JobsRunAuthorizationRevoker",
-  "Label": "解除运行授权",
+  "Label": "🔒 解除运行授权",
   "Description": "只对一个普通 NTFS 文件修改当前用户 ExecuteFile ACL；确认后执行，不启动目标，不改全局策略。",
   "DirectoryOnly": false,
   "Console": true,

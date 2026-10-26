@@ -1,7 +1,7 @@
 {
   "Id": "flutter-tools",
   "Name": "JobsFlutterTools",
-  "Label": "Flutter开发相关辅助工具",
+  "Label": "🦋 Flutter开发相关辅助工具",
   "Description": "统一固定顺序的 Flutter 开发辅助、环境体检、修复与维护菜单；全部使用项目 FVM SDK。",
   "DirectoryOnly": true,
   "Console": true,

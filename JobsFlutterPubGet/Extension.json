@@ -1,7 +1,7 @@
 {
   "Id": "flutter-pub-get",
   "Name": "JobsFlutterPubGet",
-  "Label": "Flutter 安装依赖（pub get）",
+  "Label": "📥 Flutter 安装依赖（pub get）",
   "Description": "校验当前 Flutter 工程后获取依赖。",
   "DirectoryOnly": true,
   "Console": true

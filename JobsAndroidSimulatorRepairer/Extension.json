@@ -1,7 +1,7 @@
 {
   "Id": "android-simulator-repair",
   "Name": "JobsAndroidSimulatorRepairer",
-  "Label": "Android 模拟器检测与修复",
+  "Label": "🩺 Android 模拟器检测与修复",
   "Description": "仅系统桌面空白显示；检查模拟器安装位置与 /data，可选缓存重置、精确卸载、完整备份 AVD 并冷启动复测。",
   "DirectoryOnly": true,
   "Console": true,

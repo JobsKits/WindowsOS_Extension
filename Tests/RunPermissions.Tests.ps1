@@ -23,6 +23,16 @@ try {
     $core = Join-Path $root 'JobsRunAuthorizer/Scripts/RunPermissionFile.cs'
     Add-Type -Path $core
     Assert ($null -ne ('Jobs.RunPermissionFile' -as [type])) 'native handle core compiles'
+    foreach ($path in @('C:\测试 & !\app.EXE', 'C:\dir\run.cmd', 'C:\dir\script.ps1', 'C:\dir\worker.py', 'C:\dir\start.sh')) {
+        Assert ([Jobs.RunPermissionFile]::IsExecutablePath($path)) ('executable or script format accepted: ' + $path)
+    }
+    foreach ($path in @('README.md', 'notes.txt', 'archive.zip', 'app.exe.txt', 'settings.psd1', 'no-extension')) {
+        Assert (-not [Jobs.RunPermissionFile]::IsExecutablePath($path)) ('ordinary data format rejected: ' + $path)
+    }
+    $header = [IO.File]::ReadAllText((Join-Path $root 'JobsRunAuthorizer/Scripts/RunPermissionTarget.h'))
+    foreach ($match in [regex]::Matches($header, 'L"(\.[a-z0-9]+)"')) {
+        Assert ([Jobs.RunPermissionFile]::IsExecutablePath('fixture' + $match.Groups[1].Value)) 'native menu and backend accept the same executable formats'
+    }
     . (Join-Path $root 'JobsRunAuthorizer/Scripts/TerminalLauncher.ps1')
     $transportTarget = Join-Path $temporary '脚本 & 100% !.exe'
     [IO.File]::WriteAllText($transportTarget, 'inert transport fixture')
@@ -31,11 +41,15 @@ try {
     Assert ($start.EnvironmentVariables['JOBS_RUN_PERMISSION_TARGET'] -ceq $transportTarget -and -not $start.Arguments.Contains($transportTarget)) 'CMD keeps metacharacter file path in process environment'
     Assert ($start.Arguments.StartsWith('/d /v:off /k ') -and -not $start.UseShellExecute) 'fixed transport disables delayed expansion and shell interpolation'
     Throws { New-JobsPermissionTerminalStart $temporary $root $temporary 'powershell.exe' } 'terminal refuses directory target'
-    foreach ($name in @('RunPermissions.ps1', 'RunPermissionFile.cs')) {
+    foreach ($name in @('RunPermissions.ps1', 'RunPermissionFile.cs', 'RunPermissionTarget.h')) {
         Assert ((Get-FileHash -LiteralPath (Join-Path $root ('JobsRunAuthorizer/Scripts/' + $name))).Hash -ceq (Get-FileHash -LiteralPath (Join-Path $root ('JobsRunAuthorizationRevoker/Scripts/' + $name))).Hash) 'paired packages carry identical independent core'
     }
     & $module { function script:Get-JobsPermissionReplacement { param($Original, $Sid, $Allow); if ($Allow) { return $Original + '|Grant' }; return $Original + '|Revoke' } }
     $record = Join-Path $temporary 'fixture.json'
+    $alreadyDenied = New-Fixture
+    $unusedRecord = Join-Path $temporary 'already-denied.json'
+    & $module { param($File, $Record) Invoke-JobsPermissionChange $File 'fixture-sid' Revoke $Record } $alreadyDenied $unusedRecord
+    Assert ($alreadyDenied.Applies -eq 0 -and -not [IO.File]::Exists($unusedRecord)) 'already denied file stays untouched without creating a record'
     $file = New-Fixture
     & $module { param($File, $Record) Invoke-JobsPermissionChange $File 'fixture-sid' Grant $Record } $file $record
     Assert ($file.Sddl -ceq 'base|Grant' -and $file.Applies -eq 1) 'grant adds only our allowed state'

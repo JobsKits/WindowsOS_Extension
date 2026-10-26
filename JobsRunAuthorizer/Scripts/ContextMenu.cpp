@@ -1,6 +1,6 @@
 // ContextMenu.cpp | JobsRunAuthorizer
 // Created by Jobs on 2026年10月24日，星期六.
-// 原生桥接只识别一个普通文件；权限修改在独立终端确认后执行。
+// 原生桥接仅对单个可执行 / 脚本文件显示菜单，按当前 ExecuteFile 状态互斥置灰。
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -13,6 +13,7 @@
 #include <new>
 #include <vector>
 #include <string>
+#include "RunPermissionTarget.h"
 
 
 const CLSID CLSID_JobsRunAuthorizer = {0xae09a13f,0xef17,0x4ce3,{0x8b,0xa1,0xf5,0x57,0xc3,0x42,0x80,0xde}};
@@ -20,9 +21,7 @@ static HMODULE moduleHandle;
 static std::atomic<long> objects(0);
 
 static bool IsFile(const std::wstring& path) {
-    const DWORD attributes = GetFileAttributesW(path.c_str());
-    return !path.empty() && attributes != INVALID_FILE_ATTRIBUTES &&
-        !(attributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT));
+    return JobsRunPermission::IsEligibleFile(path);
 }
 static std::wstring Quote(const std::wstring& value) {
     std::wstring result = L"\"";
@@ -73,11 +72,14 @@ public:
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
         if ((flags & CMF_DEFAULTONLY) || first > last || !IsFile(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
-        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING, first, L"运行授权")) return HRESULT_FROM_WIN32(GetLastError());
+        const bool enabled = JobsRunPermission::IsActionEnabled(JobsRunPermission::ReadExecutionState(target), true);
+        const UINT state = enabled ? MF_ENABLED : MF_GRAYED;
+        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING | state, first, L"🔓 运行授权")) return HRESULT_FROM_WIN32(GetLastError());
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
     }
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {
-        if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) != 0 || !IsFile(target)) return E_INVALIDARG;
+        if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) != 0 || !IsFile(target) ||
+            !JobsRunPermission::IsActionEnabled(JobsRunPermission::ReadExecutionState(target), true)) return E_INVALIDARG;
         wchar_t modulePath[32768];
         if (!GetModuleFileNameW(moduleHandle, modulePath, 32768)) return E_FAIL;
         std::wstring folder(modulePath);

@@ -1,7 +1,7 @@
 {
   "Id": "flutter-dependency-extract",
   "Name": "JobsFlutterDependencyExtractor",
-  "Label": "提取 Flutter 第三方依赖",
+  "Label": "🧩 提取 Flutter 第三方依赖",
   "Description": "按项目锁定清单提取所有已解析的第三方 Pub 源码与许可证，输出目录回车默认桌面。",
   "DirectoryOnly": true,
   "Console": true

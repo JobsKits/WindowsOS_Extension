@@ -21,7 +21,7 @@
 
 > **最低支持系统：Windows 10 x64。** Windows 5.1 / MSVC / Explorer 与实际 NTFS ACL 行为仍须目标机验收；不声明已验证最低 build。
 
-对一个普通文件显示“**运行授权**”，在独立终端核对路径并输入精确 `YES` 才修改。通过 [**Windows 文件 ACL**](https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights) 管理当前用户 `ExecuteFile`（执行文件）权限；不执行所选文件。
+对一个可执行文件或脚本显示“**🔓 运行授权**”，在独立终端核对路径并输入精确 `YES` 才修改。通过 [**Windows 文件 ACL**](https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights) 管理当前用户 `ExecuteFile`（执行文件）权限；不执行所选文件。
 
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、成对行为与边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -32,7 +32,9 @@
 | 重复同向操作 | 核对记录、身份与有效权限，匹配时不重复写入。 |
 | 外部 DACL 或文件身份变化 | 停止并保留现场，不用旧快照覆盖新规则。 |
 
-只支持本机 NTFS 普通单文件；目录、多选、背景、符号链接、联接、硬链接、UNC、设备路径及备用数据流均排除。原生菜单先过滤普通单文件，业务再次核验卷、父路径和硬链接数。其它用户、其它权限、继承设置、所有者、来源标记、PowerShell 执行策略和全局安全设置不变。保留读取权限的解释器仍可读取脚本并执行内容；`ExecuteFile` 撤权不是全面防执行隔离。文件扩展名和系统关联也不会因授权改变。
+只支持本机 NTFS 的可执行或脚本格式普通单文件；目录、多选、背景、符号链接、联接、硬链接、UNC、设备路径及备用数据流均排除。原生菜单先按可执行或脚本扩展名过滤，README.md、txt、图片、压缩包等普通数据文件不显示两项权限菜单；业务再次核验格式、卷、父路径和硬链接数。其它用户、其它权限、继承设置、所有者、来源标记、PowerShell 执行策略和全局安全设置不变。保留读取权限的解释器仍可读取脚本并执行内容；`ExecuteFile` 撤权不是全面防执行隔离。文件扩展名和系统关联也不会因授权改变。
+
+支持的格式为 `exe / com / scr / cpl / bat / cmd / ps1 / vbs / vbe / js / jse / wsf / wsh / hta / py / pyw / pl / rb / sh / bash / zsh / fish / ksh / csh / tcsh / php / lua / command`，扩展名不区分大小写；系统是否已安装对应解释器需另行满足。两个包均安装后，适用文件始终显示“🔓 运行授权”和“🔒 解除运行授权”：已有当前用户有效 ExecuteFile 时前者置灰、后者可点；没有时相反；权限无法可靠读取时两项都置灰。打开菜单和点击时重新检查状态，已达目标状态不重复写入。
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装与独立运行 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 

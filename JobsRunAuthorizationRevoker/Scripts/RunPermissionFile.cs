@@ -36,7 +36,13 @@ namespace Jobs {
         public string Path { get; private set; }
         public string Identity { get; private set; }
         public string Hash { get; private set; }
+        public static bool IsExecutablePath(string path) {
+            string extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
+            string[] extensions = { ".exe", ".com", ".scr", ".cpl", ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".py", ".pyw", ".pl", ".rb", ".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh", ".tcsh", ".php", ".lua", ".command" };
+            return Array.IndexOf(extensions, extension) >= 0;
+        }
         public RunPermissionFile(string path) {
+            if (!IsExecutablePath(path)) throw new IOException("Only executable and script file formats support execution permissions");
             Path = System.IO.Path.GetFullPath(path);
             handle = CreateFile(Path, 0x80000000 | ReadControl | WriteDac | ReadAttributes, 1, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero);
             if (handle.IsInvalid) { int error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error, "Cannot open ordinary file with read/DACL rights"); }

@@ -1,7 +1,7 @@
 {
   "Id": "open-git-remote",
   "Name": "JobsGitRemoteOpener",
-  "Label": "打开 Git 远程地址",
+  "Label": "🌐 打开 Git 远程地址",
   "Description": "打开当前 Git 工作树对应的仓库网页。",
   "DirectoryOnly": false,
   "Console": false

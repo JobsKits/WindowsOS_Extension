@@ -91,7 +91,7 @@ jobs:
           . .\JobsGitRollback\Scripts\Build.ps1 `
             -SourceRoot (Join-Path $PWD 'JobsGitRollback') `
             -OutputRoot $nativeOutput
-          foreach ($probeName in @('GitRollbackMetadataProbe', 'GitRollbackFzfProbe')) {
+          foreach ($probeName in @('GitRollbackMetadataProbe', 'GitRollbackFzfProbe', 'RunPermissionMenuProbe')) {
             $probeSource = Join-Path $PWD ('Tests/' + $probeName + '.cpp')
             $probeExecutable = Join-Path $nativeOutput ($probeName + '.exe')
             $probeObject = Join-Path $nativeOutput ($probeName + '.obj')
@@ -109,6 +109,8 @@ jobs:
           }
           & (Join-Path $nativeOutput 'GitRollbackMetadataProbe.exe')
           if ($LASTEXITCODE -ne 0) { throw 'Git metadata probe failed.' }
+          & (Join-Path $nativeOutput 'RunPermissionMenuProbe.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'Run permission menu probe failed.' }
           .\Tests\GitRollback.Tests.ps1 -FzfProbeExecutable (Join-Path $nativeOutput 'GitRollbackFzfProbe.exe')
       - name: Flutter dependency extraction guards and native argument transport
         shell: powershell

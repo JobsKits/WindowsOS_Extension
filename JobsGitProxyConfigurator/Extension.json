@@ -1,7 +1,7 @@
 {
   "Id": "git-proxy-configure",
   "Name": "JobsGitProxyConfigurator",
-  "Label": "配置 Git 动态代理",
+  "Label": "📡 配置 Git 动态代理",
   "Description": "仅桌面空白；交互配置系统代理优先、失败回退直连的用户级 Git 入口。",
   "DirectoryOnly": true,
   "DesktopOnly": true,

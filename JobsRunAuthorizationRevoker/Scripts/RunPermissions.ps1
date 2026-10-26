@@ -7,6 +7,7 @@ function Assert-JobsPermissionPath {
     param([string]$Path)
     if (-not [IO.Path]::IsPathRooted($Path) -or $Path.StartsWith('\\') -or $Path -match '[\x00-\x1f]' -or $Path.Substring(2).Contains(':')) { throw '只支持本机无控制字符的普通文件路径，不支持 UNC、设备命名空间或备用数据流。' }
     $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    if (-not [Jobs.RunPermissionFile]::IsExecutablePath($item.FullName)) { throw '只支持可执行文件或脚本格式，普通文档不提供运行权限操作。' }
     if ($item.PSIsContainer) { throw '运行权限只适用于一个普通文件。' }
     $current = $item
     while ($null -ne $current) {
@@ -53,6 +54,10 @@ function Invoke-JobsPermissionChange {
             return
         }
     }
+    if ($File.HasExecute() -eq ($Mode -ceq 'Grant')) {
+        Write-Host '当前文件已处于所选权限状态，没有重复写入。'
+        return
+    }
     $expected = Get-JobsPermissionReplacement $original $Sid ($Mode -ceq 'Grant')
     $next = [ordered]@{ Version = 1; Identity = $File.Identity; Hash = $File.Hash; Sid = $Sid; Path = $File.Path; OriginalSddl = $original; BeforeSddl = $before; ExpectedSddl = $expected; Mode = $Mode; Stage = 'Prepared'; Created = [DateTime]::UtcNow.ToString('o') }
     Set-JobsPermissionRecord $RecordPath ($next | ConvertTo-Json -Depth 5)
@@ -88,8 +93,8 @@ function Invoke-JobsRunPermissionAction {
     Write-Host '输入 YES 执行，任意其它输入取消：' -NoNewline
     $answer = [Console]::ReadLine()
     if ($null -eq $answer -or $answer -cne 'YES') { throw '已取消，没有修改文件权限。' }
-    $path = Assert-JobsPermissionPath $Target
     if (-not ('Jobs.RunPermissionFile' -as [type])) { Add-Type -Path (Join-Path $PSScriptRoot 'RunPermissionFile.cs') }
+    $path = Assert-JobsPermissionPath $Target
     $file = $null
     $lock = $null
     try {

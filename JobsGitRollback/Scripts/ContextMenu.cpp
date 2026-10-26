@@ -125,8 +125,8 @@ public:
         if ((flags & CMF_DEFAULTONLY) || first > last || !IsProject(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
         HMENU group = CreatePopupMenu();
         if (!group) return HRESULT_FROM_WIN32(GetLastError());
-        if (!InsertMenuW(group, 0, MF_BYPOSITION | MF_STRING, first, L"Git 提交回退") ||
-            !InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(group), L"Git操作")) {
+        if (!InsertMenuW(group, 0, MF_BYPOSITION | MF_STRING, first, L"⏪ Git 提交回退") ||
+            !InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(group), L"🌿 Git操作")) {
             DestroyMenu(group);
             return E_FAIL;
         }

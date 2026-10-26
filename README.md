@@ -42,9 +42,9 @@
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
 
-**项目定位：** 面向 Windows 开发人员的独立右键功能包集合。**状态：维护中，Windows 桌面验收待完成**；负责人 **Jobs** / [**JobsKits**](https://github.com/JobsKits)，未登记其他维护团队。功能数核验于 **2026-10-24**，本地验证基线见验证章节；统计章其余数据保留各自注明的日期。
+**项目定位：** 面向 Windows 开发人员的独立右键功能包集合。**状态：维护中，Windows 桌面验收待完成**；负责人 **Jobs** / [**JobsKits**](https://github.com/JobsKits)，未登记其他维护团队。功能数核验于 **2026-10-26**，本地验证基线见验证章节；统计章其余数据保留各自注明的日期。
 
-为 [**Windows**](https://www.microsoft.com/windows) 开发人员提供资源管理器右键菜单，与同级 [`MacOS@Extension`](../MacOS@Extension/README.md) 对齐日常开发操作。当前保留 **27 个功能源码目录**，其中八个旧 Flutter 包保留兼容源码与入口；根清单登记 **19 个现行安装包**，提供 **32 项复选框组合安装面板**（其中 Flutter 展开为 14 项子功能）。现行包各自包含源码、安装、卸载和运行模块，可以只复制其中一个包使用。使用系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1`，不需要管理员权限；Flutter 运行、打包、环境诊断、代码生成、Android / Harmony 模拟器及单文件运行权限菜单安装时需要现有 MSVC / Windows SDK 编译原生桥接，其它包直接部署脚本。
+为 [**Windows**](https://www.microsoft.com/windows) 开发人员提供资源管理器右键菜单，与同级 [`MacOS@Extension`](../MacOS@Extension/README.md) 对齐日常开发操作。当前保留 **28 个功能源码目录**，其中八个旧 Flutter 包保留兼容源码与入口；根清单登记 **20 个现行安装包**，提供 **33 项复选框组合安装面板**（其中 Flutter 展开为 14 项子功能）。现行包各自包含源码、安装、卸载和运行模块，可以只复制其中一个包使用。使用系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1`，不需要管理员权限；Flutter 运行、打包、环境诊断、代码生成、Android / Harmony 模拟器及单文件运行权限菜单安装时需要现有 MSVC / Windows SDK 编译原生桥接，其它包直接部署脚本。
 
 <strong id="windows-compatibility">Windows 版本、架构与测试边界</strong>
 
@@ -66,6 +66,8 @@
 - **外部工具与最低 build：** Flutter / Dart / FVM、Node / WinGet、Java、Android Studio、DevEco 等各版本可能提高系统、build 或 CPU 下限。本仓尚未锁定全套依赖和原生编译工具版本，也未统一强制最低 Windows build；应记录目标系统 build、CPU、工具版本及测试结果，按更高要求判断具体功能。
 - **旧 Flutter 包：** 八个旧目录保留源码与卸载入口，当前 `Install.cmd` 转交同级 `JobsFlutterTools`；不能只复制旧目录进行新安装。可独立交付统一包，或保留完整仓目录。各功能 README 中的旧实现描述不代替当前入口说明。
 
+右键菜单的功能文字统一带语义 emoji 前缀，例如“📋 复制绝对路径”“🔓 运行授权”“📦 Flutter打包”；同一功能在独立包和聚合菜单保持同一图形，不同功能使用不同图形。已有安装需重新安装 / 更新对应包后读取新标题。
+
 **快速开始：** 将整个 `WindowsOS@Extension` 文件夹复制到 Windows，双击 [`【Windows】🧩安装资源管理器扩展.cmd`](./【Windows】🧩安装资源管理器扩展.cmd)，在原生复选框窗口选择功能后点击“安装”。卸载使用配套的 [`【Windows】🧩卸载资源管理器扩展.cmd`](./【Windows】🧩卸载资源管理器扩展.cmd)；原 `Install.cmd` / `Uninstall.cmd` 继续兼容。只需一项功能时，也可单独复制对应现行包，双击包内 `Install.cmd`；例如 [`JobsPathCopier/Install.cmd`](./JobsPathCopier/Install.cmd) 只安装复制绝对路径。重新右键文件、文件夹、磁盘或文件夹空白处即可；**Windows 11 需要点击“显示更多选项”**，也可使用 `Shift+F10` 打开经典菜单。
 
 | 操作 | 实际结果 |
@@ -82,7 +84,7 @@
 | 系统桌面空白右键 → 新建 Android 模拟器 | CMD 内直接选择镜像与设备型号，创建并等待启动；普通文件夹与选中项不显示。 |
 | 系统桌面空白右键 → Android 模拟器检测与修复 | 终端检查模拟器安装位置与可用空间，确认后修复或清理；指定应用卸载、AVD 配置调整要求 YES，不执行 Wipe Data；卸载会删除对应应用数据。 |
 | 系统桌面空白右键 → Harmony 模拟器检测与修复 | 检查已有官方工具、镜像及实例；选择后保留数据冷启动，运行中需 YES 才停止再冷启动；未知身份 / 状态停止。 |
-| 普通单文件右键 → 运行授权 / 解除运行授权 | 当前用户 NTFS ExecuteFile 成对 ACL 操作，精确 YES 后修改、快照冲突保护；不执行目标，不改全局策略。 |
+| 可执行或脚本单文件右键 → 🔓 运行授权 / 🔒 解除运行授权 | 按当前用户 NTFS ExecuteFile 互斥置灰，普通文档隐藏两项；精确 YES 后修改、快照冲突保护；不执行目标，不改全局策略。 |
 | 系统桌面空白右键 → 新建 Harmony 模拟器 | 仅 Windows x64，选择本机已下载的镜像后创建新实例；创建后可选择启动，许可保留官方交互，普通目录与选中项不显示。 |
 | 系统桌面空白右键 → 配置 Git 动态代理 | 用户确认后安装动态 git.exe；检查显示实际解析路径，机器 PATH 更早或应用未选用时按独立说明使用专用终端 / 选择 Git。 |
 | 在 Windows 11 找不到菜单 | 进入“显示更多选项”；不修改系统菜单样式。 |
@@ -127,8 +129,8 @@
 | [JobsAndroidSimulatorRepairer](./JobsAndroidSimulatorRepairer/README.md) | Android 模拟器检测与修复；仅系统桌面空白显示，只处理已启动的模拟器，检查安装位置与 `/data` 空间；按需恢复安装位置、清理编译缓存、卸载指定包或备份后调整 AVD 容量配置；不 Wipe Data。 |
 | [JobsHarmonySimulatorCreator](./JobsHarmonySimulatorCreator/README.md) | 新建 Harmony 模拟器；仅 Windows x64 系统桌面空白显示，复用本机 [**DevEco Studio / Command Line Tools**](https://developer.huawei.com/consumer/cn/deveco-studio/) 的 Emulator CLI，选择已下载镜像并创建新实例，随后可选启动；缺工具时从 SDL 免登录镜像补齐，系统镜像由官方 CLI 按所选项下载，展示许可后本人回车同意。 |
 | [JobsHarmonySimulatorRepairer](./JobsHarmonySimulatorRepairer/README.md) | Harmony 模拟器检测与修复；仅桌面背景，保留数据冷启动及运行状态闭环。 |
-| [JobsRunAuthorizer](./JobsRunAuthorizer/README.md) | 普通单文件运行授权；当前用户 ExecuteFile 允许项，不执行目标。 |
-| [JobsRunAuthorizationRevoker](./JobsRunAuthorizationRevoker/README.md) | 普通单文件解除运行授权；当前用户 ExecuteFile 拒绝项，与授权包共享精确恢复记录。 |
+| [JobsRunAuthorizer](./JobsRunAuthorizer/README.md) | 可执行 / 脚本单文件运行授权；当前用户 ExecuteFile 允许项，不执行目标。 |
+| [JobsRunAuthorizationRevoker](./JobsRunAuthorizationRevoker/README.md) | 可执行 / 脚本单文件解除运行授权；当前用户 ExecuteFile 拒绝项，与授权包共享精确恢复记录。 |
 | [JobsFlutterRunner](./JobsFlutterRunner/README.md) | 从终端运行 Flutter 项目；原生动态菜单只在精确 Flutter 根目录显示，CMD 选择兼容设备 / Android AVD、看日志，独立后台运行并支持重连和 r / R / s。 |
 | [JobsFlutterPackager](./JobsFlutterPackager/README.md) | Flutter打包；精确 Flutter 根目录显示单一菜单，CMD 用 fzf 选 Android / iOS / HarmonyOS，支持 APK / AAB 和 HAP / APP；默认 release，OpenHarmony 复用适配 SDK 与 DevEco 工具链，Windows iOS 提示需要 macOS + Xcode。 |
 | [JobsFlutterDoctor](./JobsFlutterDoctor/README.md) | Flutter 项目体检；精确根目录动态菜单，CMD 显示当前 SDK 版本与 doctor -v，不 clean、不获取依赖或升级工具。 |
@@ -146,7 +148,7 @@
 
 macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 Visual Studio 项目入口承接；[**CocoaPods**](https://cocoapods.org/) 的安装 / 升级入口属于 macOS 工具链，Windows 版不提供。Windows 当前提供 20 个现行安装单元，macOS 侧的当前功能见同级说明。
 
-每项功能拥有独立源码包、运行目录、菜单注册、配置、日志及卸载入口；包内运行代码不引用总目录或其他包。通用基础代码在维护时同步到各包，安装后不需要共享运行模块。Git 提交回退包使用原生动态 Git 子菜单，普通非 Git 目录、链接、裸仓、元数据内部和畸形内层 .git 隐藏，执行时再次用 Git 校验。Flutter 运行、打包、体检和代码生成包使用原生 `IContextMenu`，在菜单构建时精确识别项目，无效目录不插入菜单。Android / Harmony 模拟器包分别使用桌面空白专用原生 handler，普通目录及选中项不插入菜单；OpenHarmony 另限制 Windows x64。单文件运行授权 / 解除运行授权使用普通单文件专用原生 handler，目录、多选和链接隐藏；其余包沿用静态菜单，点击后再校验并给出具体错误，非法目标不会运行依赖或提交命令。菜单按单选设计，多选批量操作不在支持范围内。
+每项功能拥有独立源码包、运行目录、菜单注册、配置、日志及卸载入口；包内运行代码不引用总目录或其他包。通用基础代码在维护时同步到各包，安装后不需要共享运行模块。Git 提交回退包使用原生动态 Git 子菜单，普通非 Git 目录、链接、裸仓、元数据内部和畸形内层 .git 隐藏，执行时再次用 Git 校验。Flutter 运行、打包、体检和代码生成包使用原生 `IContextMenu`，在菜单构建时精确识别项目，无效目录不插入菜单。Android / Harmony 模拟器包分别使用桌面空白专用原生 handler，普通目录及选中项不插入菜单；OpenHarmony 另限制 Windows x64。单文件运行授权 / 解除运行授权使用可执行 / 脚本格式单文件专用原生 handler，普通文档、目录、多选和链接隐藏；两项在适用文件上始终保留，按当前 ExecuteFile 状态互斥置灰，无法可靠读取时均置灰；其余包沿用静态菜单，点击后再校验并给出具体错误，非法目标不会运行依赖或提交命令。菜单按单选设计，多选批量操作不在支持范围内。
 
 ## 二、<span id="installation">安装、配置与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 

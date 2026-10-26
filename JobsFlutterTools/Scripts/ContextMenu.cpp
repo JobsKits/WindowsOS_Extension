@@ -166,17 +166,17 @@ public:
             }
         }
         if (GetMenuItemCount(doctors) > 0) {
-            if (!AppendMenuW(development, MF_POPUP, reinterpret_cast<UINT_PTR>(doctors), L"Flutter项目体检")) {
+            if (!AppendMenuW(development, MF_POPUP, reinterpret_cast<UINT_PTR>(doctors), L"🏥 Flutter项目体检")) {
                 DestroyMenu(development); DestroyMenu(doctors); DestroyMenu(repairs); return E_FAIL;
             }
         } else { DestroyMenu(doctors); }
         bool insertedDevelopment = false;
         if (GetMenuItemCount(development) > 0) {
-            if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(development), L"Flutter开发相关辅助工具")) { DestroyMenu(development); DestroyMenu(repairs); return E_FAIL; }
+            if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(development), L"🦋 Flutter开发相关辅助工具")) { DestroyMenu(development); DestroyMenu(repairs); return E_FAIL; }
             insertedDevelopment = true;
         } else { DestroyMenu(development); }
         if (GetMenuItemCount(repairs) > 0) {
-            if (!InsertMenuW(menu, position + (insertedDevelopment ? 1 : 0), MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(repairs), L"Flutter项目修复")) {
+            if (!InsertMenuW(menu, position + (insertedDevelopment ? 1 : 0), MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(repairs), L"🔧 Flutter项目修复")) {
                 if (insertedDevelopment) { RemoveMenu(menu, position, MF_BYPOSITION); DestroyMenu(development); }
                 DestroyMenu(repairs); return E_FAIL;
             }

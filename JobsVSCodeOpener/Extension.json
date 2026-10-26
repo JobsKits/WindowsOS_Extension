@@ -1,7 +1,7 @@
 {
   "Id": "open-vscode",
   "Name": "JobsVSCodeOpener",
-  "Label": "用 VSCode 打开项目",
+  "Label": "📝 用 VSCode 打开项目",
   "Description": "打开目标项目目录。",
   "DirectoryOnly": false,
   "Console": false

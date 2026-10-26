@@ -1,7 +1,7 @@
 {
   "Id": "harmony-simulator-repair",
   "Name": "JobsHarmonySimulatorRepairer",
-  "Label": "Harmony 模拟器检测与修复",
+  "Label": "🧰 Harmony 模拟器检测与修复",
   "Description": "仅系统桌面空白显示；检查已有 DevEco Emulator 与实例，按选择启动或确认后无损重启；不清数据。",
   "DirectoryOnly": true,
   "Console": true,

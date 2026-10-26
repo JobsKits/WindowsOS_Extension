@@ -28,6 +28,7 @@
 | `Common.psm1` | 本包内嵌通用路径、日志与进程工具。 |
 | `Invoke.ps1` | 验证已安装状态后转交本包业务。 |
 | `Manage.ps1 / PackageInstaller.psm1` | 本包独立安装、卸载、精确备份与事务回滚。 |
+| `RunPermissionTarget.h` | 可执行 / 脚本格式识别、当前用户 ExecuteFile 只读检查及互斥置灰；两包独立内嵌同字节副本。 |
 | `ContextMenu.cpp / ContextMenu.def / Build.ps1` | 原生 COM 过滤、导出和 MSVC 构建；构建不注册。 |
 | `OpenCmd.ps1` / `TerminalLauncher.ps1` | 以文件父目录为工作目录，在独立终端安全转交单文件路径，CMD 不插入用户路径文本。 |
 | `RunPermissionFile.cs` | 锁定真实单文件并精确读写 DACL，核验有效 ExecuteFile。 |

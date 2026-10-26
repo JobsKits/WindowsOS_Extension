@@ -1,7 +1,7 @@
 {
   "Id": "codegraph-bootstrap",
   "Name": "JobsCodeGraphUpdater",
-  "Label": "更新代码地图（.codegraph）",
+  "Label": "🗺️ 更新代码地图（.codegraph）",
   "Description": "创建或同步当前目录的代码地图。",
   "DirectoryOnly": true,
   "Console": true

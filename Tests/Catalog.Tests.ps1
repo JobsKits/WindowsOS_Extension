@@ -49,7 +49,7 @@ Export-ModuleMember -Function Invoke-JobsPackageChange
     Assert-True ($nativePackages.Count -eq $entries.Count) '当前 PowerShell 加载清单登记的独立包'
     Assert-True (@($nativePackages | Where-Object { $_ -is [Management.Automation.PSModuleInfo] }).Count -eq 0) '包清单输出没有模块对象'
     $harmony = @($nativePackages | Where-Object { $_.Id -ceq 'harmony-simulator-create' })
-    Assert-True ($harmony.Count -eq 1 -and $harmony[0].Label -ceq '新建 Harmony 模拟器' -and $harmony[0].Console -eq $true) '总面板读取鸿蒙菜单名称并保留可见终端'
+    Assert-True ($harmony.Count -eq 1 -and $harmony[0].Label -ceq '🌈 新建 Harmony 模拟器' -and $harmony[0].Console -eq $true) '总面板读取鸿蒙菜单名称并保留可见终端'
     $harmonyPlan = @(Get-JobsPackageOperationPlan -Packages $nativePackages -Selected @('harmony-simulator-create') -Installed @() -Mode Install)
     Assert-True ($harmonyPlan.Count -eq 1 -and $harmonyPlan[0].Id -ceq 'harmony-simulator-create') '仅勾选鸿蒙时只编排本包'
     $harmonyResult = Invoke-JobsPackageOperations -Plan $harmonyPlan
