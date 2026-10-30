@@ -17,6 +17,8 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 > **最低支持系统：** 目标为 Windows 10 x64、Windows PowerShell 5.1 Desktop；最低 build 与完整 Windows 实机兼容性尚未验收。Windows 11 位于“显示更多选项”（或 `Shift+F10`）。菜单名称为 **Git操作 → Git 提交回退**。
@@ -36,10 +38,10 @@ hard 会丢弃已跟踪的未提交修改；阻挡目标检出的未跟踪路径
 
 ## 一、<span id="installation">安装与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-- 单独复制本目录，双击 [`Install.cmd`](./Install.cmd)；或在[总安装面板](../README.md#installation)勾选“Git 提交回退”。只注册当前用户的本包 COM handler 和 CLSID，不提权、不改系统菜单样式。32 位宿主通过 `Sysnative` 选择系统原生 PowerShell；直接从 32 位 PowerShell 调用安装器时，在写入前拒绝，避免 COM 注册视图与 Explorer 架构不符。
+- 单独复制本目录，双击 [`Manage.cmd`](./Manage.cmd)；或在[总安装面板](../README.md#installation)勾选“Git 提交回退”。只注册当前用户的本包 COM handler 和 CLSID，不提权、不改系统菜单样式。32 位宿主通过 `Sysnative` 选择系统原生 PowerShell；直接从 32 位 PowerShell 调用安装器时，在写入前拒绝，避免 COM 注册视图与 Explorer 架构不符。
 - 菜单使用原生 C++ handler。安装需要已有 [**Visual Studio Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的 C++ 桌面工作负载、MSVC、Windows SDK 及与 Explorer 对应的 x64 / ARM64 / x86 工具；缺少时在注册前停止，不自动下载编译器。
 - 执行回退需要可用 Git 和 fzf。缺失或损坏时停止，不自动安装、不退回手输编号；普通确认和精确 `YES` 保留文本输入。
-- 双击 [`Uninstall.cmd`](./Uninstall.cmd) 只移除本包菜单并禁用状态，保留运行版本、日志和安装快照。安装 / 卸载不会运行 Git 回退。
+- 双击 [`Manage.cmd`](./Manage.cmd) 只移除本包菜单并禁用状态，保留运行版本、日志和安装快照。安装 / 卸载不会运行 Git 回退。
 
 ## 二、<span id="behavior">选择、取消与边界</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
@@ -54,5 +56,7 @@ hard 会丢弃已跟踪的未提交修改；阻挡目标检出的未跟踪路径
 ## 三、<span id="verification">验证</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 [隔离 Git 回归](../Tests/GitRollback.Tests.ps1)创建临时仓库验证仓库边界、soft / hard、确认取消与现场变化；[便携菜单判定探针](../Tests/GitRollbackMetadataProbe.cpp)直接调用原生 handler 共用的元数据判定头。测试不安装系统菜单，不操作真实工作仓库。编码回归可先编译 `Tests/GitRollbackFzfProbe.cpp`，再给 Git 回归传入 `-FzfProbeExecutable <可执行路径>`，验证初始 ASCII 管道下中文模式 UTF8 往返及编码恢复；实际 fzf 的目标选择与无匹配左键返回已在 macOS PowerShell 7 的真实 TTY 验证。原生 DLL 的 MSVC 构建、Windows 5.1 窗口与 Explorer 实际显示仍需 Windows 验收。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

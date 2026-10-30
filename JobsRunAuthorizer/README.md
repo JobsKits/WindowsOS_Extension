@@ -17,11 +17,13 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 > **最低支持系统：Windows 10 x64。** Windows 5.1 / MSVC / Explorer 与实际 NTFS ACL 行为仍须目标机验收；不声明已验证最低 build。
 
-对一个可执行文件或脚本显示“**🔓 运行授权**”，在独立终端核对路径并输入精确 `YES` 才修改。通过 [**Windows 文件 ACL**](https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights) 管理当前用户 `ExecuteFile`（执行文件）权限；不执行所选文件。
+对一个可执行文件或脚本显示“**🔒 运行授权**”，在独立终端核对路径并输入精确 `YES` 才修改。通过 [**Windows 文件 ACL**](https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights) 管理当前用户 `ExecuteFile`（执行文件）权限；不执行所选文件。
 
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、成对行为与边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -34,11 +36,11 @@
 
 只支持本机 NTFS 的可执行或脚本格式普通单文件；目录、多选、背景、符号链接、联接、硬链接、UNC、设备路径及备用数据流均排除。原生菜单先按可执行或脚本扩展名过滤，README.md、txt、图片、压缩包等普通数据文件不显示两项权限菜单；业务再次核验格式、卷、父路径和硬链接数。其它用户、其它权限、继承设置、所有者、来源标记、PowerShell 执行策略和全局安全设置不变。保留读取权限的解释器仍可读取脚本并执行内容；`ExecuteFile` 撤权不是全面防执行隔离。文件扩展名和系统关联也不会因授权改变。
 
-支持的格式为 `exe / com / scr / cpl / bat / cmd / ps1 / vbs / vbe / js / jse / wsf / wsh / hta / py / pyw / pl / rb / sh / bash / zsh / fish / ksh / csh / tcsh / php / lua / command`，扩展名不区分大小写；系统是否已安装对应解释器需另行满足。两个包均安装后，适用文件始终显示“🔓 运行授权”和“🔒 解除运行授权”：已有当前用户有效 ExecuteFile 时前者置灰、后者可点；没有时相反；权限无法可靠读取时两项都置灰。打开菜单和点击时重新检查状态，已达目标状态不重复写入。
+支持的格式为 `exe / com / scr / cpl / bat / cmd / ps1 / vbs / vbe / js / jse / wsf / wsh / hta / py / pyw / pl / rb / sh / bash / zsh / fish / ksh / csh / tcsh / php / lua / command`，扩展名不区分大小写；系统是否已安装对应解释器需另行满足。两个包均安装后，适用文件始终显示“🔒 运行授权”和“🔓 解除运行授权”：已有当前用户有效 ExecuteFile 时前者置灰、后者可点；没有时相反；权限无法可靠读取时两项都置灰。打开菜单和点击时重新检查状态，已达目标状态不重复写入。
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装与独立运行 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-双击 [Install.cmd](./Install.cmd) 安装，[Uninstall.cmd](./Uninstall.cmd) 卸载；在[总面板](../README.md)可分别勾选两个包。每个包可单独复制安装，不依赖另一个包的运行代码。安装用现有 MSVC / Windows SDK 编译单文件原生菜单并按当前用户注册。
+双击 [Manage.cmd](./Manage.cmd)，在同一面板选择安装 / 更新或卸载；在[总面板](../README.md)可分别勾选两个包。每个包可单独复制安装，不依赖另一个包的运行代码。安装用现有 MSVC / Windows SDK 编译单文件原生菜单并按当前用户注册。
 
 独立入口传入一个文件，终端会显示范围、快照位置并要求 `YES`；取消或 EOF 不改权限。
 
@@ -56,8 +58,10 @@
 | --- | --- |
 | [Scripts](./Scripts/README.md) | 原生菜单、权限核心、独立业务与安装事务。 |
 | `Extension.json` | 包身份与控制台入口。 |
-| `Install.cmd` / `Uninstall.cmd` / `Run.cmd` | 安装、卸载、独立执行。 |
+| `Manage.cmd` / `Run.cmd` | 安装、卸载、独立执行。 |
 
 测试见 [RunPermissions.Tests.ps1](../Tests/RunPermissions.Tests.ps1)：本机编译 / 隔离流程与 Windows 临时 NTFS 文件实际 ACL 往返分别记录；不修改用户真实文件。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

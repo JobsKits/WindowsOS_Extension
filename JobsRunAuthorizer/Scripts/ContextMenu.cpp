@@ -74,7 +74,7 @@ public:
         if ((flags & CMF_DEFAULTONLY) || first > last || !IsFile(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
         const bool enabled = JobsRunPermission::IsActionEnabled(JobsRunPermission::ReadExecutionState(target), true);
         const UINT state = enabled ? MF_ENABLED : MF_GRAYED;
-        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING | state, first, L"🔓 运行授权")) return HRESULT_FROM_WIN32(GetLastError());
+        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING | state, first, L"🔒 运行授权")) return HRESULT_FROM_WIN32(GetLastError());
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
     }
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {

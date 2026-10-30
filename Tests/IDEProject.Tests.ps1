@@ -76,7 +76,7 @@ try {
         $plan = @(& $installer { param($Manifest) Get-JobsPackageRegistryPlan $Manifest '/temporary/release' 'powershell.exe' } $manifest)
         Assert ($plan.Count -eq 8 -and @($plan | Where-Object Enabled).Count -eq 4) 'native directory/background/drive handler plus CLSID, four old static entries retired'
         Assert (@($plan | Where-Object { -not $_.Enabled -and $_.Key.Contains('\shell\Jobs.WindowsExtension.' + $manifest.Id) }).Count -eq 4) 'migration removes only this package legacy static scopes'
-        Assert (@($plan | Where-Object { $_.Enabled -and $_.PSObject.Properties['InProcServer'] -and $_.InProcServer.EndsWith('bin/' + $name + 'ContextMenu.dll') }).Count -eq 1) 'own native binary name'
+        Assert (@($plan | Where-Object { $_.Enabled -and $_.PSObject.Properties['InProcServer'] -and $_.InProcServer.EndsWith((Join-Path 'bin' ($name + 'ContextMenu.dll'))) }).Count -eq 1) 'own native binary name'
         $build = [IO.File]::ReadAllText((Join-Path $package 'Scripts/Build.ps1'))
         foreach ($source in [regex]::Matches($build, 'Join-Path \$scripts ''([^'']+\.(?:cs|cpp|def))''')) {
             Assert ([IO.File]::Exists((Join-Path $package ('Scripts/' + $source.Groups[1].Value)))) 'every declared native build source is shipped in its own package'

@@ -65,7 +65,7 @@ try {
     $manifest = Get-Content -LiteralPath (Join-Path $package 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $release = Join-Path $temporary 'release'
     & $installer { param($Path, $Destination) New-JobsPackageRelease -PackagePath $Path -Destination $Destination } $package $release | Out-Null
-    foreach ($name in @('ContextMenu.cpp', 'FlutterProject.h', 'ContextMenu.def', 'RunnerHost.cs', 'Build.ps1', 'OpenCmd.ps1')) {
+    foreach ($name in @('ContextMenu.cpp', 'FlutterProject.h', 'ContextMenu.def', 'RunnerHost.cs', 'Build.ps1', 'OpenCmd.ps1', 'AndroidRuntime.ps1')) {
         Assert-Runner (Test-Path -LiteralPath (Join-Path $release ('Scripts/' + $name)) -PathType Leaf) ('独立 release 包含：' + $name)
     }
     $plan = @(& $installer { param($Manifest, $Release) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath 'powershell.exe' } $manifest $release)

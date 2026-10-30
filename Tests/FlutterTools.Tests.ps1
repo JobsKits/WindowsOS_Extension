@@ -19,7 +19,7 @@ try {
  Assert ($off.Count -eq 4 -and @($off | Where-Object Enabled).Count -eq 0) 'uninstall only unified group, does not resurrect old menus'
  $release = Join-Path $temp 'release'
  & $installer { param($p,$d) New-JobsPackageRelease -PackagePath $p -Destination $d } $root $release | Out-Null
- foreach ($path in @('Scripts/FlutterProjectTools.dart','Scripts/Actions/run/Scripts/RunnerHost.cs','Scripts/Actions/extract/Scripts/ExtractFlutterDependencies.dart','Scripts/Actions/android-support/Scripts/Action.psm1','Scripts/FlutterToolsMenu.h','Scripts/HarmonySdk.psm1','Scripts/CheckHarmonySdk.ps1')) {
+ foreach ($path in @('Scripts/SetupVersion.json','Scripts/ProjectSetupLogTail.psm1','Scripts/ProjectSetup.psm1','Scripts/ProjectSetupRun.ps1','Scripts/ProjectSetupProcess.cs','Scripts/ProjectSetupProgress.psm1','Scripts/ProjectSetupWorker.ps1','Scripts/ProjectSetupDashboard.ps1','Scripts/FlutterProjectTools.dart','Scripts/Actions/run/Scripts/RunnerHost.cs','Scripts/Actions/extract/Scripts/ExtractFlutterDependencies.dart','Scripts/Actions/import-dependencies/Scripts/Action.psm1','Scripts/Actions/import-dependencies/Scripts/ImportFlutterDependencies.dart','Scripts/Actions/import-dependencies/Scripts/ExtractFlutterDependencies.dart','Scripts/Actions/import-dependencies/Scripts/Common.psm1','Scripts/Actions/import-dependencies/Extension.json','Scripts/Actions/android-support/Scripts/Action.psm1','Scripts/FlutterToolsMenu.h','Scripts/HarmonySdk.psm1','Scripts/CheckHarmonySdk.ps1')) {
   Assert ([IO.File]::Exists((Join-Path $release $path))) ('complete self-contained release: '+$path)
   Assert ((Get-FileHash (Join-Path $root $path)).Hash -eq (Get-FileHash (Join-Path $release $path)).Hash) ('copy integrity: '+$path)
  }

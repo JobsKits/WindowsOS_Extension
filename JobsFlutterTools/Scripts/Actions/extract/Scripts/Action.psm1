@@ -250,7 +250,7 @@ function Find-JobsExtractorDart {
 }
 
 function Invoke-JobsFlutterDependencyAction {
-    param([string]$Directory)
+    param([string]$Directory, [switch]$PrivateOnly)
     if (-not (Show-JobsExtractorIntro)) { return }
     Assert-JobsFlutterProject $Directory
     foreach ($relative in @('pubspec.lock', '.dart_tool/package_config.json')) {
@@ -273,7 +273,9 @@ function Invoke-JobsFlutterDependencyAction {
     Write-JobsExtractorMessage ('输出父目录：' + $destination)
     Write-JobsExtractorMessage ('复用 Dart：' + $dart)
     Write-JobsExtractorMessage '正在核对锁定依赖并复制源码，请等待完成提示。'
-    $result = Invoke-JobsProcess -FilePath $dart -Arguments @($engine, '--project', $Directory, '--destination', $destination) -WorkingDirectory $Directory -TimeoutSeconds 21600
+    $engineArguments = @($engine, '--project', $Directory, '--destination', $destination)
+    if ($PrivateOnly) { $engineArguments += '--private-only'; Write-JobsExtractorMessage '🔐 私库迁移：仅 Git、path、自建 Pub 源（含间接依赖）；公共 hosted 包不复制。' }
+    $result = Invoke-JobsProcess -FilePath $dart -Arguments $engineArguments -WorkingDirectory $Directory -TimeoutSeconds 21600
     foreach ($output in @($result.StdOut, $result.StdErr)) {
         if (-not [string]::IsNullOrWhiteSpace($output)) { Write-JobsExtractorMessage $output.TrimEnd() }
     }
@@ -282,9 +284,9 @@ function Invoke-JobsFlutterDependencyAction {
 }
 
 function Invoke-JobsFeature {
-    param([Parameter(Mandatory = $true)][string]$Target)
+    param([Parameter(Mandatory = $true)][string]$Target, [switch]$PrivateOnly)
     $directory = Get-JobsDirectory -Target $Target
-    Invoke-JobsFlutterDependencyAction -Directory $directory
+    Invoke-JobsFlutterDependencyAction -Directory $directory -PrivateOnly:$PrivateOnly
 }
 
 Export-ModuleMember -Function Invoke-JobsFeature

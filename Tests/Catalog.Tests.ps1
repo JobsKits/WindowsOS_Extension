@@ -23,6 +23,7 @@ try {
     Copy-Item -LiteralPath (Join-Path $sourceRoot 'Extensions.json') -Destination $testRoot
     $parsed = Get-Content -LiteralPath (Join-Path $testRoot 'Extensions.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $entries = @($parsed)
+    Assert-True (@($entries | Where-Object { $_.Id -ceq 'open-sourcetree' }).Count -eq 0) '已移除的 Sourcetree 入口不再出现在总面板清单'
     $repairEntries = @($entries | Where-Object { $_.Id -ceq 'android-simulator-repair' })
     Assert-True ($repairEntries.Count -eq 1 -and $repairEntries[0].Name -ceq 'JobsAndroidSimulatorRepairer') 'Android 模拟器修复以唯一独立身份接入总清单'
     $harmonyEntries = @($entries | Where-Object { $_.Id -ceq 'harmony-simulator-create' })
@@ -54,6 +55,16 @@ Export-ModuleMember -Function Invoke-JobsPackageChange
     Assert-True ($harmonyPlan.Count -eq 1 -and $harmonyPlan[0].Id -ceq 'harmony-simulator-create') '仅勾选鸿蒙时只编排本包'
     $harmonyResult = Invoke-JobsPackageOperations -Plan $harmonyPlan
     Assert-True ($harmonyResult.Success -and @($harmonyResult.Completed).Count -eq 1 -and $harmonyResult.Completed[0] -ceq 'Install:harmony-simulator-create') '鸿蒙组合安装只调用本包隔离生命周期'
+    $incompletePath = Join-Path $testRoot $entries[1].Name
+    Remove-Item -LiteralPath (Join-Path $incompletePath 'Scripts/Action.psm1') -Force
+    $incomplete = @(Get-JobsFeaturePackages -Root $testRoot)
+    Assert-True ($incomplete.Count -eq $entries.Count) '未选包缺少业务源码不阻止枚举其它功能'
+    [IO.File]::WriteAllText((Join-Path $incompletePath 'Extension.json'), '{"Id":"wrong-owner","Name":"JobsWrong"}')
+    $unavailable = @(Get-JobsFeaturePackages -Root $testRoot)
+    Assert-True ($unavailable.Count -eq $entries.Count -and $unavailable[1].Id -ceq $entries[1].Id) '身份损坏仅保留本项错误占位，不终止全清单'
+    Assert-True ($null -ne $unavailable[1].PSObject.Properties['CatalogError']) '清单错误保留具体诊断，执行时仍需身份校验'
+    $visible = @(Get-JobsSelectableFeatures -Packages $unavailable)
+    Assert-True (@($visible | Where-Object { $_.Id -ceq $entries[0].Id }).Count -eq 1) 'Flutter 动作表缺失也不隐藏其它功能'
     & $module {
         # Windows PowerShell 5.1 的 JSON 顶层数组作为单个管道对象输出。
         function script:ConvertFrom-Json {

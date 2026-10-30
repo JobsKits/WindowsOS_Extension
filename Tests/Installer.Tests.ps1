@@ -123,9 +123,11 @@ foreach ($feature in $features) {
         Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) 'Flutter 运行包不残留始终可见的静态菜单'
         continue
     }
-    if ($feature.Id -in @('run-authorize', 'run-authorization-revoke')) {
+    if ($feature.Id -in @('run-authorize', 'run-authorization-revoke', 'file-content-viewer', 'file-volumes')) {
         $clsid = '{AE09A13F-EF17-4CE3-8BA1-F557C34280DE}'
         if ($feature.Id -eq 'run-authorization-revoke') { $clsid = '{6AC50F49-6915-4130-8474-F99DA4D074D6}' }
+        if ($feature.Id -eq 'file-content-viewer') { $clsid = '{DBC7884D-ECD9-43CB-A026-AFD8A9BBC2A7}' }
+        if ($feature.Id -eq 'file-volumes') { $clsid = '{6F7BA84C-324C-472C-B618-B0E3D44244DB}' }
         $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.' + $feature.Id) -or $_.Key.EndsWith('CLSID\' + $clsid) })
         Assert-JobsTest ($native.Count -eq 2) '权限包仅普通单文件原生 handler 和 CLSID'
         Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\Directory|\\Drive|DesktopBackground' }).Count -eq 0) '运行权限不注册目录或背景'

@@ -615,7 +615,7 @@ namespace Jobs {
 }
 
 function Invoke-JobsFlutterVersionAction {
-    param([string]$Directory)
+    param([string]$Directory,[switch]$RequireCompletion)
     Assert-JobsFlutterProject $Directory
     Assert-JobsFvmWritePaths $Directory
     $previewStamp = Get-JobsFvmPreviewStamp $Directory
@@ -645,10 +645,10 @@ function Invoke-JobsFlutterVersionAction {
         $cached = @(Get-JobsFvmCachedVersions $chain.Fvm $inspection)
         $choices = @(Get-JobsFlutterReleaseChoices $cached $current)
         $choice = Select-JobsFlutterVersion $chain.Fzf $choices $Directory
-        if ($null -eq $choice) { Write-JobsFvmMessage '已取消选择，项目未修改。'; return }
+        if ($null -eq $choice) { if ($RequireCompletion) { throw '已取消 SDK 准备，未继续依赖操作。' }; Write-JobsFvmMessage '已取消选择，项目未修改。'; return }
         Write-JobsFvmMessage ("计划：{0} → {1}；{2}" -f $current, $choice.Version, $choice.Label)
         Write-JobsFvmMessage '写入范围：当前根 .fvmrc（保留其它字段、关闭向父 Melos 同步）、.fvm/、可能的 .gitignore、.vscode/settings.json 和根 *.code-workspace；不获取项目 pub 依赖。未缓存版本将下载 SDK。'
-        if ((Read-Host '直接回车执行当前项目的安装/切换；输入任意字符后回车取消') -ne '') { Write-JobsFvmMessage '已取消，项目未修改。'; return }
+        if ((Read-Host '直接回车执行当前项目的安装/切换；输入任意字符后回车取消') -ne '') { if ($RequireCompletion) { throw '已取消 SDK 准备，未继续依赖操作。' }; Write-JobsFvmMessage '已取消，项目未修改。'; return }
         Assert-JobsFlutterProject $Directory
         Assert-JobsFvmWritePaths $Directory
         if ((Get-JobsFvmPreviewStamp $Directory) -cne $previewStamp) { throw '选版期间 pubspec.yaml 或 .fvmrc 已被修改，请重新打开菜单确认新状态；本次未写项目。' }

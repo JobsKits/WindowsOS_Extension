@@ -87,9 +87,35 @@ function Repair-JobsToolsAndroidSdk {
 }
 
 function Invoke-JobsFeature {
-    param([string]$Target, [ValidateSet('run','pub-get','extract','sdk-version','sdk-manage','ohos-sdk-manage','package','codegen','native-doctor','harmony-doctor','maintenance','repair-android','repair-imports','repair-namespace')][string]$Action)
+    param([string]$Target, [ValidateSet('run','pub-get','extract','export-private-dependencies','import-private-dependencies','import-dependencies','sdk-version','sdk-manage','ohos-sdk-manage','java-manage','android-dependencies','ohos-dependencies','native-dependencies','flutter-precache','web-dependencies','export-gradle-dependencies','import-gradle-dependencies','export-ohos-dependencies','import-ohos-dependencies','export-native-dependencies','import-native-dependencies','export-precache-dependencies','import-precache-dependencies','export-web-dependencies','import-web-dependencies','gradle-download','project-setup','package','build-harmony','codegen','native-doctor','harmony-doctor','maintenance','repair-android','repair-imports','repair-namespace')][string]$Action)
     $project = Resolve-JobsTarget $Target
-    if (-not [IO.File]::Exists((Join-Path $project 'pubspec.yaml')) -or -not [IO.Directory]::Exists((Join-Path $project 'lib'))) { throw '请选择 Flutter 工程根目录。' }
+    if (-not [IO.File]::Exists((Join-Path $project 'pubspec.yaml')) -or ($Action -notin @('import-dependencies','import-private-dependencies') -and -not [IO.Directory]::Exists((Join-Path $project 'lib')))) { throw '请选择 Flutter 工程根目录。' }
+    if ($Action -in @('export-private-dependencies','import-private-dependencies')) {
+        $workerAction = if ($Action -eq 'export-private-dependencies') { 'extract' } else { 'import-dependencies' }
+        $worker = Import-Module (Join-Path $PSScriptRoot ('Actions/' + $workerAction + '/Scripts/Action.psm1')) -PassThru -DisableNameChecking
+        & $worker { param($Path) Invoke-JobsFeature -Target $Path -PrivateOnly } $project
+        return
+    }
+    if ($Action -cmatch '^(export|import)-(gradle|ohos|native|precache|web)-dependencies$') {
+        $setup = Import-Module (Join-Path $PSScriptRoot 'ProjectSetup.psm1') -PassThru -DisableNameChecking
+        & $setup { param($p,$a) Invoke-JobsProjectDependencyArchiveAction -Target $p -Action $a } $project $Action
+        return
+    }
+    if ($Action -in @('pub-get','android-dependencies','ohos-dependencies','native-dependencies','flutter-precache','web-dependencies')) {
+        $setup = Import-Module (Join-Path $PSScriptRoot 'ProjectSetup.psm1') -PassThru -DisableNameChecking
+        & $setup { param($p,$a) Invoke-JobsProjectDependencyAction -Target $p -Action $a } $project $Action
+        return
+    }
+    if ($Action -in @('project-setup','gradle-download','java-manage')) {
+        $setup = Import-Module (Join-Path $PSScriptRoot 'ProjectSetup.psm1') -PassThru -DisableNameChecking
+        & $setup { param($p,$a) Invoke-JobsProjectSetupAction -Target $p -Action $a } $project $Action
+        return
+    }
+    if ($Action -eq 'build-harmony') {
+        $packager = Import-Module (Join-Path $PSScriptRoot 'Actions/package/Scripts/Action.psm1') -PassThru -DisableNameChecking
+        & $packager { param($Path) Invoke-JobsFlutterHarmonyAction -Target $Path } $project
+        return
+    }
     if ($Action -eq 'ohos-sdk-manage') {
         $harmony = Import-Module (Join-Path $PSScriptRoot 'HarmonySdk.psm1') -PassThru -DisableNameChecking
         & $harmony { param($Path) Invoke-JobsHarmonySdkAction -Target $Path } $project

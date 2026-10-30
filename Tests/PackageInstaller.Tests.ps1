@@ -48,8 +48,7 @@ function New-JobsTestPackage {
     Write-JobsTestText -Path (Join-Path $scripts 'Invoke.ps1') -Text 'param([string]$Target); Import-Module (Join-Path $PSScriptRoot "Action.psm1"); Invoke-JobsFeature -Target $Target'
     Copy-Item -LiteralPath $template -Destination (Join-Path $scripts 'PackageInstaller.psm1')
     Copy-Item -LiteralPath (Join-Path $project 'Infrastructure/Manage.ps1') -Destination (Join-Path $scripts 'Manage.ps1')
-    Write-JobsTestText -Path (Join-Path $Path 'Install.cmd') -Text '@echo off'
-    Write-JobsTestText -Path (Join-Path $Path 'Uninstall.cmd') -Text '@echo off'
+    Write-JobsTestText -Path (Join-Path $Path 'Manage.cmd') -Text '@echo off'
     Write-JobsTestText -Path (Join-Path $Path 'README.md') -Text '测试功能包。'
 }
 
@@ -147,7 +146,7 @@ try {
         $relative = 'Scripts/' + $name
         Assert-JobsTest ((Get-FileHash -LiteralPath (Join-Path $first $relative)).Hash -eq (Get-FileHash -LiteralPath (Join-Path $release $relative)).Hash) ('复制 SHA256 一致：' + $relative)
     }
-    foreach ($name in @('Install.cmd', 'Uninstall.cmd', 'README.md')) {
+    foreach ($name in @('Manage.cmd', 'README.md')) {
         Assert-JobsTest (Test-Path -LiteralPath (Join-Path $release $name) -PathType Leaf) ('release 附带独立管理入口：' + $name)
     }
     foreach ($relative in @('Tests', 'logs', 'Scripts/Tests', 'Scripts/Action.Tests.ps1', 'JobsSecond', 'Extensions.json')) {

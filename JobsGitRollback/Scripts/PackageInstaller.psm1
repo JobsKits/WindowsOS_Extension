@@ -144,7 +144,7 @@ function New-JobsPackageRelease {
             $files += 'Scripts/' + $item.Name
         }
     }
-    foreach ($name in @('Install.cmd', 'Uninstall.cmd', 'README.md')) {
+    foreach ($name in @('Manage.cmd', 'Manage.vbs', 'README.md')) {
         if (Test-Path -LiteralPath (Join-Path $package $name) -PathType Leaf) { $files += $name }
     }
     foreach ($relative in $files) { Assert-JobsPackageSourceFile -Path (Join-Path $package $relative) }
@@ -308,9 +308,9 @@ function Invoke-JobsPackageChange {
 
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '安装与卸载仅支持 Windows。' }
     if ($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion -lt [version]'5.1') {
-        throw '请使用系统 Windows PowerShell 5.1 或本包 .cmd 入口执行安装与卸载。'
+        throw '请使用系统 Windows PowerShell 5.1 或本包 Manage.vbs 入口执行安装与卸载。'
     }
-    if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) { throw '请使用与原生 Explorer 一致的 64 位 PowerShell 安装；可从本包 Install.cmd / Uninstall.cmd 重试。' }
+    if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) { throw '请使用与原生 Explorer 一致的 64 位 PowerShell 安装；可从本包 Manage.vbs 重试。' }
     $manifest = Get-JobsPackageManifest -PackagePath $PackagePath
     $base = Get-JobsPackageBase
     $root = Join-Path (Join-Path $base 'extensions') $manifest.Id

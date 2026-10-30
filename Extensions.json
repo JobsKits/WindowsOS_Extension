@@ -40,6 +40,14 @@
     "Name": "JobsTerminalOpener"
   },
   {
+    "Id": "file-content-viewer",
+    "Name": "JobsFileContentViewer"
+  },
+  {
+    "Id": "file-volumes",
+    "Name": "JobsFileVolumes"
+  },
+  {
     "Id": "flutter-tools",
     "Name": "JobsFlutterTools"
   },
@@ -58,10 +66,6 @@
   {
     "Id": "git-rollback",
     "Name": "JobsGitRollback"
-  },
-  {
-    "Id": "open-sourcetree",
-    "Name": "JobsSourcetreeOpener"
   },
   {
     "Id": "android-simulator-create",

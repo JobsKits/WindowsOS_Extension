@@ -1,0 +1,11 @@
+{
+  "Id": "file-content-viewer",
+  "Name": "JobsFileContentViewer",
+  "Label": "📄 用终端查看文件内容",
+  "Description": "只查看单个普通文件；超过 1 MiB 或疑似二进制时终端输入 YES 才继续。",
+  "DirectoryOnly": false,
+  "Console": true,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

@@ -1,7 +1,7 @@
 ﻿# Invoke.ps1 | WindowsOS@Extension 单功能运行入口
 # Created by Jobs on 2026年10月18日，星期日.
 [CmdletBinding()]
-param([Parameter(Mandatory = $true)][string]$Target, [Parameter(Mandatory = $true)][ValidateSet('run','pub-get','extract','sdk-version','sdk-manage','ohos-sdk-manage','package','codegen','native-doctor','harmony-doctor','maintenance','repair-android','repair-imports','repair-namespace')][string]$Action)
+param([Parameter(Mandatory = $true)][string]$Target, [Parameter(Mandatory = $true)][ValidateSet('run','pub-get','extract','export-private-dependencies','import-private-dependencies','import-dependencies','sdk-version','sdk-manage','ohos-sdk-manage','java-manage','android-dependencies','ohos-dependencies','native-dependencies','flutter-precache','web-dependencies','export-gradle-dependencies','import-gradle-dependencies','export-ohos-dependencies','import-ohos-dependencies','export-native-dependencies','import-native-dependencies','export-precache-dependencies','import-precache-dependencies','export-web-dependencies','import-web-dependencies','gradle-download','project-setup','package','build-harmony','codegen','native-doctor','harmony-doctor','maintenance','repair-android','repair-imports','repair-namespace')][string]$Action, [switch]$Check)
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
@@ -9,6 +9,17 @@ $console = $false
 $exitCode = 0
 try {
     Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+    if ($Check) {
+        if ($Action -cmatch '^(export|import)-(gradle|ohos|native|precache|web)-dependencies$') {
+            Import-Module (Join-Path $PSScriptRoot 'ProjectSetup.psm1') -DisableNameChecking
+            Invoke-JobsProjectDependencyArchiveAction -Target $Target -Action $Action -Check
+            exit 0
+        }
+        if ($Action -notin @('pub-get','android-dependencies','ohos-dependencies','native-dependencies','flutter-precache','web-dependencies')) { throw '该动作没有依赖只读计划。' }
+        Import-Module (Join-Path $PSScriptRoot 'ProjectSetup.psm1') -DisableNameChecking
+        Invoke-JobsProjectDependencyAction -Target $Target -Action $Action -Check
+        exit 0
+    }
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '本扩展只支持 Windows。' }
     $manifest = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $console = [bool]$manifest.Console

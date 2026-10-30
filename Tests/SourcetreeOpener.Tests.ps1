@@ -59,7 +59,13 @@ try {
     $launch = & $module { $script:Launch }
     Assert-Sourcetree ($launch.Count -eq 2 -and $launch[0] -eq $application -and $launch[1] -eq $child) '已安装时按原始参数打开内层仓库'
     $native = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../JobsSourcetreeOpener/Scripts/ContextMenu.cpp') -Raw -Encoding UTF8
-    Assert-Sourcetree ($native.Contains('FindApplication().empty()') -and $native.Contains('ExistingGitMenu(menu)')) '原生菜单构建门禁和既有父菜单复用已接线'
+    Assert-Sourcetree (-not $native.Contains('InsertMenuW(') -and -not $native.Contains('CreateProcessW(')) '退役 COM 不插入菜单或派发旧命令'
+    $installer = Import-Module (Join-Path $PSScriptRoot '../JobsSourcetreeOpener/Scripts/PackageInstaller.psm1') -PassThru -DisableNameChecking
+    $rejected = $false
+    try { & $installer { Invoke-JobsPackageChange -PackagePath 'unused' -Mode Install } } catch { $rejected = $_.Exception.Message.Contains('已移除') }
+    Assert-Sourcetree $rejected '旧独立包不能重新安装已移除的入口'
+    Remove-Module $installer
+
     Write-Host ('PASS: SourcetreeOpener.Tests.ps1 (' + $script:assertions + ' assertions)')
 } finally {
     Remove-Module $module

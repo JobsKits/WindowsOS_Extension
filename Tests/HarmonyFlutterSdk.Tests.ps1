@@ -186,15 +186,17 @@ try {
     [IO.File]::WriteAllText((Join-Path $project '.fvmrc'), '{"flutter":"custom_unknown","flutterUrl":"https://example.invalid/fork.git"}')
     Assert-HarmonyThrows { & $module { param($Project) & $script:HarmonyManager { param($Path) Invoke-JobsFlutterVersionAction $Path } $Project } $project } 'native selector rejects unknown fork before toolchain operations'
     $menu = [IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/FlutterToolsMenu.h'))
-    $actions = @([regex]::Matches($menu, '\{L"([^"]+)",') | ForEach-Object { $_.Groups[1].Value })
-    Assert-HarmonySdk ($actions.Count -eq 14 -and $actions[4] -ceq 'sdk-manage' -and $actions[5] -ceq 'ohos-sdk-manage' -and $actions[6] -ceq 'package') 'menu order keeps native SDK and inserts OH immediately after it'
+    $entryBlock = [regex]::Match($menu, '(?s)static const Entry Entries\[\]\s*=\s*\{(.*?)\n\};').Groups[1].Value
+    $actions = @([regex]::Matches($entryBlock, '\{L"([^"]+)",') | ForEach-Object { $_.Groups[1].Value })
+    Assert-HarmonySdk ($actions.Count -eq 36 -and $actions[20] -ceq 'sdk-manage' -and $actions[21] -ceq 'ohos-sdk-manage' -and $actions[22] -ceq 'java-manage') 'regrouping keeps stable native/OH/Java SDK command offsets'
     foreach ($name in @('Action.psm1','Invoke.ps1','OpenCmd.ps1')) {
         Assert-HarmonySdk ([IO.File]::ReadAllText((Join-Path $root ('JobsFlutterTools/Scripts/' + $name))).Contains("'ohos-sdk-manage'")) ('dispatch whitelist includes OH: ' + $name)
     }
     $native = [IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/ContextMenu.cpp'))
-    Assert-HarmonySdk ($native.Contains('HMENU parent = i < 8 || i == 10 ? development : (i < 10 ? doctors : repairs);')) 'all native submenu indices shifted together'
-    Assert-HarmonySdk ($native.Contains('if (!selected[i]) continue;') -and $native.Contains('!selected[LOWORD(info->lpVerb)]')) 'selected actions are checked both while displaying and invoking'
-    Assert-HarmonySdk ($native.Contains('GetMenuItemCount(doctors) > 0') -and $native.Contains('GetMenuItemCount(repairs) > 0')) 'empty diagnostic and repair submenus stay hidden'
+    Assert-HarmonySdk ($native.Contains('JobsFlutterTools::DevelopmentLayout(selected)') -and $native.Contains('JobsFlutterTools::SelectedGroupEntries(group, selected)')) 'native menus consume the shared hierarchy while retaining leaf indices'
+    Assert-HarmonySdk ($menu.Contains('selected[index] && IsActionVisible(index)') -and $native.Contains('!selected[index]')) 'selected actions are checked both while displaying and invoking'
+    Assert-HarmonySdk ($native.Contains('JobsFlutterTools::IsActionAvailable(index, IsHarmonyProject(target))') -and $native.Contains('return E_ACCESSDENIED;')) 'Harmony build remains visible while invocation rechecks adaptation and rejects unavailable targets'
+    Assert-HarmonySdk ($menu.Contains('!SelectedGroupEntries(group, selected).empty()') -and $native.Contains('GetMenuItemCount(repairs) > 0')) 'empty diagnostic and repair submenus stay hidden'
     foreach ($file in @('JobsFlutterTools/Scripts/HarmonySdk.psm1','JobsFlutterTools/Scripts/CheckHarmonySdk.ps1')) {
         $tokens = $null; $errors = $null
         [void][Management.Automation.Language.Parser]::ParseFile((Join-Path $root $file), [ref]$tokens, [ref]$errors)

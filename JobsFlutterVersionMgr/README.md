@@ -1,4 +1,4 @@
-> 当前 `Install.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Uninstall.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
+> 当前 `Manage.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Manage.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
 
 # `JobsFlutterVersionMgr`
 
@@ -13,8 +13,8 @@
 - [一、前提与工具链](#jobs-toc-heading-2)
 - [二、选择、安装与切换](#jobs-toc-heading-3)
 - [三、安装与卸载入口](#jobs-toc-heading-4)
-  - [Install.cmd](#jobs-toc-heading-5)
-  - [Uninstall.cmd](#jobs-toc-heading-6)
+  - [安装 / 更新： Manage.cmd](#jobs-toc-heading-5)
+  - [卸载： Manage.cmd](#jobs-toc-heading-6)
 - [四、文件、日志与恢复](#jobs-toc-heading-7)
 - [五、验证边界与依据](#jobs-toc-heading-8)
 
@@ -23,13 +23,15 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
 
 **右键功能：Flutter SDK 安装/切换（FVM）。** 对目标文件夹做 [**Flutter**](https://flutter.dev/) 项目校验，在可见的终端里体检工具链、查询官方历史及最新版本，通过 [**fzf**](https://github.com/junegunn/fzf) 单选后，为当前工程安装或切换指定的 [**FVM**](https://fvm.app/) Flutter SDK 版本。
 
-**本目录 [`Install.cmd`](./Install.cmd) 需要同级完整 `JobsFlutterTools`，并转交统一菜单安装；单独复制旧目录不能新装。可直接复制统一包独立交付。[`Uninstall.cmd`](./Uninstall.cmd) 只卸载本旧功能。** 以下保留的 FVM 引导业务不需要现成 Flutter / Dart，当前统一入口另外受其项目 FVM 门禁约束。
+**本目录 [`Manage.cmd`](./Manage.cmd) 需要同级完整 `JobsFlutterTools`，并转交统一菜单安装；单独复制旧目录不能新装。可直接复制统一包独立交付。[`Manage.cmd`](./Manage.cmd) 只卸载本旧功能。** 以下保留的 FVM 引导业务不需要现成 Flutter / Dart，当前统一入口另外受其项目 FVM 门禁约束。
 
 | 操作 | 实际行为 |
 | --- | --- |
@@ -45,7 +47,7 @@
 
 **系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
 
-**当前入口与依赖：** `Install.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Uninstall.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
+**当前入口与依赖：** `Manage.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Manage.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
 
 ## <span id="jobs-toc-heading-2" data-jobs-toc="v2">一、前提与工具链</span><!-- jobs-toc:heading-end -->
 
@@ -83,16 +85,16 @@ IDE 的 Flutter SDK 路径应设置为项目内 `.fvm/flutter_sdk`。普通 `flu
 
 ## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、安装与卸载入口</span><!-- jobs-toc:heading-end -->
 
-### <span id="jobs-toc-heading-5" data-jobs-toc="v2">[Install.cmd](./Install.cmd)</span><!-- jobs-toc:heading-end -->
+### <span id="jobs-toc-heading-5" data-jobs-toc="v2">安装 / 更新： [Manage.cmd](./Manage.cmd)</span><!-- jobs-toc:heading-end -->
 
 > **目的：** 转交同级 JobsFlutterTools 安装统一菜单；下面的逐包事务步骤保留为旧实现说明。
 
 - 从自身位置定位清单和源码，打印来源、独立安装目录与注册表范围。
-- 默认取消的图形确认后，只复制本包运行文件，逐文件核对 SHA-256。
+- 本包管理面板的操作选择与执行确认后，只复制本包运行文件，逐文件核对 SHA-256。
 - 备份本项菜单键和状态；归属冲突则停止，事务失败则回滚本项菜单与状态。
 - 更新本项配置和开始菜单卸载入口，通知资源管理器；不安装工具或下载 SDK。
 
-### <span id="jobs-toc-heading-6" data-jobs-toc="v2">[Uninstall.cmd](./Uninstall.cmd)</span><!-- jobs-toc:heading-end -->
+### <span id="jobs-toc-heading-6" data-jobs-toc="v2">卸载： [Manage.cmd](./Manage.cmd)</span><!-- jobs-toc:heading-end -->
 
 > **目的：** 仅停用并移除本项菜单，保留工程和可追溯数据。
 
@@ -107,8 +109,7 @@ IDE 的 Flutter SDK 路径应设置为项目内 `.fvm/flutter_sdk`。普通 `flu
 ```text
 JobsFlutterVersionMgr/
 ├── Extension.json              本包身份及菜单属性
-├── Install.cmd                 仅安装 / 更新本项
-├── Uninstall.cmd               仅卸载本项
+├── Manage.cmd                  安装 / 更新与卸载管理
 ├── README.md
 └── Scripts/
     ├── README.md               内部脚本职责与调用边界
@@ -132,5 +133,7 @@ JobsFlutterVersionMgr/
 已完成 macOS 便携 PowerShell 的语法及隔离夹具检查；**Windows PowerShell 5.1 实际桌面、注册表菜单、fzf 终端键盘、WinGet 安装、ARM64、开发者模式权限及真实 SDK 安装 / 切换仍须在 Windows 验收。** 普通开发验证不运行真实安装入口、注册菜单或访问业务项目。
 
 一手依据：[FVM 安装](https://fvm.app/documentation/getting-started/installation)、[FVM 命令与跳过依赖选项](https://fvm.app/documentation/guides/basic-commands)、[FVM JSON API](https://fvm.app/documentation/advanced/json-api)、[fzf Windows 安装](https://github.com/junegunn/fzf#windows-packages)、[Flutter SDK 归档](https://docs.flutter.dev/install/archive)、[WinGet](https://learn.microsoft.com/windows/package-manager/winget/)。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -153,7 +153,7 @@ function New-JobsPackageRelease {
     }
     # 只取当前包的直属脚本；开发测试、日志及相邻功能从不进入 release。
     foreach ($item in Get-ChildItem -LiteralPath $scripts -File -Force -ErrorAction Stop) {
-        if ($item.Extension -in @('.ps1', '.psm1', '.dart', '.cs', '.cpp', '.h', '.def') -and $item.Name -notmatch '(?i)\.Tests?\.') {
+        if (($item.Extension -in @('.ps1', '.psm1', '.dart', '.cs', '.cpp', '.h', '.def') -or $item.Name -ceq 'SetupVersion.json') -and $item.Name -notmatch '(?i)\.Tests?\.') {
             $files += 'Scripts/' + $item.Name
         }
     }
@@ -162,7 +162,7 @@ function New-JobsPackageRelease {
         if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Actions 中不允许链接。' }
         if (-not $entry.PSIsContainer -and $entry.Extension -in @('.json', '.ps1', '.psm1', '.dart', '.cs')) { $files += $entry.FullName.Substring($package.Length + 1) }
     }
-    foreach ($name in @('Install.cmd', 'Uninstall.cmd', 'README.md')) {
+    foreach ($name in @('Manage.cmd', 'Manage.vbs', 'README.md')) {
         if (Test-Path -LiteralPath (Join-Path $package $name) -PathType Leaf) { $files += $name }
     }
     foreach ($relative in $files) { Assert-JobsPackageSourceFile -Path (Join-Path $package $relative) }
@@ -328,7 +328,7 @@ function Invoke-JobsPackageChange {
 
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '安装与卸载仅支持 Windows。' }
     if ($PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion -lt [version]'5.1') {
-        throw '请使用系统 Windows PowerShell 5.1 或本包 .cmd 入口执行安装与卸载。'
+        throw '请使用系统 Windows PowerShell 5.1 或本包 Manage.vbs 入口执行安装与卸载。'
     }
     $manifest = Get-JobsPackageManifest -PackagePath $PackagePath
     if (-not $PSBoundParameters.ContainsKey('ActionIds')) { $ActionIds = @(Get-JobsFlutterActionCatalog | ForEach-Object { $_.Id }) }

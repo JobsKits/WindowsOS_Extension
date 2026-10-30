@@ -68,6 +68,11 @@
     "JobsHiddenFilesToggler/README.md",
     "JobsHiddenFilesToggler/Scripts/README.md",
     "JobsSourcetreeOpener/README.md",
-    "JobsSourcetreeOpener/Scripts/README.md"
+    "JobsSourcetreeOpener/Scripts/README.md",
+    "JobsFileContentViewer/README.md",
+    "JobsFileContentViewer/Scripts/README.md",
+    "JobsFileVolumes/README.md",
+    "JobsFileVolumes/Scripts/README.md",
+    "JobsFlutterTools/Scripts/Actions/import-dependencies/Scripts/README.md"
   ]
 }

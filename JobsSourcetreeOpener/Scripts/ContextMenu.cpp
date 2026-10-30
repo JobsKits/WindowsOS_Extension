@@ -1,6 +1,6 @@
 // ContextMenu.cpp | JobsSourcetreeOpener
 // Created by Jobs on 2026年10月26日，星期一.
-// 原生桥接只读 Git 元数据；Git / PowerShell / CLR 不进入 Explorer 进程。
+// 保留旧 COM 身份供卸载兼容；不再生成菜单或派发业务。
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
@@ -163,39 +163,11 @@ public:
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
-        if ((flags & CMF_DEFAULTONLY) || first > last || (!IsProject(target) || FindApplication().empty())) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
-        HMENU group = ExistingGitMenu(menu);
-        const bool created = !group;
-        if (created) group = CreatePopupMenu();
-        if (!group) return HRESULT_FROM_WIN32(GetLastError());
-        if (!InsertMenuW(group, 0, MF_BYPOSITION | MF_STRING, first, L"🌳 用 Sourcetree 打开") ||
-            (created && !InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(group), L"🌿 Git操作"))) {
-            if (created) DestroyMenu(group);
-            return E_FAIL;
-        }
-        return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
+        // 保留旧 COM 身份供升级和卸载，不再插入已移除的菜单。
+        return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
     }
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {
-        if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) != 0 || (!IsProject(target) || FindApplication().empty())) return E_INVALIDARG;
-        wchar_t modulePath[32768];
-        if (!GetModuleFileNameW(moduleHandle, modulePath, 32768)) return E_FAIL;
-        std::wstring folder(modulePath);
-        folder.resize(folder.find_last_of(L"\\/"));
-        folder.resize(folder.find_last_of(L"\\/"));
-        const std::wstring script = folder + L"\\Scripts\\Invoke.ps1";
-        wchar_t system[32768];
-        if (!GetSystemDirectoryW(system, 32768)) return E_FAIL;
-        const std::wstring powershell = std::wstring(system) + L"\\WindowsPowerShell\\v1.0\\powershell.exe";
-        std::wstring command = Quote(powershell) + L" -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File " + Quote(script) + L" -Target " + Quote(target);
-        STARTUPINFOW startup = {};
-        startup.cb = sizeof(startup);
-        startup.dwFlags = STARTF_USESHOWWINDOW;
-        startup.wShowWindow = SW_HIDE;
-        PROCESS_INFORMATION process = {};
-        if (!CreateProcessW(powershell.c_str(), &command[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, folder.c_str(), &startup, &process)) return HRESULT_FROM_WIN32(GetLastError());
-        CloseHandle(process.hThread);
-        CloseHandle(process.hProcess);
-        return S_OK;
+        return E_INVALIDARG;
     }
     HRESULT STDMETHODCALLTYPE GetCommandString(UINT_PTR, UINT, UINT*, LPSTR, UINT) override { return E_NOTIMPL; }
 };

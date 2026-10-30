@@ -1,0 +1,8 @@
+{
+  "Id": "flutter-tools",
+  "Name": "JobsFlutterDependencyImporter",
+  "Label": "📤 导入Flutter第三方依赖",
+  "Description": "校验导出清单和 Pub 源码后复制到当前项目，备份并增量配置 path overrides。",
+  "DirectoryOnly": true,
+  "Console": true
+}

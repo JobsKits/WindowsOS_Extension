@@ -60,6 +60,8 @@
 
 成功结果位于输出父目录的 `FlutterDependencies-<项目名>-<UTC时间>-<随机标识>/`，包含 `packages/<包名>/` 源码、`manifest.json` 核对清单、原始 `pubspec.yaml` / `pubspec.lock` 证据及结果 `README.md`。Pub workspace 以所选项目的直接及开发依赖闭包筛选，不把同工作区其它成员独有依赖全部带走。预检失败不创建结果；复制失败保留隐藏的 `.FlutterDependencies-*.incomplete-*`，不会冒充完整产物。
 
+源码归档跳过 `.plugin_symlinks` 及各桌面平台的 Flutter `ephemeral` 生成目录；有效包内链接物化，失效、包外、循环及指向排除目录的链接跳过，并在终端与 `manifest.json` 的 `warnings` 记录具体路径和原因。真实包根、普通源码读取 / 复制错误及特殊文件仍停止；清单同时保留 `excludedGeneratedDirectorySuffixes` 与等值兼容字段 `excludedRelativePaths`。
+
 原始 Pub 清单与锁文件可能包含私有地址，分享提取目录前请检查这些原始证据。运行日志的展示脱敏不会修改原始证据内容。
 
 提取结果用于源码查阅、归档和许可证核对，不能直接当作已改好依赖路径的离线工程。原项目、缓存与 SDK 保持原内容；不会自动 `pub get`、下载依赖、改代理、改全局环境或修改依赖声明。缺少或过期的记录需要用户自行在项目根目录成功运行 `flutter pub get` 后重试。
@@ -75,5 +77,7 @@
 仓库的 `Tests/FlutterDependencyExtractor.Tests.ps1` 使用临时目录验证项目门禁、默认桌面与路径处理、工具发现、参数传输、错误停止和独立 release 打包；不注册真实菜单、不下载 SDK、不运行真实项目的依赖获取。引擎另以临时 Pub 项目测试源码与许可证提取，具体已执行结果以交付说明为准。
 
 源码验证不能代替 Windows 真实桌面菜单、系统桌面重定向及 SDK 运行的实机验收。运行中按 `Ctrl+C` 可能留下未完成的提取目录，未显示成功前不能当作完整结果；源项目与依赖缓存不会因此被改写。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

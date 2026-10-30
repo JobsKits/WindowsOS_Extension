@@ -99,6 +99,12 @@ static bool IsProject(const std::wstring& path) {
     const std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     return JobsFlutter::IsFlutterPubspec(text);
 }
+static bool IsHarmonyProject(const std::wstring& path) {
+    return IsPlainPath(path + L"\\lib", true) &&
+        IsPlainPath(path + L"\\ohos", true) &&
+        IsPlainPath(path + L"\\ohos\\build-profile.json5", false) &&
+        IsPlainPath(path + L"\\ohos\\oh-package.json5", false);
+}
 static std::wstring Quote(const std::wstring& value) {
     std::wstring result = L"\"";
     size_t slashes = 0;
@@ -153,32 +159,53 @@ public:
         if ((flags & CMF_DEFAULTONLY) || first > last || last - first + 1 < JobsFlutterTools::Count || !IsProject(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
         JobsFlutterTools::Selection selected;
         if (!ReadSelection(selected)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
-        HMENU development = CreatePopupMenu(), doctors = CreatePopupMenu(), repairs = CreatePopupMenu();
-        if (!development || !doctors || !repairs) {
-            if (development) DestroyMenu(development); if (doctors) DestroyMenu(doctors); if (repairs) DestroyMenu(repairs);
-            return E_OUTOFMEMORY;
+        std::array<HMENU, JobsFlutterTools::GroupCount> groups{};
+        std::array<bool, JobsFlutterTools::GroupCount> attached{};
+        const auto cleanup = [&]() {
+            if (groups[JobsFlutterTools::Development]) DestroyMenu(groups[JobsFlutterTools::Development]);
+            for (unsigned group = 1; group < JobsFlutterTools::GroupCount; ++group) {
+                if (groups[group] && !attached[group]) DestroyMenu(groups[group]);
+            }
+        };
+        for (auto& group : groups) {
+            group = CreatePopupMenu();
+            if (!group) { cleanup(); return E_OUTOFMEMORY; }
         }
-        for (UINT i = 0; i < JobsFlutterTools::Count; ++i) {
-            if (!selected[i]) continue;
-            HMENU parent = i < 8 || i == 10 ? development : (i < 10 ? doctors : repairs);
-            if (!AppendMenuW(parent, MF_STRING, first + i, JobsFlutterTools::Entries[i].label)) {
-                DestroyMenu(development); DestroyMenu(doctors); DestroyMenu(repairs); return E_FAIL;
+        for (unsigned group = 1; group < JobsFlutterTools::GroupCount; ++group) {
+            for (const auto index : JobsFlutterTools::SelectedGroupEntries(group, selected)) {
+                if (!AppendMenuW(groups[group], MF_STRING, first + index, JobsFlutterTools::Entries[index].label)) {
+                    cleanup(); return E_FAIL;
+                }
             }
         }
-        if (GetMenuItemCount(doctors) > 0) {
-            if (!AppendMenuW(development, MF_POPUP, reinterpret_cast<UINT_PTR>(doctors), L"🏥 Flutter项目体检")) {
-                DestroyMenu(development); DestroyMenu(doctors); DestroyMenu(repairs); return E_FAIL;
+        const HMENU development = groups[JobsFlutterTools::Development];
+        for (const auto& node : JobsFlutterTools::DevelopmentLayout(selected)) {
+            if (node.group) {
+                if (!AppendMenuW(development, MF_POPUP, reinterpret_cast<UINT_PTR>(groups[node.value]), JobsFlutterTools::GroupLabel(node.value))) {
+                    cleanup(); return E_FAIL;
+                }
+                attached[node.value] = true;
+            } else if (!AppendMenuW(development, MF_STRING, first + node.value, JobsFlutterTools::Entries[node.value].label)) {
+                cleanup(); return E_FAIL;
             }
-        } else { DestroyMenu(doctors); }
+        }
+        // 未选叶子的父菜单不挂载；已经归 development 所有的句柄由它统一释放。
+        for (unsigned group = 1; group < JobsFlutterTools::GroupCount; ++group) {
+            if (group != JobsFlutterTools::Repairs && !attached[group]) {
+                DestroyMenu(groups[group]);
+                groups[group] = nullptr;
+            }
+        }
         bool insertedDevelopment = false;
         if (GetMenuItemCount(development) > 0) {
-            if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(development), L"🦋 Flutter开发相关辅助工具")) { DestroyMenu(development); DestroyMenu(repairs); return E_FAIL; }
+            if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(development), L"🦋 Flutter开发相关辅助工具")) { cleanup(); return E_FAIL; }
             insertedDevelopment = true;
-        } else { DestroyMenu(development); }
+        } else { DestroyMenu(development); groups[JobsFlutterTools::Development] = nullptr; }
+        const HMENU repairs = groups[JobsFlutterTools::Repairs];
         if (GetMenuItemCount(repairs) > 0) {
             if (!InsertMenuW(menu, position + (insertedDevelopment ? 1 : 0), MF_BYPOSITION | MF_POPUP, reinterpret_cast<UINT_PTR>(repairs), L"🔧 Flutter项目修复")) {
-                if (insertedDevelopment) { RemoveMenu(menu, position, MF_BYPOSITION); DestroyMenu(development); }
-                DestroyMenu(repairs); return E_FAIL;
+                if (insertedDevelopment && !RemoveMenu(menu, position, MF_BYPOSITION)) groups[JobsFlutterTools::Development] = nullptr;
+                cleanup(); return E_FAIL;
             }
         } else { DestroyMenu(repairs); }
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, JobsFlutterTools::Count);
@@ -188,7 +215,14 @@ public:
         if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) >= JobsFlutterTools::Count || !IsProject(target)) return E_INVALIDARG;
         JobsFlutterTools::Selection selected;
         std::wstring folder;
-        if (!ReadSelection(selected, &folder) || !selected[LOWORD(info->lpVerb)]) return E_ACCESSDENIED;
+        const unsigned index = LOWORD(info->lpVerb);
+        if (!ReadSelection(selected, &folder) || !selected[index]) return E_ACCESSDENIED;
+        if (!JobsFlutterTools::IsActionAvailable(index, IsHarmonyProject(target))) {
+            MessageBoxW(info->hwnd,
+                L"请先完成当前 Flutter 项目的鸿蒙平台适配：需要普通非链接的 lib/、ohos/、ohos/build-profile.json5 和 ohos/oh-package.json5。\n\n准备完成后重新点击打包鸿蒙；本次未启动构建。",
+                L"打包鸿蒙（HAP + APP）", MB_OK | MB_ICONINFORMATION);
+            return E_ACCESSDENIED;
+        }
         const std::wstring script = folder + L"\\Scripts\\OpenCmd.ps1";
         wchar_t system[32768];
         if (!GetSystemDirectoryW(system, 32768)) return E_FAIL;

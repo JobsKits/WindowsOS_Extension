@@ -9,9 +9,9 @@
 
 - [🔥 前言](#%E5%89%8D%E8%A8%80)
 - [一、安装、使用与卸载](#installation)
-  - [【Windows】安装配置Git动态代理右键菜单.cmd](#install-menu)
+  - [安装 / 更新：Manage.cmd](#install-menu)
   - [【Windows】配置Git动态代理.cmd](#configure-git)
-  - [【Windows】卸载配置Git动态代理右键菜单.cmd](#uninstall-menu)
+  - [卸载：Manage.cmd](#uninstall-menu)
 - [二、动态选路与支持范围](#routing)
 - [三、状态、日志与恢复保护](#state)
 - [四、目录与验证](#structure)
@@ -20,6 +20,8 @@
 <!-- jobs-toc:end -->
 
 ---
+
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
 
 ## 🔥 <span id="前言">前言</span>
 
@@ -43,7 +45,7 @@
 
 ## 一、<span id="installation">安装、使用与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-### <span id="install-menu">[【Windows】安装配置Git动态代理右键菜单.cmd](./【Windows】安装配置Git动态代理右键菜单.cmd)</span>
+### <span id="install-menu">安装 / 更新：[Manage.cmd](./Manage.cmd)</span>
 
 > **目的：** 独立部署“配置 Git 动态代理”桌面右键菜单。
 
@@ -70,7 +72,7 @@
 %LOCALAPPDATA%\JobsGitNetworkStrategy\runtime\bin\OpenGitPowerShell.cmd
 ```
 
-### <span id="uninstall-menu">[【Windows】卸载配置Git动态代理右键菜单.cmd](./【Windows】卸载配置Git动态代理右键菜单.cmd)</span>
+### <span id="uninstall-menu">卸载：[Manage.cmd](./Manage.cmd)</span>
 
 > **目的：** 只卸载本包菜单，保留业务运行态和可追溯数据。
 
@@ -78,7 +80,7 @@
 - 移除本功能注册并保留菜单部署文件、日志、备份及已安装的动态 Git。
   - 需要恢复 Git 配置时，先进入配置流程选 R，或在菜单卸载后双击本包的配置入口。
 
-英文兼容入口是 [Install.cmd](./Install.cmd)、[Uninstall.cmd](./Uninstall.cmd)、[ConfigureGit.cmd](./ConfigureGit.cmd)。显式自动化可运行 `ConfigureGit.cmd -Mode Install` 或 `-Mode Check`；`-Mode Restore` 仍要求交互确认。执行策略参数只作用于本次进程，不持久修改策略。
+菜单安装与卸载统一使用 [Manage.cmd](./Manage.cmd)；[ConfigureGit.cmd](./ConfigureGit.cmd) 是 Git 网络策略业务入口。显式自动化可运行 `ConfigureGit.cmd -Mode Install` 或 `-Mode Check`；`-Mode Restore` 仍要求交互确认。执行策略参数只作用于本次进程，不持久修改策略。
 
 ## 二、<span id="routing">动态选路与支持范围</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
@@ -109,9 +111,7 @@
 ```text
 ./
 ├── Extension.json
-├── Install.cmd / Uninstall.cmd / ConfigureGit.cmd
-├── 【Windows】安装配置Git动态代理右键菜单.cmd
-├── 【Windows】卸载配置Git动态代理右键菜单.cmd
+├── Manage.cmd                  安装 / 更新与卸载管理
 ├── 【Windows】配置Git动态代理.cmd
 ├── Scripts/       # 自包含菜单、安装器、原生 Git 桥接与选路策略
 └── README.md
@@ -124,5 +124,7 @@ pwsh -NoProfile -File .\Tests\GitProxyConfigurator.Tests.ps1
 ```
 
 跨端 PowerShell 的隔离测试和 C# 编译检查只证明测试覆盖范围。真实 Windows PowerShell 5.1 编译 EXE、Explorer 菜单、终端 / GUI 的输入输出及 Ctrl+C、Sourcetree 路径选择和真实远端访问仍须 Windows 实机验收；本机 macOS 的通过结果不替代这些检查。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

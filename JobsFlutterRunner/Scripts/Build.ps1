@@ -62,11 +62,16 @@ $buildStart.Arguments = '@"' + $response + '"'
 $buildStart.WorkingDirectory = $output
 $buildStart.UseShellExecute = $false
 foreach ($name in $buildEnvironment.Keys) { $buildStart.EnvironmentVariables[$name] = $buildEnvironment[$name] }
-$build = [Diagnostics.Process]::Start($buildStart)
-try {
-    if (-not $build.WaitForExit(120000)) { $build.Kill(); throw '原生菜单编译超时。' }
-    if ($build.ExitCode -ne 0) { throw '原生菜单编译失败；尚未写入注册表。' }
-} finally { $build.Dispose() }
+if ($env:JOBS_MANAGEMENT_GUI -eq '1') {
+    $buildExitCode = Invoke-JobsManagementNativeProcess -StartInfo $buildStart -TimeoutMilliseconds 120000
+    if ($buildExitCode -ne 0) { throw '原生菜单编译失败；尚未写入注册表。' }
+} else {
+    $build = [Diagnostics.Process]::Start($buildStart)
+    try {
+        if (-not $build.WaitForExit(120000)) { $build.Kill(); throw '原生菜单编译超时。' }
+        if ($build.ExitCode -ne 0) { throw '原生菜单编译失败；尚未写入注册表。' }
+    } finally { $build.Dispose() }
+}
 $csc = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) 'csc.exe'
 if (-not (Test-Path -LiteralPath $csc -PathType Leaf)) { throw '系统 .NET Framework C# 编译器缺失，停止注册菜单。' }
 & $csc /nologo /target:winexe /platform:anycpu /optimize+ /reference:System.Web.Extensions.dll ('/out:' + (Join-Path $output 'JobsFlutterRunnerHost.exe')) (Join-Path $scripts 'RunnerHost.cs')

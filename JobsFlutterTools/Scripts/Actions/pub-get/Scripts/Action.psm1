@@ -109,8 +109,8 @@ function Invoke-JobsFeature {
     [CmdletBinding()]
     param([Parameter(Mandatory = $true)][string]$Target)
 
-    $directory = Assert-JobsOrdinaryDirectory -Path (Resolve-JobsTarget -Target $Target)
-    Invoke-JobsFlutterAction -Directory $directory
+    $setup = Import-Module (Join-Path $PSScriptRoot '../../../ProjectSetup.psm1') -PassThru -DisableNameChecking
+    & $setup { param($p) Invoke-JobsProjectDependencyAction -Target $p -Action 'pub-get' } $Target
 }
 
 Export-ModuleMember -Function Invoke-JobsFeature

@@ -15,22 +15,40 @@ function Get-JobsFeaturePackages {
         $seen[$entry.Id] = $true
         $seen[$entry.Name] = $true
         $packagePath = Join-Path $Root $entry.Name
-        $manifest = Get-Content -LiteralPath (Join-Path $packagePath 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-        if ($manifest.Id -cne $entry.Id -or $manifest.Name -cne $entry.Name) { throw ('功能清单与包身份不一致：' + $entry.Name) }
-        foreach ($name in @('Manage.ps1', 'PackageInstaller.psm1', 'Common.psm1', 'Invoke.ps1', 'Action.psm1')) {
-            if (-not (Test-Path -LiteralPath (Join-Path $packagePath ('Scripts/' + $name)) -PathType Leaf)) { throw ('独立包不完整：' + $entry.Name + '/' + $name) }
+        # 枚举只读显示元数据；坏包仍可见，只有选中执行时才校验其源码与安装器。
+        try {
+            $manifest = Get-Content -LiteralPath (Join-Path $packagePath 'Extension.json') -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+            if ($manifest.Id -cne $entry.Id -or $manifest.Name -cne $entry.Name) { throw ('功能清单与包身份不一致：' + $entry.Name) }
+            foreach ($field in @('Label', 'Description')) {
+                if ($null -eq $manifest.PSObject.Properties[$field] -or $manifest.$field -isnot [string] -or [string]::IsNullOrWhiteSpace($manifest.$field)) { throw ('功能清单文本缺失：' + $field) }
+            }
+        } catch {
+            $manifest = [pscustomobject]@{
+                Id = $entry.Id; Name = $entry.Name; Label = $entry.Name
+                Description = '本包清单不可用，执行时会报告具体失败：' + $_.Exception.Message
+                CatalogError = $_.Exception.Message
+            }
         }
-        $manifest | Add-Member -NotePropertyName PackagePath -NotePropertyValue $packagePath -PassThru
+        $manifest | Add-Member -NotePropertyName PackagePath -NotePropertyValue $packagePath -PassThru -Force
     }
 }
 
 # 面板来源：普通 Id 来自 Extensions.json/包清单；Flutter 叶子来自唯一 FeatureActions，勿在此复制动作表。
 function Get-JobsSelectableFeatures {
     param([object[]]$Packages)
-    $actions = Import-Module (Join-Path $PSScriptRoot '../JobsFlutterTools/Scripts/FeatureActions.psm1') -PassThru -DisableNameChecking
     foreach ($package in $Packages) {
         if ($package.Id -cne 'flutter-tools') { $package; continue }
-        foreach ($entry in @(& $actions { Get-JobsFlutterActionCatalog })) {
+        try {
+            $actionRoot = Join-Path $PSScriptRoot '../JobsFlutterTools'
+            if ($null -ne $package.PSObject.Properties['PackagePath']) { $actionRoot = $package.PackagePath }
+            $actions = Import-Module (Join-Path $actionRoot 'Scripts/FeatureActions.psm1') -PassThru -DisableNameChecking -ErrorAction Stop
+            $catalog = @(& $actions { Get-JobsFlutterActionCatalog })
+        } catch {
+            $package.Description += "`r`nFlutter 动作清单不可用，执行时报告失败：" + $_.Exception.Message
+            $package
+            continue
+        }
+        foreach ($entry in $catalog) {
             [pscustomobject]@{
                 Id = 'flutter-' + $entry.Id; Label = $entry.Label; Description = $package.Description
                 PackageId = $package.Id; ActionId = $entry.Id; Group = $entry.Group
@@ -62,14 +80,19 @@ function Get-JobsPackageOperationPlan {
             $existing = @($installedFeatures | Where-Object { $_ -clike 'flutter-*' })
             $remaining = $chosen
             if ($Mode -eq 'Uninstall') { $remaining = @($existing | Where-Object { $_ -cnotin $chosen }) }
+            elseif ($Mode -eq 'Install') {
+                # 管理面板默认空选；安装所选动作时保留本包已启用的兄弟动作。
+                $enabled = @($existing) + @($chosen)
+                $remaining = @(Get-JobsSelectableFeatures -Packages @($package) | Where-Object { $_.Id -cin $enabled } | ForEach-Object { $_.Id })
+            }
             $change = ($Mode -eq 'Configure' -and ($chosen.Count -gt 0 -or $existing.Count -gt 0)) -or
                 ($Mode -eq 'Install' -and $chosen.Count -gt 0) -or
                 ($Mode -eq 'Uninstall' -and @($existing | Where-Object { $_ -cin $chosen }).Count -gt 0)
             if ($change) {
                 $operation = 'Install'
                 if ($remaining.Count -eq 0) { $operation = 'Uninstall' }
-                [pscustomobject]@{ Id = $package.Id; Label = $package.Label; PackagePath = $package.PackagePath
-                    Mode = $operation; ActionIds = @($remaining | ForEach-Object { $_.Substring($prefix.Length) }) }
+                [pscustomobject]@{ Id = $package.Id; Name = $(if ($null -ne $package.PSObject.Properties['Name']) { $package.Name } else { '' }); Label = $package.Label; PackagePath = $package.PackagePath
+                    Mode = $operation; DisplayMode = $Mode; FeatureIds = @($(if ($Mode -eq 'Configure') { @($existing + $chosen | Select-Object -Unique) } else { $chosen })); ActionIds = @($remaining | ForEach-Object { $_.Substring($prefix.Length) }) }
             }
             continue
         }
@@ -79,7 +102,7 @@ function Get-JobsPackageOperationPlan {
         } elseif ($package.Id -in $selectedFeatures) { $operation = 'Install' }
         elseif ($Mode -eq 'Configure' -and $package.Id -in $installedFeatures) { $operation = 'Uninstall' }
         if ($operation) {
-            [pscustomobject]@{ Id = $package.Id; Label = $package.Label; PackagePath = $package.PackagePath; Mode = $operation }
+            [pscustomobject]@{ Id = $package.Id; Name = $(if ($null -ne $package.PSObject.Properties['Name']) { $package.Name } else { '' }); Label = $package.Label; PackagePath = $package.PackagePath; Mode = $operation; DisplayMode = $Mode; FeatureIds = @($package.Id) }
         }
     }
 }
@@ -87,6 +110,7 @@ function Get-JobsPackageOperationPlan {
 function Invoke-JobsPackageOperations {
     param([object[]]$Plan, [scriptblock]$Executor)
     $completed = @()
+    $failures = @()
     foreach ($operation in $Plan) {
         try {
             if ($Executor) { & $Executor $operation | Out-Null }
@@ -101,10 +125,12 @@ function Invoke-JobsPackageOperations {
             }
             $completed += ($operation.Mode + ':' + $operation.Id)
         } catch {
-            return [pscustomobject]@{ Success = $false; Completed = $completed; Failed = $operation.Id; Message = $_.Exception.Message }
+            $failures += [pscustomobject]@{ Id = $operation.Id; Message = $_.Exception.Message }
         }
     }
-    return [pscustomobject]@{ Success = $true; Completed = $completed; Failed = $null; Message = $null }
+    $firstFailed = $null
+    if ($failures.Count -gt 0) { $firstFailed = $failures[0].Id }
+    return [pscustomobject]@{ Success = ($failures.Count -eq 0); Completed = $completed; Failed = $firstFailed; Failures = @($failures); Message = (@($failures | ForEach-Object { $_.Message }) -join '; ') }
 }
 
 Export-ModuleMember -Function Get-JobsFeaturePackages, Get-JobsSelectableFeatures, Expand-JobsFeatureSelection, Get-JobsPackageOperationPlan, Invoke-JobsPackageOperations

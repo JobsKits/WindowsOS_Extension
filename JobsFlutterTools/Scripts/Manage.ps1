@@ -1,55 +1,58 @@
 ﻿<#
-Manage.ps1 | WindowsOS@Extension 独立功能包
-Created by Jobs on 2026年10月18日，星期日.
-安装：只复制本包运行文件并注册本功能的当前用户右键菜单。
-卸载：只移除本功能菜单，保留禁用状态、运行文件、工具、备份和日志。
-确认前可取消；不提权、不联网、不修改系统执行策略，也不打开总安装面板。
+Manage.ps1 | JobsFlutterTools 安装 / 卸载管理
+Created by Jobs on 2026年10月27日，星期二.
+本包独立面板逐项选择 Flutter 叶功能；卸载只去除所选白名单，保留其它动作。
+取消、空选或预览不写状态；面板确认后直接执行；不依赖父仓或其它功能目录。
 #>
 [CmdletBinding()]
-param([ValidateSet('Install', 'Uninstall')][string]$Mode = 'Install')
-
+param(
+    [ValidateSet('Manage', 'Install', 'Uninstall')][string]$Mode = 'Manage',
+    [switch]$Preview
+)
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
-
 function Main {
-    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '本工具仅支持 Windows。' }
-    if ($PSVersionTable.PSVersion -lt [version]'5.1' -or $PSVersionTable.PSEdition -ne 'Desktop') { throw '请使用系统 Windows PowerShell 5.1 或本包 .cmd 入口。' }
-    if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw '请通过本包 .cmd 入口或 powershell.exe -STA 启动。' }
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT -or $PSVersionTable.PSEdition -ne 'Desktop' -or $PSVersionTable.PSVersion -lt [version]'5.1') { throw '请使用 Windows 系统 PowerShell 5.1 或本包 Manage.vbs。' }
+    if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') { throw '请通过本包 Manage.vbs 或 powershell.exe -STA 启动。' }
     $package = Split-Path -Parent $PSScriptRoot
-    # 持有本包模块对象，避免其它同名功能包模块覆盖当前操作的作用域。
     $installer = Import-Module (Join-Path $PSScriptRoot 'PackageInstaller.psm1') -PassThru -DisableNameChecking
-    $manifest = & $installer { param($Path) Get-JobsPackageManifest -PackagePath $Path } $package
+    $actions = Import-Module (Join-Path $PSScriptRoot 'FeatureActions.psm1') -PassThru -DisableNameChecking
+    $panel = Import-Module (Join-Path $PSScriptRoot 'SelectionPanel.psm1') -PassThru -DisableNameChecking
     $state = & $installer { param($Path) Get-JobsPackageState -PackagePath $Path } $package
-    Write-Host ('Jobs 独立右键扩展 · ' + $manifest.Label) -ForegroundColor Red
-    Write-Host ('操作：' + $Mode) -ForegroundColor Cyan
+    $installed = @()
+    if ($state.Enabled) { $installed = @($state.ActionIds) }
+    $features = @(& $actions { Get-JobsFlutterActionCatalog } | ForEach-Object {
+        [pscustomobject]@{ Id = $_.Id; Label = $_.Label; Group = $_.Group; Description = '仅处理本包对应子功能；未选的其它功能在卸载时保留。' }
+    })
+    Write-Host 'Jobs Flutter 开发辅助 · 安装 / 卸载管理面板' -ForegroundColor Red
     Write-Host ('来源：' + $package) -ForegroundColor Cyan
     Write-Host ('目标：' + $state.Root) -ForegroundColor Cyan
-    Write-Host ('影响：仅当前用户，统一 Flutter 菜单及旧 Flutter 入口迁移：' + $manifest.Id + ' 的右键菜单；修改前保存注册表与状态备份。')
-    Write-Host '安装从本地复制本包；卸载保留程序、工具、备份与日志。确认窗口默认取消。'
-    Add-Type -AssemblyName System.Windows.Forms
-    $verb = '安装 / 更新'
-    if ($Mode -eq 'Uninstall') { $verb = '卸载' }
-    $message = $verb + '“' + $manifest.Label + '”右键菜单？' + [Environment]::NewLine +
-        '来源：' + $package + [Environment]::NewLine + '目标：' + $state.Root + [Environment]::NewLine +
-        '安装统一菜单时停用旧 Flutter 菜单；保留程序、工具、日志和备份。'
-    $answer = [System.Windows.Forms.MessageBox]::Show($message, ('Jobs · ' + $manifest.Label), 'YesNo', 'Question', 'Button2')
-    if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { return }
-    $result = & $installer { param($Path, $Operation) Invoke-JobsPackageChange -PackagePath $Path -Mode $Operation } $package $Mode
-    Write-Host ($verb + '完成；备份：' + $result.Backup) -ForegroundColor Green
-    [void][System.Windows.Forms.MessageBox]::Show(($verb + '完成。重新右键即可。' + [Environment]::NewLine +
-        'Windows 11：右键 → 显示更多选项。' + [Environment]::NewLine + '备份：' + $result.Backup), ('Jobs · ' + $manifest.Label))
-}
-
-try { Main }
-catch {
-    $message = $_.Exception.Message
-    Write-Error $message -ErrorAction Continue
-    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
-        try {
-            Add-Type -AssemblyName System.Windows.Forms
-            [void][System.Windows.Forms.MessageBox]::Show($message, 'Jobs 独立右键扩展 · 操作失败')
+    Write-Host '安装合并已启用动作；卸载只移除所选动作，剩余动作保留。取消或空选不执行。'
+    Write-Host '只处理当前用户菜单；安装迁移固定旧 Flutter 菜单，保留程序、工具、日志和备份。'
+    $buildPlan = {
+        param($Choice)
+        if (@($Choice.Features).Count -eq 0) { return }
+        $operation = $Choice.Mode
+        $remaining = @($installed + @($Choice.Features) | Select-Object -Unique)
+        if ($Choice.Mode -eq 'Uninstall') {
+            $remaining = @($installed | Where-Object { $_ -cnotin @($Choice.Features) })
+            if ($remaining.Count -gt 0) { $operation = 'Install' }
         }
-        catch { Write-Warning '无法显示错误窗口，请查看终端错误信息。' }
+        [pscustomobject]@{ Id = 'flutter-tools'; Label = 'Flutter 开发辅助'; PackagePath = $package; Mode = $operation
+            DisplayMode = $Choice.Mode; FeatureIds = @($Choice.Features); ActionIds = $remaining }
+    }.GetNewClosure()
+    $choice = & $panel {
+        param($Features, $Installed, $Mode, $Preview, $BuildPlan, $Worker)
+        Show-JobsFeatureSelection -Packages $Features -Selected @() -Installed $Installed -Mode $Mode -Preview:$Preview -BuildPlan $BuildPlan -WorkerPath $Worker
+    } $features $installed $Mode ([bool]$Preview) $buildPlan (Join-Path $PSScriptRoot 'ManagementWorker.ps1')
+    if ($Preview -and $null -ne $choice) { $choice | ConvertTo-Json -Depth 3 }
+
+}
+try { Main } catch {
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        Add-Type -AssemblyName System.Windows.Forms
+        [void][Windows.Forms.MessageBox]::Show($_.Exception.Message, 'Jobs · 管理面板启动失败')
     }
+    Write-Error $_.Exception.Message -ErrorAction Continue
     exit 1
 }

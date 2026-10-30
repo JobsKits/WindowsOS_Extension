@@ -71,7 +71,7 @@ try {
     $manifest = Get-Content -LiteralPath (Join-Path $package 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $plan = @(& $installer { param($Manifest) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath '/temporary/release' -PowerShellPath 'powershell.exe' } $manifest)
     Assert ($plan.Count -eq 2 -and $plan[0].Key -ceq 'Software\Classes\DesktopBackground\shellex\ContextMenuHandlers\Jobs.WindowsExtension.hidden-files-toggle') 'only desktop background handler and own CLSID'
-    Assert ($plan[1].InProcServer.EndsWith('bin/JobsHiddenFilesTogglerContextMenu.dll')) 'own native release path'
+    Assert ($plan[1].InProcServer.EndsWith((Join-Path 'bin' 'JobsHiddenFilesTogglerContextMenu.dll'))) 'own native release path'
     $disabled = @(& $installer { param($Manifest) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath '/temporary/release' -PowerShellPath 'powershell.exe' -Enabled $false } $manifest)
     Assert (@($disabled | Where-Object Enabled).Count -eq 0) 'uninstall only disables registration'
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {

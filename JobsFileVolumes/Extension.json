@@ -1,0 +1,9 @@
+{
+  "Id": "file-volumes",
+  "Name": "JobsFileVolumes",
+  "Label": "🧩 文件分卷合并 / ✂️ 拆分",
+  "Description": "完整多选同组分卷才显示合并，单个普通文件显示拆分；始终保留原件。",
+  "DirectoryOnly": false,
+  "Console": true,
+  "InfrastructureOverrides": ["PackageInstaller.psm1", "Invoke.ps1"]
+}

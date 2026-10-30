@@ -37,6 +37,8 @@
 
 根据已有 lock/package_config 读取第三方源码及许可证；输出父目录回车默认桌面，不自动 pub get。
 
+有效包内链接物化；失效、包外、循环及指向缓存 / 生成目录的链接跳过，并在终端与 `manifest.json` 的 `warnings` 记录路径和原因。真实包根、普通源码读取 / 复制错误与特殊文件仍失败。桌面平台 Flutter `ephemeral` 排除规则见 `excludedGeneratedDirectorySuffixes`，旧字段 `excludedRelativePaths` 作为等值别名保留。
+
 业务输出、临时会话、配置快照及产物按该 Action 与统一包说明保存，实际日志位置由终端显示。项目路径作为数据传递，先校验目标再执行；取消不自动进入其它动作。本文按源码静态核对，未操作真实 SDK、项目、模拟器、菜单或注册表。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

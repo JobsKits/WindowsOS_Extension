@@ -37,6 +37,12 @@ try {
         foreach ($name in @('Common.psm1', 'Action.psm1')) {
             Copy-Item -LiteralPath (Join-Path $package.FullName ('Scripts/' + $name)) -Destination $scripts
         }
+        if ($package.Name -eq 'JobsFileVolumes') {
+            Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/FileVolumes.ps1') -Destination $scripts
+        }
+        if ($package.Name -eq 'JobsFileContentViewer') {
+            Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/FileViewer.ps1') -Destination $scripts
+        }
         if ($package.Name -eq 'JobsHarmonySimulatorCreator') {
             Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/HarmonyTools.ps1') -Destination $scripts
         }
@@ -87,6 +93,12 @@ try {
                 Assert-True $rejected 'Sourcetree 拒绝非 Git 目录；安装检测与传输由 SourcetreeOpener.Tests.ps1 覆盖'
                 continue
             }
+            if ($manifest.Id -eq 'file-volumes') {
+                $rejected = $false
+                try { & $module { param($Target) Invoke-JobsFeature -Mode Split -Paths @($Target) } $testRoot } catch { $rejected = $true }
+                Assert-True $rejected '分卷入口拒绝目录，流式业务另由FileVolumes.Tests.ps1覆盖'
+                continue
+            }
             if ($manifest.Id -eq 'git-rollback') {
                 $rejected = $false
                 try { & $module { param($Target) Invoke-JobsFeature -Target $Target } $testRoot } catch { $rejected = $true }
@@ -125,6 +137,7 @@ try {
                 function script:Invoke-JobsFlutterVersionAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsAndroidSimulatorAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsHarmonyRepairAction { param($Target) $script:Captured = $Target }
+                function script:Invoke-JobsFileContentViewer { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsRunPermissionAction { param($Target, $Mode) $script:Captured = $Target }
                 function script:Invoke-JobsHarmonySimulatorAction { param($Target) $script:Captured = $Target }
                 function script:Invoke-JobsFlutterRunAction { param($Target) $script:Captured = $Target }

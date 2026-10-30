@@ -19,6 +19,8 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
@@ -38,7 +40,7 @@
 
 ## 一、<span id="quick-start">安装与使用</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-1、双击 [`Install.cmd`](./Install.cmd)，确认本功能的当前用户菜单安装；也可以在仓库总面板只勾选本功能。只编译和登记本包，不操作 Android 设备。
+1、双击 [`Manage.cmd`](./Manage.cmd)，确认本功能的当前用户菜单安装；也可以在仓库总面板只勾选本功能。只编译和登记本包，不操作 Android 设备。
 
 2、正常启动已有 AVD，在系统桌面空白处右键选择本菜单。Windows 11 传统 COM 菜单位于“显示更多选项”。普通目录背景、文件夹及选中项均不显示。程序不会注册所有目录背景。
 
@@ -94,11 +96,11 @@ powershell.exe `
 
 ## 四、<span id="uninstall-and-logs">卸载、日志与文件</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-双击 [`Uninstall.cmd`](./Uninstall.cmd) 仅卸载本包菜单与本包 CLSID，保留当前用户独立发布文件、禁用状态、工具、日志和 AVD 备份；不会停用其它扩展。
+双击 [`Manage.cmd`](./Manage.cmd) 仅卸载本包菜单与本包 CLSID，保留当前用户独立发布文件、禁用状态、工具、日志和 AVD 备份；不会停用其它扩展。
 
 | 文件 / 路径 | 职责 |
 | --- | --- |
-| `Install.cmd` / `Uninstall.cmd` | 本包独立安装 / 卸载。 |
+| `Manage.cmd` | 本包独立安装 / 卸载。 |
 | `Run.cmd` | 无须安装菜单的独立运行，参数传给相同核心。 |
 | `Scripts/RepairAndroidSimulator.ps1` / `Action.psm1` | 内置自述、只读、身份检查与修复流程。 |
 | `Scripts/ContextMenu.cpp` / `DesktopScope.h` | 原生桌面空白门禁，不在 Explorer 内运行 SDK。 |
@@ -115,5 +117,7 @@ powershell.exe `
 2026-10-23 本地验证：新业务 96、Architecture 499、Catalog 47、ActionModules 120、C++ 桌面门禁 9 断言通过；16 个现行包基础设施一致。Windows CI 已接入本业务回归和本包 MSVC 构建检查，但未推送触发。
 
 macOS 的 PowerShell 7 夹具与纯 C++ 门禁验证不能替代 Windows PowerShell 5.1、MSVC 编译、Explorer 桌面菜单及真实 Emulator 扩容。没有在本机安装 / 注册本功能，也没有操作真实 Android 设备；Windows 实机与实际 userdata 迁移仍待目标电脑验收。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

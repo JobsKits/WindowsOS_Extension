@@ -26,6 +26,7 @@ try {
     }
     $project = Join-Path $temporary 'Project 中文 & 100%'
     [void][IO.Directory]::CreateDirectory((Join-Path $project 'android'))
+    [void][IO.Directory]::CreateDirectory((Join-Path $project 'lib'))
     [IO.File]::WriteAllText((Join-Path $project 'pubspec.yaml'), "dependencies:`n  flutter:`n    sdk: flutter`n")
     [IO.File]::WriteAllText((Join-Path $project 'android/gradlew.bat'), '@echo fixture')
     & $action { param($Path) Assert-JobsFlutterProject $Path } $project
@@ -211,13 +212,18 @@ if [ "$1" = build ] && [ "$3" = --help ]; then
     case "$JOBS_OHOS_HELP_MODE" in
         error) exit 42 ;;
         generic) echo 'Usage: flutter build <command>' ;;
+        app-unsupported) if [ "$2" = app ]; then echo 'Usage: flutter build <command>'; else echo "Usage: flutter build $2"; fi ;;
         color) printf 'Usage: flutter \033[31mbuild\033[0m %s\n' "$2" ;;
         *) echo "Usage: flutter build $2" ;;
     esac
     exit 0
 fi
 if [ "$JOBS_OHOS_FAIL_COMMAND" = "$*" ]; then exit 37; fi
-if [ "$1" = build ] && [ "$JOBS_OHOS_OUTPUT_MODE" != missing ]; then
+if [ "$1" = build ] && [ "$2" = app ] && [ "$JOBS_OHOS_OUTPUT_MODE" = app-removes-hap ]; then
+    /bin/rm -f ohos/entry/build/default/outputs/default/entry-default-signed.hap
+    printf unvalidated > ohos/entry/build/default/outputs/default/other-unvalidated.hap
+fi
+if [ "$1" = build ] && [ "$JOBS_OHOS_OUTPUT_MODE" != missing ] && { [ "$2" != app ] || [ "$JOBS_OHOS_OUTPUT_MODE" != missing-app ]; }; then
     dir=ohos/entry/build/default/outputs/default
     file=entry-default-signed.hap
     if [ "$2" = app ]; then dir=ohos/build/outputs/default; file=ohos-default-signed.app; fi
@@ -244,11 +250,15 @@ class HarmonyTool {
         if (args.Length > 2 && args[0] == "build" && args[2] == "--help") {
             string mode = Environment.GetEnvironmentVariable("JOBS_OHOS_HELP_MODE");
             if (mode == "error") return 42;
-            Console.WriteLine(mode == "generic" ? "Usage: flutter build <command>" : "Usage: flutter " + (mode == "color" ? "\x1b[31mbuild\x1b[0m " : "build ") + args[1]);
+            Console.WriteLine((mode == "generic" || (mode == "app-unsupported" && args[1] == "app")) ? "Usage: flutter build <command>" : "Usage: flutter " + (mode == "color" ? "\x1b[31mbuild\x1b[0m " : "build ") + args[1]);
             return 0;
         }
         if (Environment.GetEnvironmentVariable("JOBS_OHOS_FAIL_COMMAND") == command) return 37;
-        if (args.Length > 1 && args[0] == "build" && Environment.GetEnvironmentVariable("JOBS_OHOS_OUTPUT_MODE") != "missing") {
+        if (args.Length > 1 && args[0] == "build" && args[1] == "app" && Environment.GetEnvironmentVariable("JOBS_OHOS_OUTPUT_MODE") == "app-removes-hap") {
+            File.Delete(Path.Combine(Environment.CurrentDirectory, "ohos/entry/build/default/outputs/default/entry-default-signed.hap".Replace('/', Path.DirectorySeparatorChar)));
+            File.WriteAllText(Path.Combine(Environment.CurrentDirectory, "ohos/entry/build/default/outputs/default/other-unvalidated.hap".Replace('/', Path.DirectorySeparatorChar)), "unvalidated");
+        }
+        if (args.Length > 1 && args[0] == "build" && Environment.GetEnvironmentVariable("JOBS_OHOS_OUTPUT_MODE") != "missing" && (args[1] != "app" || Environment.GetEnvironmentVariable("JOBS_OHOS_OUTPUT_MODE") != "missing-app")) {
             string relative = args[1] == "app" ? "ohos/build/outputs/default/ohos-default-signed.app" : "ohos/entry/build/default/outputs/default/entry-default-signed.hap";
             string file = Path.Combine(Environment.CurrentDirectory, relative.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(file));
@@ -341,7 +351,27 @@ class HarmonyTool {
             Assert-Packager (@(Get-Content -LiteralPath $trace | Where-Object { $_ -match '^flutter\|build app --release\|' }).Count -eq 0) '首阶段失败不构建 APP'
             foreach ($name in $baseEnvironment.Keys) { Assert-Packager ([Environment]::GetEnvironmentVariable($name, 'Process') -ceq $baseEnvironment[$name]) ('构建失败后恢复环境：' + $name) }
         }
+        $env:JOBS_OHOS_FAIL_COMMAND = 'build app --release'
+        [IO.File]::WriteAllText($trace, '')
+        $appFailure = ''
+        try { & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path -Type 'all' } $project } catch { $appFailure = $_.Exception.Message }
+        Assert-Packager ($appFailure -match '退出码 37') 'HAP 完成后 APP 构建失败仍判整体失败'
+        $records = @(Get-Content -LiteralPath $trace | Where-Object { $_ -match '^flutter\|build (hap|app) --release\|' })
+        Assert-Packager ($records.Count -eq 2 -and $records[0] -match 'build hap' -and $records[1] -match 'build app') '双产物 release 按 HAP→APP 执行，不漏任一步'
         $env:JOBS_OHOS_FAIL_COMMAND = $null
+        $env:JOBS_OHOS_HELP_MODE = 'app-unsupported'
+        [IO.File]::WriteAllText($trace, '')
+        Assert-PackagerThrows { & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path -Type 'all' } $project } 'SDK 只支持 HAP 不支持 APP 时拒绝双产物任务'
+        Assert-Packager (@(Get-Content -LiteralPath $trace | Where-Object { $_ -match '^flutter\|pub get\|' }).Count -eq 0) '缺 APP 能力在获取依赖前停止'
+        $env:JOBS_OHOS_HELP_MODE = $null
+        Remove-Item -LiteralPath (Join-Path $project 'ohos/build') -Force -Recurse -ErrorAction SilentlyContinue
+        $env:JOBS_OHOS_OUTPUT_MODE = 'missing-app'
+        Assert-PackagerThrows { & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path -Type 'all' } $project } '两条构建均返回成功但没有 APP 时不能仅凭 HAP 报成功'
+        $env:JOBS_OHOS_OUTPUT_MODE = 'app-removes-hap'
+        Assert-PackagerThrows { & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path -Type 'all' } $project } 'APP 构建成功但移除先前 HAP 时整体失败，最终必须同时有两类包'
+        Assert-Packager ([IO.File]::Exists((Join-Path $project 'ohos/build/outputs/default/ohos-default-signed.app'))) '最终存续回归确实完成 APP 构建'
+        Assert-Packager ([IO.File]::Exists((Join-Path $project 'ohos/entry/build/default/outputs/default/other-unvalidated.hap'))) '最终检查不重新扫描并挑选未验证的其它 HAP 冒充原产物'
+        $env:JOBS_OHOS_OUTPUT_MODE = $null
         foreach ($mode in @('missing', 'empty')) {
             foreach ($directory in @('ohos/entry/build', 'ohos/build')) { Remove-Item -LiteralPath (Join-Path $project $directory) -Force -Recurse -ErrorAction SilentlyContinue }
             $env:JOBS_OHOS_OUTPUT_MODE = $mode

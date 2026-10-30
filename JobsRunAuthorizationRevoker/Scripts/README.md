@@ -37,8 +37,10 @@
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、入口、依赖与产物 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-从上级目录运行 `Install.cmd` / `Uninstall.cmd` 管理菜单；`Run.cmd` 运行独立业务，`Run.cmd -Target "C:\目录\file.exe"` 选择一个文件。业务先显示用途并确认，安装不执行检测、重启或权限修改。依赖 Windows PowerShell 5.1，原生构建需要现有 MSVC 和 Windows SDK；权限业务仅本机 NTFS，并要求当前用户已有文件读取和 DACL 修改权限。
+从上级目录运行 `Manage.cmd` 管理菜单；`Run.cmd` 运行独立业务，`Run.cmd -Target "C:\目录\file.exe"` 选择一个文件。业务先显示用途并确认，安装不执行检测、重启或权限修改。依赖 Windows PowerShell 5.1，原生构建需要现有 MSVC 和 Windows SDK；权限业务仅本机 NTFS，并要求当前用户已有文件读取和 DACL 修改权限。
 
 菜单状态、安装备份、release、日志按 `Extension.json` 的独立 Id 位于当前用户 `LOCALAPPDATA/Jobs/WindowsExtension/extensions/`；文件权限精确记录由两包共用 `LOCALAPPDATA/Jobs/WindowsExtension/run-permissions`，卸载不恢复目标权限或删除记录。
+
+本目录的 `Manage.ps1`、`SelectionPanel.psm1` 和 `ManagementWorker.ps1` 构成本包自包含管理面板；由上级 `Manage.vbs` 无控制台启动。安装 / 卸载在隐藏后台执行，逐项状态与可复制实时日志留在面板中。日志区上沿的分隔条可上下拖动，调节结果在当前窗口保留；上下限为功能行、操作按钮和日志工具栏留出空间。日志正文右键可“复制”或“全选”，也支持 Ctrl+A / Ctrl+C；全选仅针对当前可见缓冲区，完整输出使用“复制全部日志”。总进度按已处理项 / 本次所选项显示计数和百分比；成功与失败计入已处理，等待中、执行中和未执行项不计入，100% 表示全部处理完毕，结果以成功 / 失败汇总为准。安装 / 更新和卸载分别计时；点击时只清零并启动当前操作计时，后台全部结束或启动失败时只冻结当前耗时。每秒刷新 `HH:mm:ss`（小时可超过 24），执行时显示“安装用时 / 卸载用时”，结束显示“安装总用时 / 卸载总用时”。两份耗时只在当前面板会话内独立保留。安装成功显示绿色“✅ 安装成功”。不改变右键业务工具自己的交互方式。失败状态可点击，在独立 PowerShell 中只读显示本次完整会话日志；包失败不阻止其它所选包，日志不可用时在面板提示。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

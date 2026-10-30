@@ -17,6 +17,8 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
@@ -25,8 +27,8 @@
 
 | 入口 | 行为 |
 | --- | --- |
-| `Install.cmd` | 为当前用户构建并注册独立原生菜单。 |
-| `Uninstall.cmd` | 只移除此功能菜单，保留 SDK、AVD、日志及备份。 |
+| `Manage.cmd` | 为当前用户构建并注册独立原生菜单。 |
+| `Manage.cmd` | 只移除此功能菜单，保留 SDK、AVD、日志及备份。 |
 | `Run.cmd` | 无须先安装右键菜单，直接进入同一创建 / 启动流程。 |
 | `Scripts/CreateAndroidSimulator.ps1 -Check` | 只读检查宿主、Java、SDK 命令行工具及硬件加速，不下载或创建。 |
 
@@ -84,5 +86,7 @@ flowchart TD
 数据位于当前用户 `LOCALAPPDATA/Jobs/WindowsExtension/extensions/android-simulator-create/`；`logs/` 保存安装记录及每个启动会话的 `.stdout.log` / `.stderr.log`。菜单安装不下载 SDK；进入创建 / 启动流程后，首屏回车即自动补齐缺失组件，SDK 许可仍由官方工具本人确认。卸载保留 SDK、AVD、运行版本、日志和备份，方便排障。
 
 隔离测试位于 [`AndroidSimulatorCreator.Tests.ps1`](../Tests/AndroidSimulatorCreator.Tests.ps1)，覆盖桌面专用注册、单包 release、架构筛选、镜像 / 型号解析、唯一命名、首屏门禁与自动镜像安装、特殊路径、创建与已有设备分支、失败传播及环境恢复。修复和 SDK 同卷 stage 由 [`AndroidSimulatorRepair.Tests.ps1`](../Tests/AndroidSimulatorRepair.Tests.ps1) 的本地归档及进程夹具覆盖；只读体检共用相同健康检查，并明确禁用安装 / 卸载。Java 官方 ZIP 校验、版本解析、只读禁安装、首屏取消及用户目录同卷安装另见 [`AndroidSimulatorBootstrap.Tests.ps1`](../Tests/AndroidSimulatorBootstrap.Tests.ps1)。原生桌面规则另由 [`AndroidDesktopProbe.cpp`](../Tests/AndroidDesktopProbe.cpp) 验证。macOS 上的 PowerShell / C++ 回归不等于 Windows PowerShell 5.1、MSVC 编译、Explorer 加载、真实 SDK 下载与 AVD 启动已经实机通过。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

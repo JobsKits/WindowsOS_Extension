@@ -1,4 +1,4 @@
-> 当前 `Install.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Uninstall.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
+> 当前 `Manage.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Manage.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
 
 # `JobsFlutterPackager`：Flutter打包
 
@@ -19,6 +19,8 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
@@ -38,15 +40,17 @@
 
 **系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
 
-**当前入口与依赖：** `Install.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Uninstall.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
+**当前入口与依赖：** `Manage.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Manage.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
 
 ## 一、<span id="installation">安装与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-新安装需保留同级完整 `JobsFlutterTools`，本目录 [Install.cmd](./Install.cmd) 转交统一菜单；也可直接复制统一包，或在总面板选择统一 Flutter 工具组。[Uninstall.cmd](./Uninstall.cmd) 只移除本旧菜单，保留程序、日志和备份。以下逐包原生 DLL、注册与路径说明对应保留的旧实现；Windows 11 在“显示更多选项”内查看。
+新安装需保留同级完整 `JobsFlutterTools`，本目录 [Manage.cmd](./Manage.cmd) 转交统一菜单；也可直接复制统一包，或在总面板选择统一 Flutter 工具组。[Manage.cmd](./Manage.cmd) 只移除本旧菜单，保留程序、日志和备份。以下逐包原生 DLL、注册与路径说明对应保留的旧实现；Windows 11 在“显示更多选项”内查看。
 
 安装要求 Windows 10 / 11、系统 Windows PowerShell 5.1 Desktop、现有 Visual Studio / Build Tools 的“使用 C++ 的桌面开发”（MSVC、Windows SDK 与 Explorer 对应架构工具）。缺失时停止，不自动下载或安装。安装只写当前用户注册表，无需管理员；原生 DLL 在 Explorer 内仅检查小于等于 1 MiB 的本地 `pubspec.yaml`，不启动 Flutter、PowerShell 或 CLR。
 
 菜单仅对当前层 `pubspec.yaml` 明确声明 `dependencies.flutter.sdk: flutter` 的本地 Flutter 根目录插入一项。支持选中单个项目目录及其背景；普通目录、父目录、`android/` 子目录、文件、多选、网络目录和链接目录不显示。不扫描子目录、不向上寻找父工程。尚未适配 ohos 的 Flutter 工程仍显示同一“Flutter打包”入口；选 OpenHarmony 后明确报告缺失平台，不自动创建平台。
+
+统一菜单另有“📦 打包鸿蒙（HAP + APP）”快捷叶：仅已有鸿蒙工程显示，固定项目 FVM、release，一次依次构建并检查 HAP 和 APP；任一失败不报告整体完成。它与通用平台选择共用本目录保留的打包内核；`BUILD_MODE / OHOS_BUILD_TARGET / FLAVOR / FLUTTER_OHOS_SDK` 不影响快捷动作。安装开关、确认、依赖和日志见[统一包说明](../JobsFlutterTools/README.md#鸿蒙-hap--app-打包)。
 
 ## 二、<span id="build">运行、参数与产物</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
@@ -69,12 +73,14 @@ OpenHarmony 需要当前层已有 `ohos/build-profile.json5`、`ohos/oh-package.
 
 OpenHarmony 底层函数 `Invoke-JobsPackagerHarmonyBuild` 支持显式 `-Type / -Mode / -FlutterSdk`，优先于对应环境变量。OpenHarmony 拒绝 `FLAVOR / -Flavor`，避免部分适配 SDK 对未知 flavor 静默退回 default。所有 PATH、Java、SDK 与去色配置仅影响本进程和构建子进程，成功或失败都会恢复调用前环境。
 
-HAP / APP 从 `build/ohos/` 及 `ohos/build`、各模块构建目录的 `outputs/` 收集，兼容工程自定义产物名称，跳过中间目录和依赖目录。非空旧产物在构建命令成功后可复用 Hvigor 缓存，并明确标为“现存 OpenHarmony 产物”；未签名文件单独提示。脚本不据此保证上架签名或设备兼容，需结合工程配置验收。
+HAP / APP 从 `build/ohos/` 及 `ohos/build`、各模块构建目录的 `outputs/` 收集，兼容工程自定义产物名称，跳过中间目录、依赖目录、模块链接及输出路径祖先链接。两种产物任务在 APP 结束后再次检查已验证的 HAP / APP 路径仍为普通非空文件，不以重新扫描到的其它旧包代替。非空旧产物在构建命令成功后可复用 Hvigor 缓存，并明确标为“现存 OpenHarmony 产物”；未签名文件单独提示。脚本不据此保证上架签名或设备兼容，需结合工程配置验收。
 
 ## 三、<span id="logs">日志与验证</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 日志位于当前用户本地应用数据中 `Jobs/WindowsExtension/extensions/flutter-package/logs/`；运行开始显示实际路径。安装事务的配置与注册表备份保存在同一功能根目录。终端失败保留窗口和错误；关闭窗口会结束前台打包，不承诺后台继续。
 
 [隔离回归](../Tests/FlutterPackager.Tests.ps1) 检查项目识别、FVM 边界、平台选择、iOS 提前停止、参数、失败顺序、APK / AAB / HAP / APP 产物验证、DevEco 工具健康链、普通 SDK 拒绝及成功 / 失败后的环境恢复；使用假命令，不运行真实 Flutter、Gradle 或注册菜单。macOS 可运行便携 PowerShell 7 检查可移植业务逻辑；Windows PowerShell 5.1、MSVC 原生 DLL、资源管理器显示、CMD / fzf 键盘交互及真实 Android / HarmonyOS 签名打包需 Windows 实机验收；macOS 上运行的 `.bat / .cmd` 假工具使用 Unix 夹具，不代表 Windows 批处理执行已验收。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

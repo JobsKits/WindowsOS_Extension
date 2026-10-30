@@ -1,9 +1,5 @@
 @echo off
 setlocal DisableDelayedExpansion
-rem Legacy entry delegates to the unified Flutter menu owner.
-if not exist "%~dp0..\JobsFlutterTools\Install.cmd" (
-  echo Please download the complete WindowsOS@Extension including JobsFlutterTools.
-  exit /b 1
-)
-call "%~dp0..\JobsFlutterTools\Install.cmd"
+rem GUI startup: WScript hosts Scripts/Manage.ps1 in a hidden PowerShell process.
+"%SystemRoot%\System32\wscript.exe" //nologo "%~dp0Manage.vbs" -Mode Install %*
 exit /b %errorlevel%

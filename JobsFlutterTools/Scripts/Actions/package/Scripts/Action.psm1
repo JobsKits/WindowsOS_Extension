@@ -453,11 +453,14 @@ function Assert-JobsPackagerHarmonyToolchain {
 function Get-JobsPackagerHarmonyArtifacts {
     param([string]$Project, [string]$Type)
     $roots = @((Join-Path $Project 'build/ohos'), (Join-Path $Project 'ohos/build'))
-    foreach ($module in Get-ChildItem -LiteralPath (Join-Path $Project 'ohos') -Directory) { $roots += Join-Path $module.FullName 'build' }
+    foreach ($module in Get-ChildItem -LiteralPath (Join-Path $Project 'ohos') -Directory) {
+        if (($module.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) { $roots += Join-Path $module.FullName 'build' }
+    }
     $found = New-Object 'System.Collections.Generic.List[string]'
     $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($rootPath in $roots) {
         if (-not [IO.Directory]::Exists($rootPath)) { continue }
+        try { [void](Assert-JobsPackagerDirectory $rootPath) } catch { continue }
         $pending = New-Object 'System.Collections.Generic.Stack[string]'
         $pending.Push($rootPath)
         while ($pending.Count -gt 0) {
@@ -502,14 +505,29 @@ function Invoke-JobsPackagerHarmonyBuild {
         Write-JobsPackagerMessage ('Flutter SDK：' + $flutter)
         Write-JobsPackagerMessage ('OpenHarmony 产物：' + $options.Type + '；模式：' + $options.Mode + '；签名沿用工程现有配置。')
         Invoke-JobsPackagerTool -File $flutter -Arguments @('pub', 'get') -Project $Project
+        $validatedArtifacts = @{}
         foreach ($target in $targets) {
             $started = [DateTime]::UtcNow
             Invoke-JobsPackagerTool -File $flutter -Arguments @('build', $target, ('--' + $options.Mode)) -Project $Project
-            foreach ($artifact in @(Get-JobsPackagerHarmonyArtifacts -Project $Project -Type $target)) {
+            $validatedArtifacts[$target] = @(Get-JobsPackagerHarmonyArtifacts -Project $Project -Type $target)
+            foreach ($artifact in $validatedArtifacts[$target]) {
                 $file = Get-Item -LiteralPath $artifact
                 if ($file.Name -match '-unsigned\.') { Write-JobsPackagerMessage ('未签名 OpenHarmony 产物：' + $artifact + '；安装或上架前必须完成签名。') }
                 elseif ($file.LastWriteTimeUtc -lt $started) { Write-JobsPackagerMessage ('现存 OpenHarmony 产物（构建命令成功，可能复用 Hvigor 缓存，请核对）：' + $artifact) }
                 else { Write-JobsPackagerMessage ('OpenHarmony 产物已验证：' + $artifact) }
+            }
+        }
+        # APP 构建可能重建输出树，只复核本轮已验证路径，不能换用其它旧包。
+        if ($targets.Count -gt 1) {
+            foreach ($target in $targets) {
+                $remaining = @($validatedArtifacts[$target] | Where-Object {
+                    try {
+                        Assert-JobsPackagerPlainFile $_
+                        [void](Assert-JobsPackagerDirectory (Split-Path -Parent $_))
+                        (Get-Item -LiteralPath $_).Length -gt 0
+                    } catch { $false }
+                })
+                if ($remaining.Count -eq 0) { throw ('最终检查失败：已验证的非空 .' + $target + ' 产物已消失或被替换，不能报告双产物完成。') }
             }
         }
     } finally {
@@ -518,6 +536,35 @@ function Invoke-JobsPackagerHarmonyBuild {
             else { [Environment]::SetEnvironmentVariable($name, $environment[$name], 'Process') }
         }
     }
+}
+
+function Invoke-JobsFlutterHarmonyAction {
+    param([string]$Target)
+    Write-Host '打包鸿蒙 HAP + APP：只处理所选 Flutter 根目录，固定 release，使用项目 FVM 适配 SDK。'
+    Write-Host '会运行 pub get、build hap --release、build app --release 并写入工程；签名沿用工程配置，不安装或切换 SDK。'
+    Write-Host '不读取 BUILD_MODE / OHOS_BUILD_TARGET / FLAVOR；Ctrl+C 或任意非空输入取消。'
+    Assert-JobsFlutterProject $Target
+    try {
+        [void](Assert-JobsPackagerDirectory (Join-Path $Target 'lib'))
+        [void](Assert-JobsPackagerDirectory (Join-Path $Target 'ohos'))
+        foreach ($relative in @('ohos/build-profile.json5', 'ohos/oh-package.json5')) {
+            Assert-JobsPackagerPlainFile (Join-Path $Target $relative)
+        }
+    } catch {
+        throw ('请先完成当前 Flutter 项目的鸿蒙平台适配：需要普通非链接的 lib/、ohos/、ohos/build-profile.json5 和 ohos/oh-package.json5。本次未启动构建。详情：' + $_.Exception.Message)
+    }
+    if (-not [IO.File]::Exists((Join-Path $Target '.fvm/flutter_sdk/bin/flutter.bat')) -and
+        -not [IO.File]::Exists((Join-Path $Target '.fvm/flutter_sdk/bin/flutter.exe'))) {
+        throw '项目 FVM SDK 缺失；快捷打包不会使用全局或临时覆盖的 Flutter。'
+    }
+    $confirmation = Read-Host '回车开始打包鸿蒙 HAP + APP，任意非空输入取消'
+    if ($null -eq $confirmation -or $confirmation -ne '') { Write-Host '已取消，没有开始打包。'; return }
+    $logDirectory = Join-Path (Get-JobsInstallRoot) 'logs'
+    [void][IO.Directory]::CreateDirectory($logDirectory)
+    $script:PackagerLog = Join-Path $logDirectory ('harmony-' + (Get-Date -Format 'yyyy-MM-dd-HH-mm-ss') + '-' + [guid]::NewGuid().ToString('N') + '.log')
+    Write-JobsPackagerMessage ('日志：' + $script:PackagerLog)
+    Invoke-JobsPackagerHarmonyBuild -Project $Target -Type 'all' -Mode 'release' -Flavor '' -FlutterSdk ''
+    Write-JobsPackagerMessage '鸿蒙 HAP + APP 打包完成；两种产物均已检查，未签名产物需要先完成签名才能安装。'
 }
 
 function Invoke-JobsFlutterPackageAction {

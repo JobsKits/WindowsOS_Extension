@@ -1,0 +1,4 @@
+LIBRARY JobsFileVolumesContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

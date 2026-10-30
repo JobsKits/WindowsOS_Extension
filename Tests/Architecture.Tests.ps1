@@ -25,7 +25,7 @@ try {
         # 整个独立目录拷到一个没有父工程的临时位置，导入/打包时没有父目录可回退。
         $standalone = Join-Path $temporary $package.Name
         Copy-Item -LiteralPath $package.PackagePath -Destination $standalone -Recurse
-        foreach ($name in @('Extension.json', 'Install.cmd', 'Uninstall.cmd', 'README.md', 'Scripts/Action.psm1')) {
+        foreach ($name in @('Extension.json', 'Manage.cmd', 'README.md', 'Scripts/Action.psm1')) {
             Assert-Architecture (Test-Path -LiteralPath (Join-Path $standalone $name) -PathType Leaf) ('独立交付文件齐全：' + $package.Id + '/' + $name)
         }
         foreach ($script in Get-ChildItem -LiteralPath (Join-Path $standalone 'Scripts') -File) {
@@ -52,7 +52,7 @@ try {
         if ($package.DirectoryOnly) { $expected = 3 }
         if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen', 'git-rollback', 'open-sourcetree')) { $expected = 4 }
         if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create', 'harmony-simulator-repair')) { $expected = 2 }
-        if ($package.Id -in @('run-authorize', 'run-authorization-revoke')) { $expected = 2 }
+        if ($package.Id -in @('run-authorize', 'run-authorization-revoke', 'file-content-viewer', 'file-volumes')) { $expected = 2 }
         if ($package.Id -eq 'hidden-files-toggle') { $expected = 2 }
         if ($package.Id -in @('open-android-studio', 'open-vscode')) { $expected = 8 }
         if ($package.Id -eq 'git-proxy-configure') { $expected = 1 }
@@ -103,9 +103,11 @@ try {
                 Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.' + $package.Id) -or $item.Key.EndsWith('CLSID\{239D7884-83C5-4D66-AB0C-14A2667DCD61}') -or $item.Key.EndsWith('CLSID\{64A7C5BE-E031-4E89-A2D7-75C3F62B1AC9}') -or $item.Key.EndsWith('CLSID\{A41E939F-64E7-49DD-85FA-81F9B8CFD5E2}') -or $item.Key.EndsWith('CLSID\{DD71AE09-8A16-4B08-9868-5A40A9F39F63}')) '原生 COM 只注册本包处理器及 CLSID'
                 continue
             }
-            if ($package.Id -in @('run-authorize', 'run-authorization-revoke')) {
+            if ($package.Id -in @('run-authorize', 'run-authorization-revoke', 'file-content-viewer', 'file-volumes')) {
                 $clsid = '{AE09A13F-EF17-4CE3-8BA1-F557C34280DE}'
                 if ($package.Id -eq 'run-authorization-revoke') { $clsid = '{6AC50F49-6915-4130-8474-F99DA4D074D6}' }
+                if ($package.Id -eq 'file-content-viewer') { $clsid = '{DBC7884D-ECD9-43CB-A026-AFD8A9BBC2A7}' }
+                if ($package.Id -eq 'file-volumes') { $clsid = '{6F7BA84C-324C-472C-B618-B0E3D44244DB}' }
                 Assert-Architecture ($item.Key -eq ('Software\Classes\*\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $package.Id) -or $item.Key -eq ('Software\Classes\CLSID\' + $clsid)) '权限包只注册普通文件动态处理器和自己的 CLSID'
                 continue
             }
@@ -115,7 +117,7 @@ try {
         }
         $copied = Get-Content -LiteralPath (Join-Path $release 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         Assert-Architecture ($copied.Id -eq $package.Id) '部署只包含所选包的清单'
-        $workers = if ($package.Id -eq 'flutter-tools') { 9 } else { 1 }
+        $workers = if ($package.Id -eq 'flutter-tools') { 10 } else { 1 }
         Assert-Architecture (@(Get-ChildItem -LiteralPath $release -Recurse -File | Where-Object { $_.Name -eq 'Action.psm1' }).Count -eq $workers) '统一组包含自己的必要 worker，其它包只含单功能业务'
     }
     Assert-Architecture (@($roots | Select-Object -Unique).Count -eq $expectedCount) '登记的功能安装状态彼此独立'
@@ -132,7 +134,7 @@ try {
         param($Operation)
         if ($Operation.Mode -eq 'Uninstall') { throw 'isolated package failure' }
     }
-    Assert-Architecture (-not $failure.Success -and @($failure.Completed).Count -eq 1 -and $failure.Failed -eq $configure[0].Id) '失败停止并保留此前单包成功结果'
+    Assert-Architecture (-not $failure.Success -and @($failure.Completed).Count -eq 2 -and $failure.Failed -eq $configure[0].Id) '单包失败后继续其它所选包并保留成功结果'
     foreach ($name in @('Worker.ps1', 'Invoke-Menu.ps1', 'Common.psm1')) {
         Assert-Architecture (-not (Test-Path -LiteralPath (Join-Path $root ('Scripts/' + $name)))) ('总入口不再承载集中业务：' + $name)
     }

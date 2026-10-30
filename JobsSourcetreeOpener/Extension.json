@@ -2,7 +2,7 @@
   "Id": "open-sourcetree",
   "Name": "JobsSourcetreeOpener",
   "Label": "🌳 用 Sourcetree 打开",
-  "Description": "仅已安装 Sourcetree 的有效 Git 工作树文件夹显示；打开最近内层仓库。",
+  "Description": "此入口已移除；只保留旧安装卸载，不能重新安装。",
   "DirectoryOnly": true,
   "Console": false,
   "InfrastructureOverrides": [

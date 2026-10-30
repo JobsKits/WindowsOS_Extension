@@ -19,13 +19,15 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
 
 **右键功能：拉取 Git 到最新。** 将当前文件夹所属 [**Git**](https://git-scm.com/) 工作树的当前分支整合到其已配置 upstream 最新提交；保留本地已提交历史，不强制对齐远端。
 
-这是可独立复制的 [**Windows**](https://www.microsoft.com/windows) 功能包。复制整个 `JobsGitPuller` 文件夹，双击 [`Install.cmd`](./Install.cmd) 安装本项；[`Uninstall.cmd`](./Uninstall.cmd) 只卸载本项。运行源码、安装器和基础模块都在包内，不依赖总目录或相邻功能包。
+这是可独立复制的 [**Windows**](https://www.microsoft.com/windows) 功能包。复制整个 `JobsGitPuller` 文件夹，双击 [`Manage.cmd`](./Manage.cmd) 安装本项；[`Manage.cmd`](./Manage.cmd) 只卸载本项。运行源码、安装器和基础模块都在包内，不依赖总目录或相邻功能包。
 
 | 情况 | 行为 |
 | --- | --- |
@@ -53,11 +55,11 @@
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装与卸载 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-两个入口都是包根目录下裸露的双击脚本，独立于总目录安装面板；本包可单独拷走安装，不依赖相邻功能包。
+唯一管理入口直接放在包根目录，独立于总目录安装面板；本包可单独拷走安装，不依赖相邻功能包。
 
-[`Install.cmd`](./Install.cmd) 显示来源、包身份及目标，确认后仅复制本包，逐文件校验 SHA-256 并注册当前用户 `HKCU\Software\Classes` 下本包菜单。缺 [**Git for Windows**](https://git-scm.com/download/win) 时提示并停止，不自动安装工具。遇到未知同名注册键时停止；本包部署失败时恢复本包注册与配置。它不联网、不提权、不改永久执行策略。
+在 [`Manage.cmd`](./Manage.cmd) 选择“安装 / 更新”，显示来源、包身份及目标，确认后仅复制本包，逐文件校验 SHA-256 并注册当前用户 `HKCU\Software\Classes` 下本包菜单。缺 [**Git for Windows**](https://git-scm.com/download/win) 时提示并停止，不自动安装工具。遇到未知同名注册键时停止；本包部署失败时恢复本包注册与配置。它不联网、不提权、不改永久执行策略。
 
-[`Uninstall.cmd`](./Uninstall.cmd) 确认后仅移除本包菜单及卸载快捷方式，写入 `Enabled=false`，保留程序版本、日志与菜单备份；不会撤销 Git 拉取、提交或恢复锚点。入口从自身位置找文件，不依赖终端启动目录。
+在 [`Manage.cmd`](./Manage.cmd) 唤起的面板选择“卸载”，点击按钮后仅移除本包菜单及卸载快捷方式，写入 `Enabled=false`，保留程序版本、日志与菜单备份；不会撤销 Git 拉取、提交或恢复锚点。入口从自身位置找文件，不依赖终端启动目录。
 
 ## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、范围与依赖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
@@ -89,7 +91,7 @@ git stash show --stat refs/jobs-git-puller/<会话ID>/worktree
 ```text
 JobsGitPuller/
 ├── Extension.json              本包菜单身份与属性
-├── Install.cmd / Uninstall.cmd  当前用户本包安装与卸载
+├── Manage.cmd  当前用户本包安装与卸载
 ├── README.md
 └── Scripts/
     ├── README.md               源码职责和入口
@@ -101,5 +103,7 @@ JobsGitPuller/
 ```
 
 仓库 [`Tests/GitPuller.Tests.ps1`](../Tests/GitPuller.Tests.ps1) 使用临时裸远端、工作树和自动输入检查核心流程；不操作真实项目、不执行安装入口。独立包、参数转义、基础设施同步及目录过滤器回归一并检查。Windows 真实桌面的菜单显示、注册表、Git 凭据窗口和 Windows PowerShell 5.1 仍需现场验收；macOS 便携 PowerShell 的测试不能替代这些验收。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

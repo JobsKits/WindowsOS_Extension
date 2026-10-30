@@ -17,6 +17,8 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 > **最低支持系统：Windows 10 x64。** 本地模拟器限官方支持的 AMD64 物理机；具体最低 build、Windows 5.1 / Explorer 菜单与真实模拟器仍须目标机验收。
@@ -36,7 +38,7 @@
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装、卸载与依赖 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-双击 [Install.cmd](./Install.cmd) 安装，[Uninstall.cmd](./Uninstall.cmd) 卸载；也可在[总安装面板](../README.md)独立勾选。卸载只关闭本包菜单，保留模拟器、工具、日志和安装备份。安装需要现有 MSVC / Windows SDK，当前用户 COM 注册，无需管理员权限。
+双击 [Manage.cmd](./Manage.cmd)，在同一面板选择安装 / 更新或卸载；也可在[总安装面板](../README.md)独立勾选。卸载只关闭本包菜单，保留模拟器、工具、日志和安装备份。安装需要现有 MSVC / Windows SDK，当前用户 COM 注册，无需管理员权限。
 
 发现顺序为显式 `HARMONY_EMULATOR_BIN`、`DEVECO_STUDIO_HOME` / `TOOL_HOME`、常见 DevEco 安装位置、用户级 `LOCALAPPDATA/Jobs/HarmonySimulator/tools` 和 PATH；显式路径失效或发现多个兼容工具时停止。检测入口不安装工具或镜像、不修改代理和 PATH、不自动接受官方许可；需要开发者账号的镜像仍须在 DevEco Studio 完成本人授权。
 
@@ -46,8 +48,10 @@
 | --- | --- |
 | [Scripts](./Scripts/README.md) | 自包含业务、原生桌面 handler、构建与安装事务。 |
 | `Extension.json` | 固定独立身份 `harmony-simulator-repair`。 |
-| `Install.cmd` / `Uninstall.cmd` / `Run.cmd` | 安装、卸载、独立检测与修复。 |
+| `Manage.cmd` / `Run.cmd` | 安装、卸载、独立检测与修复。 |
 
 交互日志在当前用户 `LOCALAPPDATA/Jobs/WindowsExtension/extensions/harmony-simulator-repair/logs`，每次运行独立文件。安装状态和精确注册表备份同属本包根目录。隔离回归见 [HarmonySimulatorRepairer.Tests.ps1](../Tests/HarmonySimulatorRepairer.Tests.ps1)，不操作真实设备。官方参数及状态字段依据[华为命令行说明](https://developer.huawei.com/consumer/cn/doc/doccenter-deveco-studio/ide-emulator-command-line.md)。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -4,6 +4,8 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'AndroidRuntime.ps1')
+$script:RunnerSelectedSdk = $null
 
 function Assert-JobsRunnerDirectory {
     param([string]$Path)
@@ -263,46 +265,177 @@ function Get-JobsRunnerAndroidEmulator {
     return Find-JobsExecutable 'emulator.exe'
 }
 
+function Read-JobsRunnerInput {
+    param([string]$Prompt)
+    Write-Host ($Prompt + '：') -NoNewline
+    $answer = [Console]::ReadLine()
+    if ($null -eq $answer) { throw '输入已结束，停止操作。' }
+    return $answer
+}
+
+function Select-JobsRunnerChoice {
+    param([string]$Title, [string[]]$Items, [switch]$Back)
+    if ($Items.Count -eq 0) { throw ('没有可选择的项目：' + $Title) }
+    $fzf = Find-JobsExecutable 'fzf.exe' @('fzf')
+    if (-not $fzf) { throw '缺少 fzf。请先安装或修复 fzf（winget install junegunn.fzf），再重新运行。' }
+    $version = Invoke-JobsProcess $fzf @('--version') -TimeoutSeconds 10
+    $help = Invoke-JobsProcess $fzf @('--help') -TimeoutSeconds 10
+    if ($version.ExitCode -ne 0 -or $help.ExitCode -ne 0 -or $help.StdOut -notmatch '--expect') { throw 'fzf 体检失败或不支持返回键，请修复后重试。' }
+    $labels = @()
+    for ($index = 0; $index -lt $Items.Count; $index++) { $labels += ('{0}  {1}' -f ($index + 1), $Items[$index]) }
+    $header = '↑/↓ 选择；输入筛选；Enter 确认；Esc 取消'
+    $arguments = @('--no-multi', '--height=80%', '--layout=reverse', '--border', ('--prompt=' + $Title + '> '))
+    if ($Back) { $header += '；← 返回上一层'; $arguments += '--expect=left' }
+    $arguments += '--header=' + $header
+    $previousEncoding = $OutputEncoding
+    try {
+        $OutputEncoding = New-Object Text.UTF8Encoding($false)
+        $result = @($labels | & $fzf @arguments)
+        $code = $LASTEXITCODE
+    } finally { $OutputEncoding = $previousEncoding }
+    # 即使过滤结果为空（退出码 1），也先处理显式返回键。
+    if ($Back -and $result.Count -gt 0 -and $result[0] -ceq 'left') { return [pscustomobject]@{ Kind = 'Back'; Index = -1 } }
+    if ($code -in @(1, 130)) { return $null }
+    if ($code -ne 0) { throw ('fzf 选择失败，退出码 ' + $code) }
+    $selected = @($result | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($selected.Count -ne 1 -or $selected[0] -notin $labels) { throw '选择器返回未知或空选择，未执行业务。' }
+    return [pscustomobject]@{ Kind = 'Selected'; Index = [Array]::IndexOf($labels, $selected[0]) }
+}
+
+function Get-JobsRunnerAvds {
+    param([string]$Emulator, [string]$Project)
+    foreach ($line in ((Invoke-JobsRunnerTool $Emulator @('-list-avds') $Project) -split '\r?\n')) {
+        if ($line -cmatch '^[a-zA-Z0-9_.-]+$') { $line }
+    }
+}
+
+function New-JobsRunnerAndroidAvd {
+    param([string]$Sdk, [string]$Project, [string[]]$Existing)
+    Write-Host ('Android SDK：' + $Sdk + [Environment]::NewLine + '初始化会复用健康工具；缺失 / 损坏时从 Google 官方源补齐 Command-Line Tools、Emulator / ADB，并按需从 Adoptium 下载 Java 21。系统镜像可能数 GB。' + [Environment]::NewLine + '只影响选定 SDK、用户 Java / AVD 目录；不修改全局 PATH、代理或系统虚拟化设置。') -ForegroundColor Yellow
+    if ((Read-JobsRunnerInput '回车准备初始化工具；非空取消').Length -gt 0) { return $null }
+    $abi = Get-JobsAndroidArchitecture
+    [void][IO.Directory]::CreateDirectory($Sdk)
+    $java = Get-JobsAndroidJava
+    $oldJava = $env:JAVA_HOME
+    try {
+        $env:JAVA_HOME = Split-Path -Parent (Split-Path -Parent $java)
+        $tools = Get-JobsAndroidHealthyTools -Sdk $Sdk -Java $java
+        Repair-JobsAndroidComponents -Sdk $Sdk -Java $java -Tools $tools
+        # Emulator 缺失时首次无法枚举；工具补齐后再次检查，避免重复创建已有 AVD。
+        if ($Existing.Count -eq 0) {
+            $Existing = @(Get-JobsRunnerAvds (Join-Path $Sdk 'emulator/emulator.exe') $Project | Where-Object { $_ -cmatch '^[a-zA-Z0-9_.-]+$' })
+            if ($Existing.Count -gt 0) {
+                $existingChoice = Select-JobsRunnerChoice '工具已就绪，选择 Android AVD' ($Existing + @('创建新的 Android 模拟器')) -Back
+                if ($null -eq $existingChoice -or $existingChoice.Kind -eq 'Back') { return $null }
+                if ($existingChoice.Index -lt $Existing.Count) { return $Existing[$existingChoice.Index] }
+            }
+        }
+        $devices = @(Get-JobsAndroidDevices (Invoke-JobsAndroidTool $java $tools 'avdmanager' @('list', 'device')))
+        $installed = @(Get-JobsAndroidImages (Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $Sdk), '--list_installed')) $abi)
+        $images = $installed
+        if ($images.Count -eq 0) {
+            Write-Host '尚无当前宿主可用系统镜像，查询 Google 官方稳定镜像清单：https://dl.google.com/android/repository/'
+            $images = @(Get-JobsAndroidImages (Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $Sdk), '--list', '--channel=0')) $abi)
+        }
+        while ($true) {
+            $deviceChoice = Select-JobsRunnerChoice '选择 Android 设备型号' $devices -Back
+            if ($null -eq $deviceChoice -or $deviceChoice.Kind -eq 'Back') { return $null }
+            $device = $devices[$deviceChoice.Index]
+            $imageChoice = Select-JobsRunnerChoice '选择 Android 系统镜像' $images -Back
+            if ($null -eq $imageChoice) { return $null }
+            if ($imageChoice.Kind -eq 'Back') { continue }
+            $image = $images[$imageChoice.Index]
+            $avdHome = Get-JobsAndroidAvdHome
+            $name = New-JobsAndroidAvdName $device $image $Existing $avdHome
+            Write-Host ('创建：' + $name + [Environment]::NewLine + '型号：' + $device + [Environment]::NewLine + '系统镜像：' + $image + [Environment]::NewLine + 'AVD 目标：' + $avdHome)
+            if ($image -notin $installed) { Write-Host ('将从 Google 官方 SDK 源下载选定镜像到 ' + $Sdk + '，可能数 GB；许可证由本人确认。') -ForegroundColor Yellow }
+            if ((Read-JobsRunnerInput '回车创建并启动；非空取消').Length -gt 0) { return $null }
+            if ($image -notin $installed) {
+                Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $Sdk), '--licenses') -Interactive
+                Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $Sdk), '--install', $image) -Interactive
+                $verified = @(Get-JobsAndroidImages (Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root=' + $Sdk), '--list_installed')) $abi)
+                if ($image -notin $verified) { throw '镜像安装后复检失败，未创建 AVD。' }
+            }
+            # 不使用 --force；同名或创建失败时停止，绝不覆盖已有 AVD。
+            [void](Invoke-JobsAndroidTool $java $tools 'avdmanager' @('create', 'avd', '--name', $name, '--package', $image, '--device', $device) -InputText "no`n")
+            $created = @(Get-JobsRunnerAvds (Join-Path $Sdk 'emulator/emulator.exe') $Project)
+            if ($name -notin $created) { throw ('创建后未找到 AVD，保留现场并停止：' + $name) }
+            Write-JobsLog ('Created Android AVD ' + $name)
+            return $name
+        }
+    } finally { $env:JAVA_HOME = $oldJava }
+}
+
+function Start-JobsRunnerAndroid {
+    param([string]$Flutter, [string]$Project)
+    $sdk = Get-JobsAndroidSdk
+    if (-not $env:ANDROID_HOME -and -not $env:ANDROID_SDK_ROOT) {
+        $configured = Get-JobsRunnerAndroidEmulator
+        if ($configured) { $sdk = Split-Path -Parent (Split-Path -Parent $configured) }
+    }
+    $oldHome = $env:ANDROID_HOME
+    $oldRoot = $env:ANDROID_SDK_ROOT
+    try {
+        $env:ANDROID_HOME = $sdk
+        $env:ANDROID_SDK_ROOT = $sdk
+        $emulator = Join-Path $sdk 'emulator/emulator.exe'
+        $existing = @()
+        if (Test-Path -LiteralPath $emulator -PathType Leaf) { $existing = @(Get-JobsRunnerAvds $emulator $Project) }
+        $name = $null
+        if ($existing.Count -gt 0) {
+            $choice = Select-JobsRunnerChoice '选择 Android AVD' ($existing + @('创建新的 Android 模拟器')) -Back
+            if ($null -eq $choice -or $choice.Kind -eq 'Back') { return $null }
+            if ($choice.Index -lt $existing.Count) { $name = $existing[$choice.Index] }
+            else { $name = New-JobsRunnerAndroidAvd $sdk $Project $existing }
+        } else {
+            Write-Host '尚无 Android AVD，进入内置初始化流程。'
+            $name = New-JobsRunnerAndroidAvd $sdk $Project $existing
+        }
+        if ($null -eq $name) { return $null }
+        $serial = Start-JobsAndroidAvd $sdk $name
+        $device = Wait-JobsRunnerAndroidDevice $Flutter $Project $serial
+        $script:RunnerSelectedSdk = $sdk
+        return $device
+    } finally { $env:ANDROID_HOME = $oldHome; $env:ANDROID_SDK_ROOT = $oldRoot }
+}
+
+function Wait-JobsRunnerAndroidDevice {
+    param([string]$Flutter, [string]$Project, [string]$Serial)
+    for ($attempt = 0; $attempt -lt 6; $attempt++) {
+        try {
+            $devices = @(ConvertFrom-JobsRunnerList (Invoke-JobsRunnerTool $Flutter @('devices', '--machine') $Project 30))
+            $selected = @(Get-JobsRunnerSupportedDevices $devices $Project | Where-Object { $_.id -ceq $Serial })
+            if ($selected.Count -eq 1) { return [string]$selected[0].id }
+        } catch { Write-Host ('Flutter 设备查询暂未就绪：' + $_.Exception.Message) -ForegroundColor Yellow }
+        Write-Host ('Flutter 尚未发现所选 AVD（' + $Serial + '），正在重新加载……')
+        if ($attempt -lt 5) { Start-Sleep -Seconds 2 }
+    }
+    throw ('AVD 已启动，但 Flutter 尚未识别 ' + $Serial + '。设备已保留，请检查 flutter doctor 后重新加载。')
+}
+
 function Select-JobsRunnerDevice {
     param([string]$Flutter, [string]$Project)
+    $script:RunnerSelectedSdk = $null
     while ($true) {
-        Write-Host '正在读取 Flutter 设备和 Android 模拟器……'
-        $allDevices = @(ConvertFrom-JobsRunnerList (Invoke-JobsRunnerTool $Flutter @('devices', '--machine') $Project))
-        $devices = @(Get-JobsRunnerSupportedDevices $allDevices $Project)
-        $emulators = @()
-        $androidEmulator = Get-JobsRunnerAndroidEmulator
-        if ($androidEmulator -and ((Test-Path -LiteralPath (Join-Path $Project 'android') -PathType Container) -or (Test-Path -LiteralPath (Join-Path $Project '.android') -PathType Container))) {
-            try { $emulators = @((Invoke-JobsRunnerTool $androidEmulator @('-list-avds') $Project) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) }
-            catch { Write-Host ('模拟器列表暂不可用：' + $_.Exception.Message) -ForegroundColor Yellow }
-        }
+        Write-Host '正在读取 Flutter 运行设备……'
+        $devices = @()
+        try { $devices = @(Get-JobsRunnerSupportedDevices @(ConvertFrom-JobsRunnerList (Invoke-JobsRunnerTool $Flutter @('devices', '--machine') $Project)) $Project) }
+        catch { Write-Host ('设备查询暂不可用，可重新加载或初始化 Android 模拟器：' + $_.Exception.Message) -ForegroundColor Yellow }
         $choices = @()
-        foreach ($device in $devices) {
-            $choices += [pscustomobject]@{ Kind = 'Device'; Id = [string]$device.id; Name = [string]$device.name }
+        foreach ($device in $devices) { $choices += [pscustomobject]@{ Kind = 'Device'; Id = [string]$device.id; Name = ([string]$device.name + ' · ' + [string]$device.id) } }
+        if ((Test-Path -LiteralPath (Join-Path $Project 'android') -PathType Container) -or (Test-Path -LiteralPath (Join-Path $Project '.android') -PathType Container)) {
+            $choices += [pscustomobject]@{ Kind = 'Android'; Id = ''; Name = 'Android 模拟器（启动已有 / 缺失时初始化）' }
         }
-        foreach ($emulator in $emulators) {
-            $choices += [pscustomobject]@{ Kind = 'Emulator'; Id = [string]$emulator; Name = ('启动 Android 模拟器 · ' + $emulator) }
-        }
-        if ($choices.Count -eq 0) {
-            Write-Host '暂无可用设备。连接手机、启动 Android 模拟器或安装对应桌面 / 浏览器工具链后重新加载。' -ForegroundColor Yellow
-        }
-        for ($index = 0; $index -lt $choices.Count; $index++) { Write-Host ('[' + ($index + 1) + '] ' + $choices[$index].Name + ' (' + $choices[$index].Id + ')') }
-        $answer = Read-Host '[r] 重新加载  [q] 取消；输入设备序号'
-        if ($null -eq $answer -or $answer -ceq 'q') { return $null }
-        if ($answer -ceq 'r') { continue }
-        $number = 0
-        if (-not [int]::TryParse($answer, [ref]$number) -or $number -lt 1 -or $number -gt $choices.Count) { continue }
-        $choice = $choices[$number - 1]
+        $choices += [pscustomobject]@{ Kind = 'Reload'; Id = ''; Name = '重新加载设备列表' }
+        if ($devices.Count -eq 0) { Write-Host '暂无可用设备；可连接手机、选择 Android 模拟器或重新加载。' -ForegroundColor Yellow }
+        $selection = Select-JobsRunnerChoice '选择 Flutter 运行设备' @($choices | ForEach-Object { $_.Name })
+        if ($null -eq $selection) { return $null }
+        $choice = $choices[$selection.Index]
         if ($choice.Kind -eq 'Device') { return $choice.Id }
-        Write-Host ('启动：' + $choice.Name)
-        $start = New-Object Diagnostics.ProcessStartInfo
-        $start.FileName = $androidEmulator
-        $start.Arguments = '-avd ' + (Quote-JobsArgument $choice.Id)
-        $start.UseShellExecute = $false
-        $start.CreateNoWindow = $true
-        $start.WorkingDirectory = $Project
-        [void][Diagnostics.Process]::Start($start)
-        Write-Host '模拟器已收到启动请求。等待启动完成后按回车重新加载，再选择实际运行设备。'
-        if ($null -eq (Read-Host)) { return $null }
+        if ($choice.Kind -eq 'Android') {
+            $device = Start-JobsRunnerAndroid $Flutter $Project
+            if ($null -ne $device) { return $device }
+        }
     }
 }
 
@@ -405,6 +538,8 @@ function Invoke-JobsFlutterRunAction {
     Write-Host ('来源：' + $PSScriptRoot) -ForegroundColor Cyan
     Write-Host ('项目：' + $Target)
     Write-Host '设备选择后启动 flutter run --machine；运行日志进入 CMD 和本功能日志目录。'
+    Write-Host 'Android 模拟器可启动已有 AVD；缺失时确认后补齐工具、选择型号与系统镜像并创建启动。'
+    Write-Host '设备选择使用 fzf，上下键及输入筛选，← 返回上一层，Esc 取消。'
     Write-Host '关闭 CMD 不停止项目；重新右键可重连日志，r / R 热重载 / 热重启，s 停止。'
     $projectRoot = Get-JobsRunnerProjectRoot $Target
     $existing = Get-JobsRunnerSession $projectRoot
@@ -415,8 +550,14 @@ function Invoke-JobsFlutterRunAction {
     try { $version = $health | ConvertFrom-Json; Write-Host ('版本：' + $version.frameworkVersion) } catch { throw 'Flutter SDK 体检失败，请先运行 flutter doctor。' }
     $device = Select-JobsRunnerDevice $flutter $Target
     if ($null -eq $device) { return }
-    $session = Start-JobsRunnerSession $Target $flutter $device $projectRoot
-    Show-JobsRunnerLog $session
+    $oldHome = $env:ANDROID_HOME
+    $oldRoot = $env:ANDROID_SDK_ROOT
+    try {
+        # 后台宿主必须继承本次所选 AVD 的 SDK，避免旧环境冲突或 PATH SDK 丢失。
+        if ($script:RunnerSelectedSdk) { $env:ANDROID_HOME = $script:RunnerSelectedSdk; $env:ANDROID_SDK_ROOT = $script:RunnerSelectedSdk }
+        $session = Start-JobsRunnerSession $Target $flutter $device $projectRoot
+        Show-JobsRunnerLog $session
+    } finally { $env:ANDROID_HOME = $oldHome; $env:ANDROID_SDK_ROOT = $oldRoot }
 }
 
 function Invoke-JobsFeature {

@@ -1,4 +1,4 @@
-> Flutter 菜单由 [JobsFlutterTools](JobsFlutterTools/README.md)：固定顺序的“Flutter开发相关辅助工具”和“Flutter项目修复”，包含“安装/切换 Flutter@OpenHarmony SDK”、原生/Harmony 双层体检、清理维护及三项修复。OpenHarmony 版从 CPF-Flutter tag 选择、锁定 commit，并通过独立缓存绑定当前项目 FVM；Java 安装/切换菜单目前在 macOS 提供。旧 Flutter 单项安装入口转到统一包，全部使用项目 FVM。详细菜单、显示条件与执行边界见功能说明。
+> Flutter 菜单由 [JobsFlutterTools](JobsFlutterTools/README.md)：固定顺序的“Flutter开发相关辅助工具”和“Flutter项目修复”，开发组内直属“拉取Flutter项目工程相关依赖”“提取Flutter项目工程依赖”“导入Flutter项目工程依赖”“安装/切换Flutter运行环境”“Flutter 资源与构建依赖”，资源组内包含“准备原生库与构建依赖（组合操作）”；另有“打包鸿蒙（HAP + APP）”、原生/Harmony 双层体检、清理维护及三项修复。OpenHarmony 版从 CPF-Flutter tag 选择、锁定 commit，并通过独立缓存绑定当前项目 FVM；支持“安装/切换Java SDK”、“下载Gradled分发与构建插件”和“一键配置 Flutter 项目”；[环境配置说明](./JobsFlutterTools/README.md#一键配置与-gradle-插件下载)。旧 Flutter 单项安装入口转到统一包；常规业务使用项目 FVM，环境配置支持用户明确选择系统 SDK。详细菜单、显示条件与执行边界见功能说明。
 
 # `WindowsOS@Extension`
 
@@ -12,11 +12,7 @@
 - [🔥 前言](#%E5%89%8D%E8%A8%80)
 - [一、功能对照](#features)
 - [二、安装、配置与卸载](#installation)
-  - [【Windows】🧩安装资源管理器扩展.cmd](#install)
-  - [Install.cmd](#install-compat)
-  - [Configure.cmd](#configure)
-  - [【Windows】🧩卸载资源管理器扩展.cmd](#uninstall)
-  - [Uninstall.cmd](#uninstall-compat)
+  - [【Windows】🧩管理资源管理器扩展.cmd](#install)
 - [三、目录结构与安装状态](#structure)
   - [Sync-PackageInfrastructure.ps1](#sync-package-infrastructure)
 - [四、命令执行与失败处理](#behavior)
@@ -24,12 +20,12 @@
 - [六、README 自动折叠目录](#markdown-toc)
   - [MarkdownToc.mjs 兼容入口](#markdown-toc-tool)
 - [七、项目统计与复核口径](#project-statistics)
-  - [7.1、工具链与锁文件](#jobs-toc-heading-16)
-  - [7.2、源码与部署管理](#jobs-toc-heading-17)
-  - [7.3、界面、功能与后端规模](#jobs-toc-heading-18)
-  - [7.4、模块依赖与核心流程](#jobs-toc-heading-19)
-  - [7.5、功能实现清单](#jobs-toc-heading-20)
-  - [7.6、业务代码占比](#jobs-toc-heading-21)
+  - [7.1、工具链与锁文件](#jobs-toc-heading-12)
+  - [7.2、源码与部署管理](#jobs-toc-heading-13)
+  - [7.3、界面、功能与后端规模](#jobs-toc-heading-14)
+  - [7.4、模块依赖与核心流程](#jobs-toc-heading-15)
+  - [7.5、功能实现清单](#jobs-toc-heading-16)
+  - [7.6、业务代码占比](#jobs-toc-heading-17)
 - [八、直接依赖与风险](#direct-dependencies)
 - [九、运行环境与常见问题补充](#runtime-environments)
 
@@ -40,11 +36,13 @@
 
 ## 🔥 <span id="前言">前言</span>
 
+“安装/切换Flutter运行环境”分为 Flutter SDK、Flutter@OpenHarmony SDK 和 Java SDK 三项；“Flutter 资源与构建依赖”分为“下载Gradled分发与构建插件”“下载Flutter平台资源”“准备原生库与构建依赖（组合操作）”。“查看当前Flutter项目工程的SDK版本”归入“Flutter项目体检”。资源内容和组合流程见 [Flutter FAQ](./JobsFlutterTools/README.md#dependency-faq)。
+
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
 
-**项目定位：** 面向 Windows 开发人员的独立右键功能包集合。**状态：维护中，Windows 桌面验收待完成**；负责人 **Jobs** / [**JobsKits**](https://github.com/JobsKits)，未登记其他维护团队。功能数核验于 **2026-10-26**，本地验证基线见验证章节；统计章其余数据保留各自注明的日期。
+**项目定位：** 面向 Windows 开发人员的独立右键功能包集合。**状态：维护中，Windows 桌面验收待完成**；负责人 **Jobs** / [**JobsKits**](https://github.com/JobsKits)，未登记其他维护团队。功能数核验于 **2026-10-30**，本地验证基线见验证章节；统计章其余数据保留各自注明的日期。
 
-为 [**Windows**](https://www.microsoft.com/windows) 开发人员提供资源管理器右键菜单，与同级 [`MacOS@Extension`](../MacOS@Extension/README.md) 对齐日常开发操作。当前保留 **30 个功能源码目录**，其中八个旧 Flutter 包保留兼容源码与入口；根清单登记 **22 个现行安装包**，提供 **35 项复选框组合安装面板**（其中 Flutter 展开为 14 项子功能）。现行包各自包含源码、安装、卸载和运行模块，可以只复制其中一个包使用。使用系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1`，不需要管理员权限；Flutter 运行、打包、环境诊断、代码生成、Android / Harmony 模拟器、单文件运行权限、隐藏文件、[**Sourcetree**](https://www.sourcetreeapp.com/) 打开及 Android Studio / VSCode 菜单安装时需要现有 MSVC / Windows SDK 编译原生桥接，其它包直接部署脚本。
+为 [**Windows**](https://www.microsoft.com/windows) 开发人员提供资源管理器右键菜单，与同级 [`MacOS@Extension`](../MacOS@Extension/README.md) 对齐日常开发操作。当前保留 **32 个功能源码目录**，其中八个旧 Flutter 包保留兼容源码与入口；根清单登记 **23 个现行安装包**，提供 **58 项复选框组合安装面板**（其中 Flutter 展开为 36 项子功能，2026-10-30 按 `Extensions.json` 与 `FeatureActions.psm1` 核对）。现行包各自包含源码、安装、卸载和运行模块，可以只复制其中一个包使用。使用系统自带的 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1`，不需要管理员权限；Flutter 运行、打包、环境诊断、代码生成、Android / Harmony 模拟器、单文件运行权限 / 内容查看、文件分卷、隐藏文件及 Android Studio / VSCode 菜单安装时需要现有 MSVC / Windows SDK 编译原生桥接，其它包直接部署脚本。
 
 <strong id="windows-compatibility">Windows 版本、架构与测试边界</strong>
 
@@ -64,20 +62,25 @@
 - **CPU 架构：** 原生构建有 x64 / ARM64 / x86 分支，但尚无完整实机兼容保证；纯 32 位 Windows 的 `ProgramFiles(x86)` 工具定位存在风险。部分业务（如 CodeGraph）仅提供 x64 / ARM64，Android / Harmony 本地模拟器仅面向 AMD64（x64），不得用 x86 分支或 ARM64 虚拟机菜单通过推定全功能可用。
 - **虚拟机与物理机：** 虚拟机适合验证菜单安装 / 卸载、显示条件、参数传递及实际 EXE / 工具启动；Android Emulator 的加速、AVD 启动与扩容需在符合官方要求的 AMD64 物理机单独验收，虚拟机 / 嵌套虚拟化不作为支持结论。Harmony 本地模拟器官方不支持虚拟机、Windows ARM 或 32 位宿主，须使用符合要求的 AMD64 Windows 10 / 11 物理机。见 [Android 环境要求](https://developer.android.com/studio/install#windows)、[Android 加速要求](https://developer.android.com/studio/run/emulator-acceleration)与 [Harmony 环境要求](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-emulator-requirements)。
 - **外部工具与最低 build：** Flutter / Dart / FVM、Node / WinGet、Java、Android Studio、DevEco 等各版本可能提高系统、build 或 CPU 下限。本仓尚未锁定全套依赖和原生编译工具版本，也未统一强制最低 Windows build；应记录目标系统 build、CPU、工具版本及测试结果，按更高要求判断具体功能。
-- **旧 Flutter 包：** 八个旧目录保留源码与卸载入口，当前 `Install.cmd` 转交同级 `JobsFlutterTools`；不能只复制旧目录进行新安装。可独立交付统一包，或保留完整仓目录。各功能 README 中的旧实现描述不代替当前入口说明。
+- **旧 Flutter 包：** 八个旧目录保留源码与卸载入口，当前 `Manage.cmd` 的安装 / 更新转交同级 `JobsFlutterTools`；不能只复制旧目录进行新安装。可独立交付统一包，或保留完整仓目录。各功能 README 中的旧实现描述不代替当前入口说明。
 
-右键菜单的功能文字统一带语义 emoji 前缀，例如“📋 复制绝对路径”“🔓 运行授权”“📦 Flutter打包”；同一功能在独立包和聚合菜单保持同一图形，不同功能使用不同图形。已有安装需重新安装 / 更新对应包后读取新标题。
+右键菜单的功能文字统一带语义 emoji 前缀，例如“📋 复制绝对路径”“🔒 运行授权”“📦 Flutter打包”；同一功能在独立包和聚合菜单保持同一图形，不同功能使用不同图形。已有安装需重新安装 / 更新对应包后读取新标题。
 
-**快速开始：** 将整个 `WindowsOS@Extension` 文件夹复制到 Windows，双击 [`【Windows】🧩安装资源管理器扩展.cmd`](./【Windows】🧩安装资源管理器扩展.cmd)，在原生复选框窗口选择功能后点击“安装”。卸载使用配套的 [`【Windows】🧩卸载资源管理器扩展.cmd`](./【Windows】🧩卸载资源管理器扩展.cmd)；原 `Install.cmd` / `Uninstall.cmd` 继续兼容。只需一项功能时，也可单独复制对应现行包，双击包内 `Install.cmd`；例如 [`JobsPathCopier/Install.cmd`](./JobsPathCopier/Install.cmd) 只安装复制绝对路径。重新右键文件、文件夹、磁盘或文件夹空白处即可；**Windows 11 需要点击“显示更多选项”**，也可使用 `Shift+F10` 打开经典菜单。
+**快速开始：** 将整个 `WindowsOS@Extension` 文件夹复制到 Windows，双击原 [`【Windows】🧩管理资源管理器扩展.cmd`](./【Windows】🧩管理资源管理器扩展.cmd)，启动脚本唤起 GUI 后结束，在同一原生面板选择安装 / 更新或卸载，再勾选功能。只需一项功能时，也可单独复制对应现行包，双击包内 `Manage.cmd` 后选择安装 / 更新；例如 [`JobsPathCopier/Manage.cmd`](./JobsPathCopier/Manage.cmd) 只安装复制绝对路径。同名 `.vbs` 可直接打开相同 GUI。重新右键文件、文件夹、磁盘或文件夹空白处即可；**Windows 11 需要点击“显示更多选项”**，也可使用 `Shift+F10` 打开经典菜单。
 
 | 操作 | 实际结果 |
 | --- | --- |
 | 右键 `D:\项目\Demo` → 复制绝对路径 | 剪贴板得到 `D:\项目\Demo`，无额外引号。 |
 | 右键源文件 → 用终端打开 | 在源文件的父目录启动终端。 |
-| 安装面板只勾选其中几项 | 只安装或更新勾选项；Flutter 组按本次选择精确替换，整个 Flutter 组未选时保留原安装，其它未选包继续保留。 |
-| `Configure.cmd` 保存时取消勾选某一已安装功能 | 调用该包自己的卸载逻辑；已选功能逐包安装或更新，允许全不选以关闭全部。 |
-| 只复制 `JobsPathCopier` 并运行包内 `Install.cmd` | 只部署复制路径包，不需要总目录或其他功能包。 |
+| 右键单文件 → 📄 用终端查看文件内容 | 新可见 PowerShell 只读流式显示正文；超过 1 MiB 或疑似二进制时精确输入 YES 才继续。 |
+| 安装面板只勾选其中几项 | 只安装或更新勾选项；Flutter 合并本次选择与已启用动作，其它未选包继续保留。 |
+| 管理面板选择卸载并勾选某一已安装功能 | 调用该包自己的卸载逻辑；未勾选功能保留，空选不执行。 |
+| 只复制 `JobsPathCopier` 并运行包内 `Manage.cmd` | 只部署复制路径包，不需要总目录或其他功能包。 |
 | 右键 Flutter 根目录 → 从终端运行 Flutter 项目 | CMD 选择设备并显示日志，关闭 CMD 后保持后台运行；再次右键重连，`r` / `R` / `s` 热重载 / 热重启 / 停止。 |
+| 右键 Flutter 根目录 → 一键配置 Flutter 项目 / 下载Gradled分发与构建插件 | fzf 选择 FVM / 系统 Flutter、jEnv / 系统 Java；仪表盘与真实 CMD 准备所选平台工具链，校验固定 Gradle、Pub、平台依赖，再按同一启动配置实际编译原生库与延迟依赖，最后以本次 app.started 验收运行；支持只准备。[流程与边界](./JobsFlutterTools/README.md#一键配置与-gradle-插件下载)。 |
+| 右键 Flutter 根目录 → 拉取Flutter项目工程相关依赖 | Pub、Android 原生、OpenHarmony 和 Web JS 依赖分别独立勾选；资源与原生库组合操作位于各自入口；Windows 不提供 CocoaPods / Swift Package 入口。原生库准备会编译但不安装 / 启动 App；下载Flutter平台资源不等于 Android SDK / NDK / CMake 等系统工具。 |
+| 右键 Flutter 根目录 → 提取Flutter项目工程依赖 / 导入Flutter项目工程依赖 | Pub 两项和平台依赖十个配对动作分别独立启用；Gradle 分发 / modules-2、OHPM / Hvigor 组件分别选择，导入校验宿主 / 工具 / 锁指纹和完整 hash 后精确 YES，冲突不覆盖。不包含认证、全局配置、SDK 源码或 Dart，也不自动执行归档脚本。 |
+| 右键已有鸿蒙平台的 Flutter 根目录 → 打包鸿蒙（HAP + APP） | 回车确认后固定项目 FVM、release，一次依次生成并验证 HAP 和 APP；任一构建或非空产物检查失败即停止。[依赖、日志与安装开关](./JobsFlutterTools/README.md#鸿蒙-hap--app-打包)。 |
 | 右键 Flutter 根目录 → Flutter打包 | CMD 内用 fzf 选 Android / iOS / HarmonyOS；Android 选 APK / AAB，OpenHarmony 选 HAP / APP，均可选两者；Windows iOS 提示 macOS + Xcode 后停止。 |
 | 右键 Flutter 根目录 → Flutter 项目体检 | 在可见 CMD 只读诊断当前项目 SDK；FVM 已声明但 SDK 缺失时停止，不静默改用全局版本。 |
 | 右键 Flutter 根目录 → Flutter 自动化生产代码 | 预览后回车执行 pub get 与配置生成；任何非空输入取消，追加 build_runner 冲突删除标志需要精确 YES。 |
@@ -85,7 +88,7 @@
 | 系统桌面空白右键 → 新建 Android 模拟器 | CMD 内直接选择镜像与设备型号，创建并等待启动；普通文件夹与选中项不显示。 |
 | 系统桌面空白右键 → Android 模拟器检测与修复 | 终端检查模拟器安装位置与可用空间，确认后修复或清理；指定应用卸载、AVD 配置调整要求 YES，不执行 Wipe Data；卸载会删除对应应用数据。 |
 | 系统桌面空白右键 → Harmony 模拟器检测与修复 | 检查已有官方工具、镜像及实例；选择后保留数据冷启动，运行中需 YES 才停止再冷启动；未知身份 / 状态停止。 |
-| 可执行或脚本单文件右键 → 🔓 运行授权 / 🔒 解除运行授权 | 按当前用户 NTFS ExecuteFile 互斥置灰，普通文档隐藏两项；精确 YES 后修改、快照冲突保护；不执行目标，不改全局策略。 |
+| 可执行或脚本单文件右键 → 🔒 运行授权 / 🔓 解除运行授权 | 按当前用户 NTFS ExecuteFile 互斥置灰，普通文档隐藏两项；精确 YES 后修改、快照冲突保护；不执行目标，不改全局策略。 |
 | 系统桌面空白右键 → 新建 Harmony 模拟器 | 仅 Windows x64，选择本机已下载的镜像后创建新实例；创建后可选择启动，许可保留官方交互，普通目录与选中项不显示。 |
 | 系统桌面空白右键 → 配置 Git 动态代理 | 用户确认后安装动态 git.exe；检查显示实际解析路径，机器 PATH 更早或应用未选用时按独立说明使用专用终端 / 选择 Git。 |
 | 在 Windows 11 找不到菜单 | 进入“显示更多选项”；不修改系统菜单样式。 |
@@ -114,6 +117,8 @@
 
 导航：[Windows 兼容范围](#windows-compatibility) · [仓库关联](#repository-link) · [功能对照](#features) · [安装配置](#installation) · [目录结构](#structure) · [运行边界](#behavior) · [验证](#verification)
 
+Flutter 新增“🔐 提取Flutter项目工程私库依赖”和“📥 导入Flutter项目工程私库依赖”，支持 Git、path、自建 hosted Pub 包及间接依赖的源码与 SHA-256 校验迁移。验证快照类型、包名、版本和声明后精确输入 `YES` 才写入，原配置保留备份；不迁移机器凭据、不自动 `pub get`。详见 [Flutter 工具说明](./JobsFlutterTools/README.md)。
+
 ## 一、<span id="features">功能对照</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 | 功能源码目录（含旧兼容包） | 右键功能与行为 |
@@ -127,6 +132,8 @@
 | [JobsVSCodeOpener](./JobsVSCodeOpener/README.md) | 用 [**Visual Studio Code**](https://code.visualstudio.com) 打开非空且非 iOS 工程的普通目录；Flutter 根目录可用，不将文件转换为父目录。 |
 | [JobsAndroidStudioOpener](./JobsAndroidStudioOpener/README.md) | 用 [**Android Studio**](https://developer.android.com/studio?hl=zh-c) 仅打开非空原生 Android 或有效 Flutter（官方 / OpenHarmony）项目根目录。 |
 | [JobsTerminalOpener](./JobsTerminalOpener/README.md) | 用终端打开；优先 [**Windows Terminal**](https://learn.microsoft.com/windows/terminal/)，未安装时回退系统 PowerShell，工作目录为所选目录或文件父目录。 |
+| [JobsFileContentViewer](./JobsFileContentViewer/README.md) | 📄 用终端查看文件内容；原生单文件菜单，默认超过 1 MiB 先询问 YES，环境变量 `JOBS_FILE_VIEWER_MAX_BYTES` 可调整阈值，疑似二进制 / 未知编码另行确认，正文不入日志。 |
+| [JobsFileVolumes](./JobsFileVolumes/README.md) | 🧩 合并分卷 / ✂️ 拆分文件；完整多选同组非空分卷才显示合并，单个普通文件显示拆分。50 / 100 / 1900 MiB 或自定义上限，SHA-256 与大小校验，无覆盖发布且始终保留原件；两入口共用一个安装开关。 |
 | [JobsAndroidSimulatorCreator](./JobsAndroidSimulatorCreator/README.md) | 新建 Android 模拟器；仅系统桌面空白显示，CMD 首屏回车后体检 SDK / Java / 命令行工具 / Emulator / ADB，缺失或损坏自动补齐并复检；选择镜像和型号、创建并等待启动，SDK 许可由本人确认；独立 Run.cmd 另可启动已有 AVD。 |
 | [JobsAndroidSimulatorRepairer](./JobsAndroidSimulatorRepairer/README.md) | Android 模拟器检测与修复；仅系统桌面空白显示，只处理已启动的模拟器，检查安装位置与 `/data` 空间；按需恢复安装位置、清理编译缓存、卸载指定包或备份后调整 AVD 容量配置；不 Wipe Data。 |
 | [JobsHarmonySimulatorCreator](./JobsHarmonySimulatorCreator/README.md) | 新建 Harmony 模拟器；仅 Windows x64 系统桌面空白显示，复用本机 [**DevEco Studio / Command Line Tools**](https://developer.huawei.com/consumer/cn/deveco-studio/) 的 Emulator CLI，选择已下载镜像并创建新实例，随后可选启动；缺工具时从 SDL 免登录镜像补齐，系统镜像由官方 CLI 按所选项下载，展示许可后本人回车同意。 |
@@ -145,72 +152,37 @@
 | [JobsGitEmptyCommitPusher](./JobsGitEmptyCommitPusher/README.md) | 空白 Commit 并 Push；仅文件夹，检查工作树、当前分支、暂存区和上游，输入 `YES` 后创建空白提交并推送。 |
 | [JobsFlutterDependencyExtractor](./JobsFlutterDependencyExtractor/README.md) | 提取 Flutter 第三方依赖；联合锁文件与包配置复制已解析的直接、间接和开发依赖源码及许可证，输入或拖入输出父目录，回车默认系统桌面。 |
 | [JobsGitRollback](./JobsGitRollback/README.md) | Git操作 → Git 提交回退；仅有效 Git 工作树目录显示，识别子模块 / 嵌套仓库 / worktree，fzf 选择 soft / hard 及远端快照 / 历史 / tag / reflog；hard 需精确 YES。 |
-| [JobsSourcetreeOpener](./JobsSourcetreeOpener/README.md) | Git操作 → 🌳 用 Sourcetree 打开；位于首项，仅已安装应用且目标为有效 Git 工作树目录时显示，打开最近内层仓库，缺失时隐藏。 |
 | [JobsGitPuller](./JobsGitPuller/README.md) | 拉取 Git 到最新；非 Git 静默返回，有改动时回车确认；保护 index / 工作文件后整合当前分支 upstream，冲突时恢复、确认放弃改动或输入可为空的信息提交后重试。 |
 | [JobsGitProxyConfigurator](./JobsGitProxyConfigurator/README.md) | 配置 Git 动态代理；仅系统桌面空白显示，终端进入安装 / C 检查 / R 恢复；系统静态代理可达优先、不可用再直连，原生 Git 业务最多一次。 |
 
-macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 Visual Studio 项目入口承接；[**CocoaPods**](https://cocoapods.org/) 的安装 / 升级入口属于 macOS 工具链，Windows 版不提供。Windows 当前提供 22 个现行安装单元，macOS 侧的当前功能见同级说明。
+macOS 原版的 [**Xcode**](https://developer.apple.com/xcode/) 项目入口由 Visual Studio 项目入口承接；[**CocoaPods**](https://cocoapods.org/) 的安装 / 升级入口属于 macOS 工具链，Windows 版不提供。Windows 当前提供 23 个现行安装单元，macOS 侧的当前功能见同级说明。
 
 IDE 打开规则以各包 README 和源码为准：Android Studio 仅原生 Android / 有效 Flutter（官方 / OpenHarmony）根目录；VSCode 对非空且非 iOS 工程的普通目录可见，Flutter 根中含 `ios/` 仍允许，纯 macOS Xcode / Swift Package 不据此排除。两项均排除文件、多选、包及链接，忽略仅含 `.DS_Store` / `Thumbs.db` / `desktop.ini` 的空壳目录，其余隐藏项算内容；只查当前层及 workspace 明确引用（含正规化的 `..`），不递归猜父子工程。iOS 元数据不可读、超过读取边界或引用无法解析时，VSCode 按未知状态隐藏。Windows 不提供 Xcode 菜单，Visual Studio 保持原有工程选择范围。
 
-每项功能拥有独立源码包、运行目录、菜单注册、配置、日志及卸载入口；包内运行代码不引用总目录或其他包。通用基础代码在维护时同步到各包，安装后不需要共享运行模块。Git 提交回退与 Sourcetree 打开包使用共享父菜单的原生动态 Git 子菜单；Sourcetree 项另检测实际应用文件，未安装时隐藏。其中普通非 Git 目录、链接、裸仓、元数据内部和畸形内层 .git 隐藏，执行时再次用 Git 校验。Flutter 运行、打包、体检和代码生成包使用原生 `IContextMenu`，在菜单构建时精确识别项目，无效目录不插入菜单。Android / Harmony 模拟器包分别使用桌面空白专用原生 handler，普通目录及选中项不插入菜单；OpenHarmony 另限制 Windows x64。单文件运行授权 / 解除运行授权使用可执行 / 脚本格式单文件专用原生 handler，普通文档、目录、多选和链接隐藏；两项在适用文件上始终保留，按当前 ExecuteFile 状态互斥置灰，无法可靠读取时均置灰；隐藏文件包仅在系统桌面空白显示动态下一动作，查询不写设置、点击后只按该标题固定的目标设置当前用户 `Advanced\Hidden` 并通知刷新；Android Studio / VSCode 两包使用原生动态非空 / 工程门禁，点击及后台再校验，旧静态入口精确清退；其余包沿用静态菜单，点击后再校验并给出具体错误，非法目标不会运行依赖或提交命令。菜单按单选设计，多选批量操作不在支持范围内。
+每项功能拥有独立源码包、运行目录、菜单注册、配置、日志及卸载入口；包内运行代码不引用总目录或其他包。通用基础代码在维护时同步到各包，安装后不需要共享运行模块。Git 提交回退包使用共享父菜单的原生动态 Git 子菜单。其中普通非 Git 目录、链接、裸仓、元数据内部和畸形内层 .git 隐藏，执行时再次用 Git 校验。Flutter 运行、打包、体检和代码生成包使用原生 `IContextMenu`，在菜单构建时精确识别项目，无效目录不插入菜单。Android / Harmony 模拟器包分别使用桌面空白专用原生 handler，普通目录及选中项不插入菜单；OpenHarmony 另限制 Windows x64。单文件内容查看包仅对一个普通文件显示，后台复核并在可见终端按大小 / 编码确认后固定块只读输出；目录、多选和链接隐藏。单文件运行授权 / 解除运行授权使用可执行 / 脚本格式单文件专用原生 handler，普通文档、目录、多选和链接隐藏；两项在适用文件上始终保留，按当前 ExecuteFile 状态互斥置灰，无法可靠读取时均置灰；隐藏文件包仅在系统桌面空白显示动态下一动作，查询不写设置、点击后只按该标题固定的目标设置当前用户 `Advanced\Hidden` 并通知刷新；Android Studio / VSCode 两包使用原生动态非空 / 工程门禁，点击及后台再校验，旧静态入口精确清退；其余包沿用静态菜单，点击后再校验并给出具体错误，非法目标不会运行依赖或提交命令。菜单按单选设计，多选批量操作不在支持范围内。
 
 ## 二、<span id="installation">安装、配置与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 系统前提：以 Windows 10 / 11 图形桌面为目标，要求 Windows PowerShell `5.1` Desktop 与系统 .NET；具体系统、架构和 build 的支持边界见 [Windows 版本矩阵](#windows-compatibility)，未完成完整实机兼容验收。各功能只在执行时检查自己的 Git、IDE 或 SDK 依赖；安装菜单本身不下载软件。Flutter 运行 / 打包 / 环境诊断 / 代码生成、Git 提交回退包及 Android / Harmony 模拟器、单文件权限和隐藏文件包额外要求现有 Visual Studio / Build Tools 的 C++ 桌面工作负载、MSVC 与 Windows SDK；缺失时在注册前停止，详见[独立说明](./JobsFlutterRunner/README.md#installation)。企业执行策略、应用控制或杀毒策略可能阻止未签名脚本，须遵循设备管理策略处理。
 
-### <span id="install">[【Windows】🧩安装资源管理器扩展.cmd](./【Windows】🧩安装资源管理器扩展.cmd)</span>
+### <span id="install">[【Windows】🧩管理资源管理器扩展.cmd](./【Windows】🧩管理资源管理器扩展.cmd)</span>
 
-> **目的：** 打开组合安装面板，只安装或更新本次勾选的独立功能包。
+一个入口接管安装 / 更新与卸载。初次进入不勾选任何功能，在窗口上方选择操作，再勾选一个或多个功能并点击确认；全选 / 全不选只改变选择，取消、关闭或空选不执行。切换操作会清空勾选，避免把上一操作的选择误用于下一操作。
 
-- 打印来源、安装目标和注册表范围，打开原生复选框窗口；每次进入默认全选。
-  - 按用途分组显示每项功能；Flutter 展开 14 项实际子动作，组内与底部均提供全选 / 全不选。选项区可滚动，底部操作按钮固定，窗口按屏幕工作区定尺寸；悬停查看完整说明。
-  - 底栏统一提供“全选 / 全不选 / 安装 / 取消”；空选时安装按钮置灰，回车也不能绕过，取消或关闭窗口不写入安装状态。
-- 点击“安装”后，按清单顺序逐包安装或更新已选包；未勾选的已安装包保持原状。
-  - 只部署所选包自身的运行模块；每包逐文件校验 SHA-256，并只检查、备份和修改自己的菜单键。
-  - 遇到没有本工具归属标记的同名键，停止并保留原内容。
-- 每个包独立提交配置；该包失败时回滚该包的菜单与状态。
-  - 整批操作逐包执行；一包失败就停止，汇报已完成与失败项，前面成功的包不撤销。
-- 各包创建自己的开始菜单卸载入口，通知资源管理器刷新关联。
-  - 不强制重启资源管理器；重新打开右键菜单查看结果。
+- 轻量启动：双击原总入口 `.cmd` 或各包 `Manage.cmd`，脚本只通过 Windows Script Host 唤起 GUI，随后立即结束本次脚本；安装、卸载、编译和输出均交给隐藏 PowerShell 进程，持续显示在面板内。也可直接双击同名 `.vbs`；设备需允许 Windows Script Host。不会关闭用户已打开的其它 CMD 会话。
+- 面板内执行：操作按钮直接启动隐藏的后台事务，窗口保持打开。每项显示等待、正在安装 / 更新或卸载、已完成、失败、未执行；同包的多个叶子共用一次事务，并在事务结束后一起更新状态。总进度按已处理项 / 本次所选项显示计数和百分比；成功与失败计入已处理，等待中、执行中和未执行项不计入，100% 表示全部处理完毕，结果以成功 / 失败汇总为准。安装 / 更新和卸载分别计时；点击时只清零并启动当前操作计时，后台全部结束或启动失败时只冻结当前耗时。每秒刷新 `HH:mm:ss`（小时可超过 24），执行时显示“安装用时 / 卸载用时”，结束显示“安装总用时 / 卸载总用时”。两份耗时只在当前面板会话内独立保留。安装成功显示绿色“✅ 安装成功”。无可靠编译百分比时，当前项仍显示执行中。
+- 实时日志：底部同时显示后台标准输出和标准错误，未换行的命令进度也增量显示；支持选中文字复制、自动滚动开关及“复制全部日志”。日志区上沿的分隔条可上下拖动，调节结果在当前窗口保留；上下限为功能行、操作按钮和日志工具栏留出空间。日志正文右键可“复制”或“全选”，也支持 Ctrl+A / Ctrl+C；全选仅针对当前可见缓冲区，完整输出使用“复制全部日志”。完整输出保存在本次独立的系统临时 `JobsExtensionManager-<运行编号>.log`；可见区限长，复制全部读取完整文件。执行中等待事务完成后关闭，避免中途终止注册或回滚。
+- 失败项显示红色“失败，见日志”，点击后新开 PowerShell 窗口，用 `Get-Content -LiteralPath` 只读显示本次完整会话日志；提示包含实际日志位置。其它状态不可点击，日志缺失、不可读或终端无法启动时在面板显示具体原因；不影响当前后台任务，也不执行日志正文。
+- 安装 / 更新：只部署本次勾选的功能包；Flutter 合并本次勾选与已启用动作，未选兄弟动作保留。在面板确认安装 / 更新后立即执行，无二次终端确认。
+- <span id="uninstall">卸载</span>：未安装项置灰；只移除勾选的已安装功能，面板确认后立即执行，无二次终端确认。Flutter 可仅移除一项或几项，剩余叶功能继续保留，最后一项移除时注销整个包。
+- 功能按用途分组，组内及底部提供全选 / 全不选；按实际字体及 DPI 为所有计数状态、功能标题和执行状态测量空间，宽度不足时减少列数或换行并增加行高。进度说明和日志工具栏按内容留出空间，内容区可滚动，操作区固定；悬停说明包含当前安装状态。选择本身不修改系统。
+- 每包逐文件校验 SHA-256，独立备份、提交和回滚本包菜单与配置；同名注册项归属不明时停止。只校验本次选择的包；某包缺少源码、安装器或执行失败时标记本包失败并继续其它所选包，成功结果保留；平台 / 共享管理环境或计划无效仍停止。卸载沿现有状态与注册流程执行，不要求构建源码。
+- 只修改当前用户本包菜单键和状态；保留运行版本、日志、备份、工具及正在运行的会话。不会强制重启资源管理器，Windows 11 从“显示更多选项”查看。
+- 独立功能目录的 `Manage.vbs` 和兼容 `Manage.cmd` 均进入同一个管理面板，不需要总目录；Flutter 独立包也提供 36 项叶功能选择。旧 Flutter 包的安装 / 更新转入同级统一 Flutter 包，卸载仍只移除该旧包菜单。
 
-### <span id="install-compat">[Install.cmd](./Install.cmd)</span>
+所有入口从自身位置定位源码，`-ExecutionPolicy Bypass` 只影响当前 PowerShell 进程，不提权、不持久修改策略、不配置代理。各包现有开始菜单卸载快捷方式仍调用内部 `-Mode Uninstall`，不增加二次终端确认。
 
-> **目的：** 保留原有英文安装入口，与中文安装脚本使用同一个 `Install` 模式。
-
-- 从自身位置定位 `Scripts/Manage.ps1`，打开上述安装面板。
-- 选择、取消、安装范围和失败停止规则与中文入口一致。
-
-### <span id="configure">[Configure.cmd](./Configure.cmd)</span>
-
-> **目的：** 重新打开同一个组合安装面板，对登记功能分别勾选、关闭、全选或全不选。
-
-- 读取各包的现有状态并勾选已启用项，使用同一内容滚动、底栏固定的分组布局。
-- 底栏提供“全选 / 全不选 / 保存配置 / 取消”；保存时逐包安装或更新已选项，卸载取消勾选的已安装项，允许全不选后保存以关闭全部；取消保持原选择。
-- 组合配置需要保留完整源码总目录，再运行根目录 `Configure.cmd`。
-  - 已安装菜单使用各包自己的部署副本，不依赖源码位置；单包仍可独立重装或通过自己的卸载入口移除。
-
-### <span id="uninstall">[【Windows】🧩卸载资源管理器扩展.cmd](./【Windows】🧩卸载资源管理器扩展.cmd)</span>
-
-> **目的：** 打开卸载面板，只移除选中的已安装功能包，保留可追溯数据和正在执行的会话。
-
-- 卸载面板只列出已安装功能，默认全部勾选；Flutter 可仅卸载某些子功能，剩余动作继续保留，最后一项取消时注销整个包。其它未勾选包继续保留。
-  - 使用同一内容滚动、底栏固定的分组布局，提供“全选 / 全不选 / 卸载 / 取消”；空选时卸载按钮置灰，回车也不能绕过。
-- 每包备份自己的菜单注册，删除自己的菜单键和卸载快捷方式，写入 `Enabled=false` 状态。
-  - 保留停用状态可防止旧版总配置把已卸载功能重新识别为启用。
-- 保留各包的 `releases/`、`logs/`、`backups/` 和 `tools/`，不删除其他软件或正在运行的会话。
-  - 需要彻底清理时，等待本工具终端全部退出，再手动移除当前用户本地应用数据中的 `Jobs\WindowsExtension` 文件夹。
-
-### <span id="uninstall-compat">[Uninstall.cmd](./Uninstall.cmd)</span>
-
-> **目的：** 保留原有英文卸载入口，与中文卸载脚本使用同一个 `Uninstall` 模式。
-
-- 从自身位置定位 `Scripts/Manage.ps1`，仅显示已安装包。
-- 只卸载本次勾选项，数据保留和取消规则与中文入口一致。
-
-五个总入口只负责选择与编排，不部署集中业务模块。中英文安装、卸载入口均直接调用 `Scripts/Manage.ps1` 的对应模式；各包的 `Install.cmd` / `Uninstall.cmd` 可直接运行，操作仅涉及该包。所有入口都从自身位置查找脚本，与当前终端目录无关。`-ExecutionPolicy Bypass` 仅作用于本次 PowerShell 进程，不修改系统或用户的永久执行策略；不提权，不配置代理。
-
-也可在项目根目录的 Windows PowerShell 中运行：
+在本仓根目录的 Windows PowerShell 也可直接运行：
 
 ```powershell
 powershell.exe `
@@ -219,40 +191,21 @@ powershell.exe `
   -STA `
   -ExecutionPolicy Bypass `
   -File .\Scripts\Manage.ps1 `
-  -Mode Install
+  -Mode Manage
 ```
 
-只预览面板时，在同一命令末尾添加 `-Preview`，五个根目录 `.cmd` 入口也都支持传入该参数。预览窗口标题标明“仅预览”，操作按钮显示“返回选择”；确认后只输出选择结果，不部署包、不写入安装状态或注册表。卸载预览始终列出全部登记包并默认全选，方便没有安装历史的机器检查完整面板；真实卸载仍只列出已安装包。
-
-```powershell
-powershell.exe `
-  -NoLogo `
-  -NoProfile `
-  -STA `
-  -ExecutionPolicy Bypass `
-  -File .\Scripts\Manage.ps1 `
-  -Mode Install `
-  -Preview
-```
-
-也可在 Windows 命令提示符中直接预览配套卸载入口：
-
-```batch
-"【Windows】🧩卸载资源管理器扩展.cmd" -Preview
-```
+只预览时追加 `-Preview`，或运行 `"【Windows】🧩管理资源管理器扩展.cmd" -Preview`。窗口标明仅预览，确认只在底部日志显示所选功能与操作，不部署、不写状态或注册表。内部仍支持 `-Mode Install / Uninstall / Configure`；`Configure` 的空选表示显式关闭全部，确认计划后直接执行，不增加二次终端确认。默认管理面板空选始终不执行。
 
 ## 三、<span id="structure">目录结构与安装状态</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 ```text
 WindowsOS@Extension/
-├── 【Windows】🧩安装资源管理器扩展.cmd  功能复选框组合安装入口
-├── 【Windows】🧩卸载资源管理器扩展.cmd  已安装包的选择卸载入口
-├── Install.cmd / Uninstall.cmd  保留的英文兼容入口
-├── Configure.cmd               全量启用状态配置入口，可关闭全部
+├── 【Windows】🧩管理资源管理器扩展.vbs  无控制台的总管理面板
+├── 【Windows】🧩管理资源管理器扩展.cmd  只唤起 GUI 后立即结束的轻量入口
 ├── Extensions.json             包名与功能标识清单
 ├── Scripts/                    总面板、清单校验、逐包编排与维护入口
 │   ├── README.md               脚本目录职责、入口与依赖说明
-│   ├── Manage.ps1              三种模式编排与 -Preview 只读预览
+│   ├── Manage.ps1              管理面板与 -Preview 只读预览
 │   ├── Installer.psm1          分组滚动选择面板，操作区固定
 │   ├── Catalog.psm1            清单校验与各模式操作计划
 │   └── MarkdownToc.mjs         目录过滤器的兼容入口
@@ -266,6 +219,7 @@ WindowsOS@Extension/
 ├── JobsVSCodeOpener/            用 VSCode 打开项目
 ├── JobsAndroidStudioOpener/     用 Android Studio 打开项目
 ├── JobsTerminalOpener/          用终端打开
+├── JobsFileContentViewer/       单文件终端查看与大文件确认
 ├── JobsFlutterRunner/           动态 Flutter 运行菜单、CMD 与独立后台宿主
 ├── JobsFlutterPackager/         Flutter打包动态菜单、fzf平台与Android/OpenHarmony 产物选择
 ├── JobsFlutterDoctor/           Flutter 根目录只读体检、可见 CMD 日志
@@ -293,7 +247,8 @@ WindowsOS@Extension/
 ```text
 <功能包名>/
 ├── Extension.json              包身份、菜单名称与适用范围
-├── Install.cmd / Uninstall.cmd  只管理本包的双击入口
+├── Manage.vbs  只管理本包的无控制台双击入口
+├── Manage.cmd  只唤起 GUI 后立即结束的轻量入口
 ├── README.md                   本包的独立使用说明
 └── Scripts/
     ├── Manage.ps1              本包安装 / 卸载入口
@@ -318,11 +273,11 @@ WindowsOS@Extension/
 > **目的：** 在开发维护时核对或显式同步各独立包内嵌的纯通用基础代码。
 
 - 默认只检查 `Infrastructure/` 中的 `Common.psm1`、`Invoke.ps1`、`Manage.ps1`、`PackageInstaller.psm1` 与登记包的副本是否一致，有差异时报告并失败，不写文件。
-- 原生 Flutter 运行 / 打包 / 体检 / 代码生成、Android / Harmony 模拟器、单文件权限、Sourcetree 打开和 Android Studio / VSCode 包只覆盖 `PackageInstaller.psm1`；隐藏文件包另外覆盖 `Invoke.ps1` 以传递明确 Show / Hide；统一 Flutter 多叶包固定覆盖 `PackageInstaller.psm1,Invoke.ps1,Manage.ps1`。专用构建与 COM 事务按白名单独立维护，未覆盖模板按字节保持一致。
+- 原生 Flutter 运行 / 打包 / 体检 / 代码生成、Android / Harmony 模拟器、单文件权限 / 内容查看和 Android Studio / VSCode 包只覆盖 `PackageInstaller.psm1`；隐藏文件包另外覆盖 `Invoke.ps1` 以传递明确 Show / Hide，文件分卷包另外覆盖 `Invoke.ps1` 以接收精确多选清单；统一 Flutter 多叶包固定覆盖 `PackageInstaller.psm1,Invoke.ps1,Manage.ps1`。专用构建与 COM 事务按白名单独立维护，未覆盖模板按字节保持一致。
 - 显式传入 `-Write` 才同步未声明覆盖的模板到各包；不修改 `Action.psm1`、`Extension.json` 或包的业务配置。
 - 修改模板后先同步，再执行回归；CI 使用默认只检查模式，防止维护副本漂移。
 
-后续修改从 [Scripts/Manage.ps1](./Scripts/Manage.ps1) 的 `MAINTENANCE_INDEX` 开始：它列出总面板、稳定功能 ID、包清单、原生 / 后台核心、构建产物、注册与状态的对应关系。两个总安装 CMD 也保留同名索引注释；只改源码，安装 release 的清单 / 脚本由哈希校验复制，勿手改部署副本。
+后续修改从 [Scripts/Manage.ps1](./Scripts/Manage.ps1) 的 `MAINTENANCE_INDEX` 开始：它列出总面板、稳定功能 ID、包清单、原生 / 后台核心、构建产物、注册与状态的对应关系。总管理 CMD 只唤起相邻同名 VBS 后结束，VBS 隐藏调用该调度入口；只改源码，安装 release 的清单 / 脚本由哈希校验复制，勿手改部署副本。
 
 从总目录只检查：
 
@@ -359,6 +314,8 @@ powershell.exe `
 - **Git 拉取：** [独立拉取包](./JobsGitPuller/README.md) 对非 Git 目录静默返回；有未提交内容时列出改动、空行确认。fetch 成功后保存 HEAD / index / 含未跟踪文件的快照，再 merge 唯一 upstream；冲突时可恢复、精确 `YES` 后放弃本轮改动，或输入允许为空的信息提交后重试。新提交和已确认放弃结果成为下一轮基线；保留原恢复锚点、不清除用户 stash、不递归子模块、不清理忽略文件或嵌套仓库。
 - **Git 动态代理：** [桌面独立配置包](./JobsGitProxyConfigurator/README.md)只在当前用户 DesktopBackground 注册同名菜单；菜单安装不执行 Git 配置，菜单卸载不恢复已配置的 Git。用户 PATH 可能晚于机器 Git，使用专用终端入口或在 Sourcetree 等应用选择真实 shim；不宣称全部终端和 GUI 已被接管。
 - **Flutter 依赖提取：** [独立提取包](./JobsFlutterDependencyExtractor/README.md) 严格校验所选项目，终端自述回车后接受输出父目录，空行默认系统桌面；复用项目 FVM、Flutter 内置或 PATH 的健康原生 Dart，不下载工具。锁文件和包配置联合解析直接、间接与开发用非 SDK Pub 包，复制源码及许可证；缺少或过期记录时提示手动 `flutter pub get` 后重试。不会自动获取依赖，不包含单独解析的 CocoaPods/Gradle 依赖，不修改原项目或缓存。
+  - 各类拉取按工程锁定版本与本次目标处理，原生编译只覆盖当前 target、flavor、模式和架构，不承诺其它配置或后续构建全部离线；Apple 目标须 macOS，Linux 桌面须 Linux。Pub 源码快照保持原格式；平台缓存另由“提取Flutter项目工程依赖”和“导入Flutter项目工程依赖”中的十个配对动作处理 Gradle、OpenHarmony、native、precache 与 Web，Apple 两类仅 macOS。归档记录宿主、工具版本、组件、锁指纹和文件 hash；导入先完整预检再 YES，同名不同内容拒绝覆盖，不执行快照脚本。native 是本机构建缓存、precache 只含 artifacts，node_modules 原生扩展要求兼容宿主 / Node，不保证任意跨宿主离线。
+- **Flutter 依赖导入：** 在[统一 Flutter 菜单](./JobsFlutterTools/README.md)中选择“导入Flutter项目工程依赖 → 📤 导入 Flutter Pub 依赖”，CMD 输入或拖入完整导出目录；完整识别与校验通过后显示计划，精确 `YES` 才复制源码到当前项目独立 vendor 目录，备份并增量合并 `pubspec_overrides.yaml`。同名覆盖冲突拒绝，目录提示处空回车会持续询问，`Ctrl+C` 或 EOF 退出；最终确认处非 `YES` 取消；不执行依赖源码、不自动 pub get、不改全局缓存。当前仅支持独立 Flutter 项目；Pub workspace 根和成员均暂不支持，具体边界见[导入说明](./JobsFlutterTools/Scripts/Actions/import-dependencies/Scripts/README.md)。
 - **日志：** 安装管理和业务终端分别保留日志。Git 远程可能包含凭据；不把原始凭据地址写入日志，复制动作仍按需求保留原地址。终端命令失败返回错误并停止当前流程，窗口保留到回车关闭。
   - Flutter 三项功能、CodeGraph、空白提交和 Git 拉取各自在可见的交互终端中运行本包业务，确认提示和执行结果保持可见。
 
@@ -438,13 +395,13 @@ powershell.exe `
   -File .\Tests\FlutterDependencyExtractor.Tests.ps1
 ```
 
-Flutter打包 回归使用临时工程与假工具，覆盖项目识别、FVM 绑定、严格 mode / flavor 产物匹配、依赖和 APK 失败停止、Gradle 缓存复用，OpenHarmony 适配 SDK 能力 / DevEco 健康链 / HAP 与 APP 产物、失败后环境恢复，以及 Windows iOS 在任何 Flutter 命令前停止。运行 `Tests/FlutterPackager.Tests.ps1`；原生 DLL、Explorer 显隐、CMD / fzf 交互与真实 Android / HarmonyOS 签名构建仍待 Windows 实机。
+Flutter打包 回归使用临时工程与假工具，覆盖项目识别、FVM 绑定、严格 mode / flavor 产物匹配、依赖和 APK 失败停止、Gradle 缓存复用，OpenHarmony 适配 SDK 能力 / DevEco 健康链 / HAP 与 APP 产物、失败后环境恢复，以及 Windows iOS 在任何 Flutter 命令前停止。运行 `Tests/FlutterPackager.Tests.ps1` 与 `Tests/FlutterHarmonyPackage.Tests.ps1`，后者覆盖快捷动作的固定双产物参数、缺平台/FVM、取消/EOF、失败传播及聚合派发；原生 DLL、Explorer 显隐、CMD / fzf 交互与真实 Android / HarmonyOS 签名构建仍待 Windows 实机。
 
 Android 模拟器检测修复的隔离回归见 [功能包说明](./JobsAndroidSimulatorRepairer/README.md)：使用假 ADB 与临时 AVD 覆盖真机排除、确认门禁、停机失败保护、备份与不缩容；不操作真实设备。`-Check` 只读诊断，容量配置写入后仍须启动复测；Windows PowerShell 5.1 隔离夹具已在上述虚拟机运行，MSVC 构建、Explorer 菜单及真实 AVD 启动和容量复测仍须在受支持宿主验收。
 
-Harmony 模拟器隔离回归从根目录运行 `Tests/HarmonySimulatorCreator.Tests.ps1`，仅用临时目录与假 CLI 核对已下载镜像、创建能力、失败停止、无自动许可与桌面范围；不创建真实设备。相关组合回归同时检查唯一清单身份、独立 COM 注册、单包复制、基础设施覆盖及 35 项可选功能 / 22 个安装包的面板布局。Windows PowerShell 5.1 隔离夹具结果见本节汇总；MSVC DLL、Explorer 显隐、官方镜像与启动许可交互仍须在受支持的 AMD64 物理机验收。
+Harmony 模拟器隔离回归从根目录运行 `Tests/HarmonySimulatorCreator.Tests.ps1`，仅用临时目录与假 CLI 核对已下载镜像、创建能力、失败停止、无自动许可与桌面范围；不创建真实设备。相关组合回归同时检查唯一清单身份、独立 COM 注册、单包复制、基础设施覆盖及 58 项可选功能 / 23 个安装包的面板布局。Windows PowerShell 5.1 隔离夹具结果见本节汇总；MSVC DLL、Explorer 显隐、官方镜像与启动许可交互仍须在受支持的 AMD64 物理机验收。
 
-核心回归覆盖独立包的参数转义、路径处理、远程网页转换、进程树超时清理和临时真实 Git 工作树。总安装器回归核对逐包操作计划和失败停止；独立包安装器回归核对隔离注册、卸载、冲突保护、配置提交与事务回滚。架构回归将功能包单独复制到临时目录，检查包内容完整、功能业务归属和不依赖总目录的边界。业务模块回归覆盖各包独立导入与调用、项目门禁、Git 推送计划、暂存区保护及数据库只读检查，不运行真实安装入口或实际推送。FVM 选版回归另覆盖严格 pubspec、离线只选就绪缓存、取消不写项目、配置字段保留、备份与父项目保护，全部采用临时夹具。Git 拉取回归使用临时裸远端覆盖暂存 / 未暂存 / 未跟踪恢复、三选项重试、空提交信息、已有 stash 保护和失败停止。Flutter 依赖提取回归以临时夹具核对根项目门禁、路径不求值、系统桌面默认、健康 Dart 发现及 release 包内引擎完整性。仓库附带 Windows CI 配置，包含基础模板一致性检查及上述回归；但未推送触发，不能将其视为已通过的远程结果。
+核心回归覆盖独立包的参数转义、路径处理、远程网页转换、进程树超时清理和临时真实 Git 工作树。总安装器回归核对逐包操作计划、坏包隔离与失败后继续其它所选包；独立包安装器回归核对隔离注册、卸载、冲突保护、配置提交与事务回滚。架构回归将功能包单独复制到临时目录，检查包内容完整、功能业务归属和不依赖总目录的边界。业务模块回归覆盖各包独立导入与调用、项目门禁、Git 推送计划、暂存区保护及数据库只读检查，不运行真实安装入口或实际推送。FVM 选版回归另覆盖严格 pubspec、离线只选就绪缓存、取消不写项目、配置字段保留、备份与父项目保护，全部采用临时夹具。Git 拉取回归使用临时裸远端覆盖暂存 / 未暂存 / 未跟踪恢复、三选项重试、空提交信息、已有 stash 保护和失败停止。Flutter 依赖提取回归以临时夹具核对根项目门禁、路径不求值、系统桌面默认、健康 Dart 发现及 release 包内引擎完整性。仓库附带 Windows CI 配置，包含基础模板一致性检查及上述回归；但未推送触发，不能将其视为已通过的远程结果。
 
 Flutter 动作的隔离回归从仓库根运行：
 
@@ -456,9 +413,9 @@ powershell.exe `
 
 该回归用临时项目和假工具检查严格项目识别、同源 SDK / FVM、七类配置计划、取消、默认 / 显式冲突标志、子进程失败传播及只读 Check 入口。两个包还各自提供 `Scripts/Check.ps1 -Target`，只打印计划，不调用 SDK、获取依赖或写生成文件。
 
-`Tests/SelectionPanel.Tests.ps1` 另核对面板选择规则、普通屏 / 矮屏布局计算、空选门禁和安装 / 配置 / 卸载操作计划。面板按实际条目与工作区分组排布，当前 35 项可选功能对应 22 个安装包；选项超过可见区域时滚动内容，操作按钮始终固定，只有连固定操作区都无法容纳的工作区才停止。`Tests/FlutterFeatureSelection.Tests.ps1` 核对 14 个 Flutter 叶动作、旧状态兼容、精确替换、部分卸载及组内选择，`Tests/FlutterSelectionProbe.cpp` 检查原生白名单、指针版本、中文路径及空动作墓碑。回归通过不代替真实 WinForms 窗口、MSVC 构建与 Explorer 的验收。
+`Tests/SelectionPanel.Tests.ps1` 另核对面板选择规则、普通屏 / 矮屏布局计算、空选门禁和安装 / 配置 / 卸载操作计划。面板按实际条目与工作区分组排布，当前 58 项可选功能对应 23 个安装包；选项超过可见区域时滚动内容，操作按钮始终固定，只有连固定操作区都无法容纳的工作区才停止。`Tests/FlutterFeatureSelection.Tests.ps1` 核对 36 个 Flutter 叶动作、旧状态兼容、精确替换、部分卸载及组内选择，`Tests/FlutterSelectionProbe.cpp` 检查原生白名单、指针版本、中文路径及空动作墓碑。回归通过不代替真实 WinForms 窗口、MSVC 构建与 Explorer 的验收。
 
-交付已完成 macOS 逻辑检查及上述 Windows 原生隔离回归；**Explorer 中的菜单显示、真实功能包安装 / 卸载、剪贴板、IDE 与终端交互仍须在目标桌面验收**。先用 `-Preview` 验证一至三列选项与底栏完整可见、悬停说明、全选 / 全不选、空选安装 / 卸载置灰且回车无效、配置全不选可保存，以及取消 / 关闭窗口。再依次验证首次组合安装、安装部分选择且保留其他已安装包、配置关闭功能、单独复制一包安装、卸载一包而保留其他包、目录空白处、磁盘根目录、中文特殊路径、依赖缺失提示及旧版逐项迁移。
+交付已完成 macOS 逻辑检查及上述 Windows 原生隔离回归；**Explorer 中的菜单显示、真实功能包安装 / 卸载、剪贴板、IDE 与终端交互仍须在目标桌面验收**。管理 GUI 的隐藏后台、字符流日志和逐叶事务使用假安装模块隔离验证，见 `Tests/ManagementExecution.Tests.ps1`；完整日志终端的特殊字符路径、正文不求值、超长文件与不可读分支由 `Tests/ManagementLogTerminal.Tests.ps1` 隔离检查；真实 WinForms 链接点击、新终端窗口、Windows PowerShell 5.1 与 WScript 无闪启动仍须 Windows 桌面验收。先用 `-Preview` 验证一至三列选项与底栏完整可见、悬停说明、全选 / 全不选、空选安装 / 卸载置灰且回车无效、配置全不选可保存，以及取消 / 关闭窗口。再依次验证首次组合安装、安装部分选择且保留其他已安装包、配置关闭功能、单独复制一包安装、卸载一包而保留其他包、目录空白处、磁盘根目录、中文特殊路径、依赖缺失提示及旧版逐项迁移。
 
 官方实现依据：[当前用户菜单注册](https://learn.microsoft.com/windows/win32/shell/context-menu-handlers)、[Windows 11 经典菜单兼容入口](https://blogs.windows.com/blog/2021/07/19/extending-the-context-menu-and-share-dialog-in-windows-11/)。
 
@@ -520,37 +477,37 @@ node .jobs-markdown-toc/MarkdownToc.mjs uninstall
 
 ## 七、<span id="project-statistics">项目统计与复核口径</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-本章除功能包数量与 7.6 源码行数外的数量统计日期为 **2026-10-19（Asia/Shanghai）**；功能包数量按当前清单与安装面板复核于 **2026-10-26**，7.6 源码行数按同日工作树重算。规模统计使用当前磁盘工作树，包含已存在的未提交新增功能。根目录无 `.codegraph/`，直接核对清单、源码、测试和 CI 配置，未建立索引。功能、依赖或目录变化时同步更新本章；超过一个迭代周期须重新复核。
+本章除功能包数量与 7.6 源码行数外的数量统计日期为 **2026-10-19（Asia/Shanghai）**；功能包数量按当前清单与安装面板复核于 **2026-10-27**，7.6 源码行数按同日工作树重算。规模统计使用当前磁盘工作树，包含已存在的未提交新增功能。根目录无 `.codegraph/`，直接核对清单、源码、测试和 CI 配置，未建立索引。功能、依赖或目录变化时同步更新本章；超过一个迭代周期须重新复核。
 
-### <span id="jobs-toc-heading-16" data-jobs-toc="v2">7.1、工具链与锁文件 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+### <span id="jobs-toc-heading-12" data-jobs-toc="v2">7.1、工具链与锁文件 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 类别 | 名称 / 版本 | 依据 / 锁定状态 |
 | --- | --- | --- |
 | 语言 / 运行时 | Windows PowerShell `5.1` Desktop、系统 .NET / WinForms | `Scripts/Manage.ps1` 启动门禁与 `Scripts/Installer.psm1`；不是 PowerShell 7 运行入口。系统 .NET 精确版本未锁定。 |
 | 目标系统 / 最低版本边界 | Windows `10 / 11` 图形桌面，完整实机验收待完成 | [兼容矩阵](#windows-compatibility)区分旧系统探索、CPU 架构与外部工具要求；入口检查 Win32NT / Desktop / PowerShell 5.1，最低具体 Windows build 未统一强制。 |
-| 构建 | 普通包直接部署脚本 / Dart 引擎；原生 Flutter 运行 / 打包 / 体检 / 代码生成及 Android / Harmony 模拟器、单文件权限、隐藏文件及 Android Studio / VSCode 包使用现有 MSVC / Windows SDK；运行包另需系统 .NET csc | `JobsFlutterRunner/Scripts/Build.ps1`；按 Explorer 原生架构构建 C++ DLL，后台宿主为独立 .NET EXE，工具版本未锁定。 |
+| 构建 | 普通包直接部署脚本 / Dart 引擎；原生 Flutter 运行 / 打包 / 体检 / 代码生成及 Android / Harmony 模拟器、单文件权限 / 内容查看、隐藏文件及 Android Studio / VSCode 包使用现有 MSVC / Windows SDK；运行包另需系统 .NET csc | `JobsFlutterRunner/Scripts/Build.ps1`；按 Explorer 原生架构构建 C++ DLL，后台宿主为独立 .NET EXE，工具版本未锁定。 |
 | Dart | 复用项目 FVM / Flutter / PATH 的健康原生运行时，未锁精确版本 | `JobsFlutterDependencyExtractor/Scripts/Action.psm1` 及 `ExtractFlutterDependencies.dart`；最低 Dart 版本待矩阵核实。 |
 | Node.js | 文档工具 `20+`；CI 为 `24` | `.jobs-markdown-toc/README.md`、`.github/workflows/windows-tests.yml`；仅工具 / CI 依赖，菜单安装不依赖 Node。 |
 | 功能工具 | Git、IDE、Flutter、FVM、fzf、CodeGraph 按功能检查 | CodeGraph 精确限制 `1.6.2`；其它版本来源见[依赖表](#direct-dependencies)。 |
 | 锁文件 | 无已入库 npm / Pub / NuGet / PowerShell 包锁文件 | `git ls-files` 与当前新增包核对；没有外部 PowerShell 模块安装依赖。目标项目自己的锁文件是操作数据，不算扩展锁文件。 |
 
-### <span id="jobs-toc-heading-17" data-jobs-toc="v2">7.2、源码与部署管理 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+### <span id="jobs-toc-heading-13" data-jobs-toc="v2">7.2、源码与部署管理 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 本仓自有源码、功能目录与配套说明统一管理。功能目录不是独立后端服务，用户运行的是本地菜单、宿主、终端和工具链；安装单元与功能数量按下方当前目录及清单说明读取。
 
-### <span id="jobs-toc-heading-18" data-jobs-toc="v2">7.3、界面、功能与后端规模 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+### <span id="jobs-toc-heading-14" data-jobs-toc="v2">7.3、界面、功能与后端规模 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 端 / 计数单位 | 页面数 | 子页面数 | 路由数 | 依据与边界（2026-10-19） |
 | --- | --- | --- | --- | --- |
-| Windows / 页面组件（WinForms Form） | `1` | `0` | `0` | `Scripts/Installer.psm1` 的 `Show-JobsFeatureSelection` 创建单一 Form；安装、配置、卸载复用同一组件，按组件去重。 |
+| Windows / 页面组件（WinForms Form） | `3` | `0` | `0` | 2026-10-28：总面板 / 独立 Flutter 共用同款功能选择组件；其它独立包使用 `Show-PackageOperation` 操作组件，分卷包增加 `Show-JobsVolumeLimit` 上限组件，按源码组件去重；不同操作模式和随包副本不重复计数。 |
 | iOS / Android / Web | 不适用 | 不适用 | 不适用 | 本仓未交付这些平台应用；无 H5 / 跨端容器。消息框、文件选择、fzf、交互终端与外部 IDE 不计页面。 |
 
-`Extensions.json` 于 **2026-10-26** 复核的功能 `Id` 去重数为 `22`，对应 22 个现行安装包；磁盘另保留八个旧 Flutter 兼容源码目录，共 30 个源码目录，**不是页面或接口数量**；这些包当前没有各自独立 Git 元数据或 `.gitmodules`，按本仓普通目录聚合。注册表 `shell` 菜单与 PowerShell 方法是本地入口，不作为 Web 路由或后端 RPC。
+`Extensions.json` 于 **2026-10-30** 复核的功能 `Id` 去重数为 `23`，对应 23 个现行安装包；磁盘另保留八个旧 Flutter 兼容源码目录及一个已退役的 Sourcetree 源码目录，共 32 个源码目录，**不是页面或接口数量**；这些包当前没有各自独立 Git 元数据或 `.gitmodules`，按本仓普通目录聚合。注册表 `shell` 菜单与 PowerShell 方法是本地入口，不作为 Web 路由或后端 RPC。
 
 | 后端统计项 | 结果与依据（2026-10-19） |
 | --- | --- |
 | 对外接口 HTTP / RPC / MQ | 均为 `0`；`Action.psm1` 为本地命令，没有对外服务监听；下载、Git 和包源请求仅为出站调用。 |
-| 服务模块 / 部署单元 | 后端服务 `0`；客户端部署单元 `22` 个（2026-10-26），按 `Extensions.json` 对应包独立 release / 安装器计数。 |
+| 服务模块 / 部署单元 | 后端服务 `0`；客户端部署单元 `23` 个（2026-10-30），按 `Extensions.json` 对应包独立 release / 安装器计数。 |
 | 核心业务表 | `0`；状态用 `settings.json`，备份用 CLIXML；目标代码地图数据库不归本仓所有。 |
 | 业务状态机 | 后端业务状态机 `0`；本地安装 / 启用 / 停用、Git 冲突恢复属于操作流程，不算服务业务对象。 |
 | 外部系统集成 | 未集成支付、短信、实名、ERP 等业务服务；条件工具集成列于依赖表，Git 目标服务随用户仓库变化，不固定远端数量。 |
@@ -560,15 +517,15 @@ node .jobs-markdown-toc/MarkdownToc.mjs uninstall
 
 本地命令工具不符合“页面 : 接口”的业务关系，页面与接口比例校验不适用。
 
-### <span id="jobs-toc-heading-19" data-jobs-toc="v2">7.4、模块依赖与核心流程 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+### <span id="jobs-toc-heading-15" data-jobs-toc="v2">7.4、模块依赖与核心流程 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 以下为可编辑 [**Mermaid**](https://mermaid.js.org) 源码，虚线标出外部进程 / 系统边界。
 
 ```mermaid
 flowchart TD
-    A["总入口<br/>中文安装 / 卸载 .cmd<br/>Install.cmd / Configure.cmd / Uninstall.cmd"] --> B["总编排<br/>Scripts/Manage.ps1"]
+    A["总入口<br/>【Windows】🧩管理资源管理器扩展.cmd"] --> B["总编排<br/>Scripts/Manage.ps1"]
     B --> C["清单<br/>Extensions.json / Scripts/Catalog.psm1"]
-    B --> D["唯一面板<br/>Scripts/Installer.psm1<br/>35 项用途分组 / 内容滚动 / 底栏固定"]
+    B --> D["唯一面板<br/>Scripts/Installer.psm1<br/>58 项用途分组 / 内容滚动 / 底栏固定"]
     D --> P{"取消或 Preview?"}
     P -->|是| Q["返回选择或取消<br/>不部署、不写状态与注册表"]
     P -->|否| R["Catalog.psm1 生成计划<br/>安装保留未选包 / 配置保存全量状态<br/>卸载只处理已安装勾选项"]
@@ -602,7 +559,7 @@ flowchart TD
     H -.-> L["外部工具 / 远端 / 目标项目"]
 ```
 
-### <span id="jobs-toc-heading-20" data-jobs-toc="v2">7.5、功能实现清单 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+### <span id="jobs-toc-heading-16" data-jobs-toc="v2">7.5、功能实现清单 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 | 类目 | 是否涉及 / 实现与证据 |
 | --- | --- |
@@ -615,40 +572,43 @@ flowchart TD
 | 后端能力 | 无幂等服务、限流、熔断、分布式锁、服务事务、链路追踪、灰度、对账。每包安装事务 / 回滚、Git 快照及进程超时属于本地保护，不宣称后端能力。 |
 | 权限 / 隐私 / 日志 | 仅当前用户 `HKCU`，不提权；外部地址日志脱敏、原始地址按复制功能需求保留；路径不拼接为表达式。见 `Common.psm1`、`PackageInstaller.psm1`。不收集遥测；尚无单独产品隐私声明，发布前按实际分发方式核实。 |
 
-### <span id="jobs-toc-heading-21" data-jobs-toc="v2">7.6、业务代码占比 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
+### <span id="jobs-toc-heading-17" data-jobs-toc="v2">7.6、业务代码占比 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-源码行数快照日期 **2026-10-26**。以本仓 `git ls-files -c -o --exclude-standard` 返回的现存普通文件为候选，纳入当前清单登记的二十一个功能包（统一 Flutter 包内物理副本分别计数）、安装面板、中英文入口、基础设施及隔离测试；八个未登记的旧 Flutter 兼容目录不纳入。功能包均为本仓普通源码目录，该快照不等于远端已发布代码。
+源码行数快照日期 **2026-10-29**。以本仓 `git ls-files -c -o --exclude-standard` 返回的现存普通文件为候选，纳入该快照当日清单登记的二十四个功能包（统一 Flutter 包内物理副本分别计数）、管理面板、唯一总入口与各包管理入口、基础设施及隔离测试；八个未登记的旧 Flutter 兼容目录不纳入。功能包均为本仓普通源码目录，该快照不等于远端已发布代码，也不代表现行 23 包清单的重算结果。
 
-按物理行数（含空行、注释）计算。纳入 `.ps1`、`.psm1`、`.cmd`、`.mjs`、`.json`、`.yml`、`.yaml`、`.dart`、`.cpp`、`.h`、`.cs`、`.def` 和根 Git 属性 / 忽略配置。业务为登记包内 `Action.psm1`、Dart 引擎、原生菜单桥接 / 识别 / 后台宿主、模拟器创建 / 修复核心、Harmony SDK 与动作业务模块、两份 `RunPermissions.ps1`、两份 `ProjectEligibility.ps1`，以及 Git 动态入口 `Configure.ps1`、`Policy.ps1`、`NetworkPolicy.psm1`；`Tests/` 单列，其余为配置与脚本。排除 Markdown、资源、锁文件、第三方、生成代码、依赖和构建产物；本表不衡量去重后的逻辑复杂度。
+按物理行数（含空行、注释）计算。纳入 `.ps1`、`.psm1`、`.cmd`、`.mjs`、`.json`、`.yml`、`.yaml`、`.dart`、`.cpp`、`.h`、`.cs`、`.def` 和根 Git 属性 / 忽略配置。业务为登记包内 `Action.psm1`、Dart 引擎、原生菜单桥接 / 识别 / 后台宿主、模拟器创建 / 修复核心、Harmony SDK、ProjectSetup 环境 / 平台 / 阶段业务模块与动作业务模块、运行权限的 `RunPermissions.ps1 / ChangeRunPermission.ps1`、隐藏文件的 `ToggleHiddenFiles.ps1`、两份 `ProjectEligibility.ps1`、文件查看的 `FileViewer.ps1`，以及 Git 动态入口 `Configure.ps1`、`Policy.ps1`、`NetworkPolicy.psm1`；`Tests/` 单列，其余为配置与脚本。排除 Markdown、资源、锁文件、第三方、生成代码、依赖和构建产物；本表不衡量去重后的逻辑复杂度。
 
 | 类别 | 文件数 | 行数 | 行数占比 |
 | --- | --- | --- | --- |
-| 业务代码 | `79` | `13,816` | `32.93%` |
-| 测试代码 | `46` | `6,979` | `16.64%` |
-| 配置与脚本 | `232` | `21,156` | `50.43%` |
-| 纳入合计 | `357` | `41,951` | `100.00%` |
+| 业务代码 | `100` | `17,956` | `24.59%` |
+| 测试代码 | `60` | `8,932` | `12.23%` |
+| 配置与脚本 | `287` | `46,124` | `63.17%` |
+| 纳入合计 | `447` | `73,012` | `100.00%` |
 | 第三方源码（排除） | 候选中未发现 | — | 不参与分母 |
 
 ```mermaid
 pie showData
-    title 2026-10-26 自有源码物理行数占比
-    "业务代码" : 13816
-    "测试代码" : 6979
-    "配置与脚本" : 21156
+    title 2026-10-29 自有源码物理行数占比
+    "业务代码" : 17956
+    "测试代码" : 8932
+    "配置与脚本" : 46124
 ```
 
 ## 八、<span id="direct-dependencies">直接依赖与风险</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-统计日期 **2026-10-19**。安装 / 运行模块未声明需要安装的外部 PowerShell / npm / Pub 源码包，第三方嵌入式直接源码包为 `0`；引擎只用 Dart 标准库。下表统计直接工具及 CI 依赖，公有来源、私库地址不适用，不合计传递依赖，也不统计被操作项目的依赖。许可证为官方上游声明，具体分发版本须再核 LICENSE / NOTICE。
+统计日期 **2026-10-28**。扩展包未内嵌第三方 PowerShell / npm / Pub 源码包，第三方嵌入式直接源码包为 `0`；一键配置选 jEnv 时会运行时下载作者源码到用户缓存，Dart 引擎只用标准库。下表统计直接工具及 CI 依赖，公有来源、私库地址不适用，不合计传递依赖，也不统计被操作项目的依赖。许可证为官方上游声明，具体分发版本须再核 LICENSE / NOTICE。
 
 | 直接依赖 | 版本 / 来源 | 许可证 | 用途 / 是否仍在使用 |
 | --- | --- | --- | --- |
-| MSVC / Windows SDK / vswhere | 复用现有版本，未锁定；[官方来源](https://visualstudio.microsoft.com/visual-cpp-build-tools/) | Microsoft 分发条款；不随包内嵌 | 是，原生 Flutter 运行 / 打包 / 体检 / 代码生成及 Android / Harmony 模拟器、单文件权限、隐藏文件及 Android Studio / VSCode 包安装时构建原生 COM DLL。缺失停止，不自动安装。 |
+| MSVC / Windows SDK / vswhere | 复用现有版本，未锁定；[官方来源](https://visualstudio.microsoft.com/visual-cpp-build-tools/) | Microsoft 分发条款；不随包内嵌 | 是，原生 Flutter 运行 / 打包 / 体检 / 代码生成及 Android / Harmony 模拟器、单文件权限 / 内容查看、隐藏文件及 Android Studio / VSCode 包安装时构建原生 COM DLL。缺失停止，不自动安装。 |
 | Windows PowerShell / .NET / WinForms | 系统 `5.1` Desktop；[Microsoft](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) | Windows 系统组件许可，不套用 PowerShell 7 的开源许可 | 是；系统运行与面板。 |
 | Git | 未锁定；[公有来源](https://git-scm.com/) | [GPL-2.0](https://github.com/git/git/blob/master/COPYING) | 是，按功能需要；远程解析、拉取、空白提交。 |
 | Flutter / Dart | 目标项目或健康本机版本，未锁定；[Flutter](https://github.com/flutter/flutter) / [Dart](https://github.com/dart-lang/sdk) 公库 | [Flutter BSD-3-Clause](https://github.com/flutter/flutter/blob/master/LICENSE) / [Dart BSD-3-Clause](https://github.com/dart-lang/sdk/blob/main/LICENSE) | 是；Pub、SDK 校验、运行提取引擎。 |
 | DevEco Studio / Command Line Tools / Emulator | 复用本机已有且支持创建实例的版本，未锁精确版本；[华为官方命令说明](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-emulator-command-line) | 华为软件 / SDK 许可；不随包分发，许可由本人按官方交互确认 | Harmony 模拟器只选已下载镜像；缺工具或镜像停止，不自动安装、下载或接受协议。 |
 | protoc / protoc-gen-dart | 复用用户已安装版本，未锁定；[protoc](https://github.com/protocolbuffers/protobuf) / [Dart 插件](https://pub.dev/packages/protoc_plugin) 官方来源 | 上游 BSD-3-Clause；不随包分发 | 仅配置 protobuf 生成时使用，缺失停止、不自动安装；目标项目的生成器依赖与系统 LLVM 需求按项目配置维护。 |
+| JEnv-for-Windows | 首次克隆作者 main 后记录 commit，缓存不自动更新；[公有来源](https://github.com/FelixSelter/JEnv-for-Windows) | [Apache-2.0](https://github.com/FelixSelter/JEnv-for-Windows/blob/main/LICENSE) | 一键配置的可选 Java 管理；仅调用 add/local 模块，不将源码内嵌到扩展包。 |
+| Gradle | 工程 Wrapper 固定版本；[官方分发](https://services.gradle.org/distributions/) | [Apache-2.0](https://github.com/gradle/gradle/blob/master/LICENSE) 及分发包内第三方条款 | 校验 SHA-256 后预填标准 Wrapper 缓存与构建插件解析；不自动升级工程版本。 |
+| Temurin JDK | 用户选择主版本，官方 API 解析具体包；[Adoptium](https://adoptium.net/) | GPL-2.0 with Classpath Exception，按实际发行包核对 | 可选用户缓存 JDK；不将 JDK 随扩展包分发。 |
 | FVM | 官方最新 ZIP 或健康本机版，未锁精确版本；[公库](https://github.com/leoafarias/fvm) | [MIT](https://github.com/leoafarias/fvm/blob/main/LICENSE) | 是；项目 SDK 安装 / 切换，代码中接受 `btwld` / `leoafarias` 官方发行路径。 |
 | fzf | 健康本机版 / WinGet，未锁定；[公库](https://github.com/junegunn/fzf) | [MIT](https://github.com/junegunn/fzf/blob/master/LICENSE) | 是；SDK 版本单选。 |
 | WinGet | 系统健康工具，未锁定；[公库](https://github.com/microsoft/winget-cli) | [MIT](https://github.com/microsoft/winget-cli/blob/master/LICENSE) | 是，FVM 缺 Git / fzf，或 CodeGraph 缺健康 Node/npm 时经确认安装依赖；分发包条款按各包核实。 |
@@ -664,8 +624,8 @@ pie showData
 
 | 场景 | 配置位置 / 操作 |
 | --- | --- |
-| 环境准备 / 启动 | 使用 Windows 图形桌面与系统 PowerShell 5.1，双击根 `【Windows】🧩安装资源管理器扩展.cmd`（`Install.cmd` 兼容）；也可按第二章运行 `Scripts/Manage.ps1 -Mode Install`，追加 `-Preview` 只预览。原生 Flutter、Android / Harmony 模拟器、单文件权限、隐藏文件及 Android Studio / VSCode 包需要现有 MSVC / Windows SDK，其它包直接部署脚本；各功能运行依赖按包检查。 |
-| 构建 / 分发 | Flutter 运行包编译原生桥接与后台宿主，打包 / 体检 / 代码生成及 Android / Harmony 模拟器、单文件权限、隐藏文件及 Android Studio / VSCode 包仅编译独立原生桥接；其它包直接部署；独立复制某包即可交付，`Extension.json` 和 `Scripts/` 必须完整。安装由 `PackageInstaller.psm1` 校验并保存 release，不手工拷贝半个包。 |
+| 环境准备 / 启动 | 使用 Windows 图形桌面与系统 PowerShell 5.1，双击根 `【Windows】🧩管理资源管理器扩展.cmd`；也可按第二章运行 `Scripts/Manage.ps1 -Mode Manage`，追加 `-Preview` 只预览。原生 Flutter、Android / Harmony 模拟器、单文件权限 / 内容查看、隐藏文件及 Android Studio / VSCode 包需要现有 MSVC / Windows SDK，其它包直接部署脚本；各功能运行依赖按包检查。 |
+| 构建 / 分发 | Flutter 运行包编译原生桥接与后台宿主，打包 / 体检 / 代码生成及 Android / Harmony 模拟器、单文件权限 / 内容查看、隐藏文件及 Android Studio / VSCode 包仅编译独立原生桥接；其它包直接部署；独立复制某包即可交付，`Extension.json` 和 `Scripts/` 必须完整。安装由 `PackageInstaller.psm1` 校验并保存 release，不手工拷贝半个包。 |
 | 测试 | 第五章保留全部行为回归命令；CI 另含 `Tests/Catalog.Tests.ps1`。目录只读校验使用 `node ./.jobs-markdown-toc/MarkdownToc.mjs verify`；`check` 检查原始索引，不能替代 Windows 菜单验收。 |
 | dev / test / prod | 无服务器地址或三套 API 环境；源码开发、临时夹具测试、当前用户安装状态分别管理。`Extensions.json` 控制总包清单，包内 `Extension.json` 控制菜单身份，安装状态 `settings.json` 和系统位置见第三章。 |
 | PowerShell 7 / 非 STA | 菜单入口要求 Desktop 5.1 与 STA；用 `.cmd` 启动，不用 `pwsh` 直接运行面板。 |
@@ -675,6 +635,10 @@ pie showData
 
 Windows 回归仅写入临时工程、临时 NTFS 文件 ACL 及 GUID 隔离的当前用户注册表子键，结束后清理或恢复；Git 操作限定临时仓库。实际用户菜单、系统策略与 SDK 环境保持原状；真实安装 / 卸载、依赖下载及业务仓库提交 / 推送未执行，桌面交互和实际工具链业务仍按第五章验收。
 
+文件分卷隔离回归：`Tests/FileVolumes.Tests.ps1` 与 `Tests/FileVolumesMenuProbe.cpp`，覆盖完整多选显隐、特殊路径、数字卷序、真实跨块拆分 / 重组、缺卷 / 重复 / 空卷、禁止覆盖和失败候选保留。右键始终保留原件，Windows PowerShell 5.1、MSVC / Explorer 与真实锁仍须目标机验证。
+
+单文件内容查看隔离回归：`Tests/FileContentViewer.Tests.ps1` 与 `Tests/FileViewerMenuProbe.cpp`，覆盖大小阈值、精确 YES / 取消 / EOF、特殊路径、UTF-8 / UTF-16 / UTF-32、采样 / 输出跨块、终端控制字符、疑似二进制和无换行大文本。只用临时文件和本包注册计划，不注册真实菜单；Windows PowerShell 5.1、MSVC 与 Explorer 真实交互仍需目标桌面验收。
+
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>
 
 构建产物清理隔离回归：`pwsh -NoProfile -File Tests/BuildArtifactCleaner.Tests.ps1`。测试只操作临时工程，覆盖 Flutter 优先、Android 多模块、未知工程 / iOS 拒绝、确认取消、链接 / 联接保护和源码保留；Windows PowerShell 5.1 隔离夹具已验，Explorer 真实右键调用及用户工程操作仍需目标机验收。
@@ -682,3 +646,5 @@ Windows 回归仅写入临时工程、临时 NTFS 文件 ACL 及 GUID 隔离的�
 隐藏文件与 IDE 门禁回归：`Tests/HiddenFiles.Tests.ps1`、`Tests/HiddenFilesMenuProbe.cpp`、`Tests/IDEProject.Tests.ps1`、`Tests/IDEProjectMenuProbe.cpp`，覆盖动态下一动作、陈旧菜单幂等目标、只写普通隐藏文件设置、空目录 / Android / Flutter / iOS 正反例与旧静态入口清退；不修改真实 Explorer 偏好或打开 IDE。MSVC 与 Explorer 展示仍须 Windows 目标机验证。
 
 运行权限与 Harmony 检测回归：`Tests/RunPermissions.Tests.ps1`、`Tests/HarmonySimulatorRepairer.Tests.ps1`；前者已在临时 NTFS 文件验证 `ExecuteFile` ACL 授予、解除与恢复，后者仅使用假 CLI。配套原生构建回归覆盖三个功能包；MSVC 编译、Explorer / DevEco 真实入口及实际业务文件的运行效果仍需独立验收。
+
+Flutter 一键配置运行仪表盘：`Tests/FlutterProjectSetup.Tests.ps1`、`Tests/FlutterProjectSetupDashboard.Tests.ps1`、`Tests/FlutterProjectSetupLogTail.Tests.ps1` 与 `Tests/FlutterProjectSetupVersion.Tests.ps1` 覆盖 SDK / Gradle / 状态 / 原始输出 / 版本 / 可拖分隔与启动事件门禁；原生控制台嵌入、Windows 5.1 安装器及真实设备运行须目标环境验证。[完整流程与日志](./JobsFlutterTools/README.md#一键配置与-gradle-插件下载)。

@@ -1,4 +1,4 @@
-> 当前 `Install.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Uninstall.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
+> 当前 `Manage.cmd` 转交同级 [JobsFlutterTools](../JobsFlutterTools/README.md) 安装统一菜单，不能只复制本旧目录新装；`Manage.cmd` 保留旧功能卸载。下文的原生 / 静态菜单实现、状态路径与业务命令是保留源码的说明，当前新安装以统一包及项目 FVM 为准。原“Flutter项目体检”在统一菜单称为“原生Flutter项目体检”。
 
 # JobsFlutterRunner · 从终端运行 Flutter 项目
 
@@ -20,6 +20,8 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
@@ -37,11 +39,11 @@
 
 **系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
 
-**当前入口与依赖：** `Install.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Uninstall.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
+**当前入口与依赖：** `Manage.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Manage.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
 
 ## 一、<span id="installation">安装与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-新安装保留同级完整 `JobsFlutterTools`，双击本目录 `Install.cmd` 转交统一菜单，或在上级组合面板选择统一 Flutter 工具组；也可直接复制统一包独立交付。`Uninstall.cmd` 只卸载本旧功能与其 COM 注册。以下逐包构建、事务和路径说明对应保留的旧实现。
+新安装保留同级完整 `JobsFlutterTools`，双击本目录 `Manage.cmd` 转交统一菜单，或在上级组合面板选择统一 Flutter 工具组；也可直接复制统一包独立交付。`Manage.cmd` 只卸载本旧功能与其 COM 注册。以下逐包构建、事务和路径说明对应保留的旧实现。
 
 需要 Windows 10 / 11、系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop，以及已经安装的 [**Visual Studio Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 或 Visual Studio：勾选“使用 C++ 的桌面开发”、MSVC 与 Windows SDK。ARM64 还需要对应 ARM64 编译工具。安装器用 `vswhere` 复用这些组件；缺失时停止并给出说明，不自动下载编译器、不写入半成品菜单。
 
@@ -49,9 +51,11 @@
 
 ## 二、<span id="running">设备与运行行为</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-优先使用项目 `.fvm/flutter_sdk/bin/flutter.bat`。存在 `.fvmrc`、`.fvm/fvm_config.json` 或 SDK 链接却缺少项目 SDK 时停止并提示先修复 FVM；只有未绑定 FVM 的工程才使用 PATH 中的 Flutter。先执行 `flutter --version --machine` 检查实际 SDK，再读取 `flutter devices --machine`。设备列表按工程已有 `android` / `.android`、`windows`、`web` 平台目录过滤；Windows 不提供 iOS 运行设备。无设备时显示完整说明与 `[r] 重新加载`、`[q] 取消`，不会自动替项目生成平台文件。
+优先使用项目 `.fvm/flutter_sdk/bin/flutter.bat`。存在 `.fvmrc`、`.fvm/fvm_config.json` 或 SDK 链接却缺少项目 SDK 时停止并提示先修复 FVM；只有未绑定 FVM 的工程才使用 PATH 中的 Flutter。先执行 `flutter --version --machine` 检查实际 SDK，再读取 `flutter devices --machine`。设备列表按工程已有 `android` / `.android`、`windows`、`web` 平台目录过滤；Windows 不提供 iOS 运行设备。设备用 fzf 上下键与输入筛选，Enter 确认、Esc 取消；无设备时仍提供“Android 模拟器（启动已有 / 缺失时初始化）”及重新加载入口，不会替项目生成平台文件。缺少或损坏 fzf 时停止并给出修复命令。
 
-Android AVD 通过官方 [**Android Emulator**](https://developer.android.com/studio/run/emulator-commandline) 的 `-list-avds` 查询，`-avd <name>` 启动。路径依次来自 `ANDROID_SDK_ROOT`、`ANDROID_HOME`、当前用户 Android SDK 默认位置及 PATH。子进程继承当前环境，包括 `ANDROID_AVD_HOME`、`ANDROID_USER_HOME` 和 `ANDROID_EMULATOR_HOME`；不迁移 AVD、不覆盖 SDK 配置、不自动创建或下载系统镜像。启动后回车重新加载，选择已就绪的实际设备。
+Android AVD 通过官方 [**Android Emulator**](https://developer.android.com/studio/run/emulator-commandline) 查询；已有设备可直接选择并启动，也可选择新建。没有 AVD 时进入内置初始化：回车确认后复用或补齐 Java 21、Command-Line Tools、Emulator / ADB，再选择设备型号与本机 ABI 对应的稳定系统镜像；已有镜像直接复用，缺失镜像显示 Google 官方来源和目标目录，最终回车确认后才下载并创建，SDK 许可证由本人确认。型号 / 镜像子层支持 `←` 返回，Esc、非空确认或输入结束不创建 AVD；已完成的工具准备保留。创建不使用 `--force`，不覆盖既有设备。工具补齐后再次枚举 AVD，发现原有设备可直接复用。
+
+SDK 优先使用 `ANDROID_HOME` / `ANDROID_SDK_ROOT`，再复用当前用户默认位置或 PATH 中 Emulator 所属 SDK。Java、SDK 环境只在当前进程临时调整并恢复，不写全局 PATH、不改代理、不自动启用虚拟化；AVD 目录继承 `ANDROID_AVD_HOME`、`ANDROID_USER_HOME` 和 `ANDROID_EMULATOR_HOME`。新建模拟器目前要求官方支持的 Windows x64 宿主。启动等待最长约 180 秒，并按 AVD 名核对实际 serial；Flutter 再限次读取设备列表，自动选择该 serial 继续运行，不会误取另一台模拟器。超时或失败保留设备与日志，不重复创建。
 
 `flutter run` 使用项目默认入口和 Debug 模式；Flutter 自己仍可能执行 Pub、Gradle、编译及联网下载。需要 flavor、额外 dart-define 或自定义 target 的工程，请使用项目已有命令。日志快捷键通过 Flutter machine 协议发送 `app.restart` / `app.stop`，构建尚未返回 appId 时提示等待。
 
@@ -61,7 +65,7 @@ Android AVD 通过官方 [**Android Emulator**](https://developer.android.com/st
 
 ```text
 JobsFlutterRunner/
-├── Install.cmd / Uninstall.cmd  转交统一安装 / 卸载本旧功能
+├── Manage.cmd  转交统一安装 / 卸载本旧功能
 ├── Extension.json              功能清单和自定义安装器白名单
 ├── README.md
 └── Scripts/
@@ -85,5 +89,7 @@ JobsFlutterRunner/
 父仓提供 `Tests/FlutterRunner.Tests.ps1`（临时文件、项目识别、设备过滤、会话身份、控制请求与独立注册计划）；Windows 使用 `-Native` 额外编译产物并通过假 Flutter 检查后台运行及 r / R / s 协议。测试不安装扩展、不启动真实设备、不修改真实项目。原生识别夹具由 `Tests/FlutterRunnerProjectProbe.cpp` 共用同一头文件。
 
 实现选用 Microsoft 官方的 [IShellExtInit 初始化接口](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellextinit) 与 [IContextMenu::QueryContextMenu](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-icontextmenu-querycontextmenu)：无效目录插入零个菜单项。Microsoft 明确[不支持 .NET 进程内 Shell 扩展](<https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/dd758089(v=vs.85)>)，因此使用原生 C++ 桥接；CLR 仅运行于独立宿主。Windows 真实 Explorer 的显示 / 隐藏、原生 DLL 加载、设备运行、关闭 CMD 后存活仍需 Windows 实机验收；跨平台静态 / 夹具验证不代替实机结果。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -18,6 +18,8 @@
 
 ---
 
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+
 ## 🔥 <span id="前言">前言</span>
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
@@ -38,7 +40,7 @@
 
 ## 一、<span id="installation">安装、卸载与菜单范围</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-仅复制本目录即可独立使用。双击 [Install.cmd](./Install.cmd) 编译并注册本包，或在总安装面板单独勾选本功能；[Uninstall.cmd](./Uninstall.cmd) 只卸载本包菜单，保留日志、备份和运行文件。Windows 11 在“显示更多选项”中查看。安装只写当前用户注册表，需要已有 Visual Studio / Build Tools 的 C++ 桌面工作负载、MSVC 和 Windows SDK；不自动安装编译器、不提权。
+仅复制本目录即可独立使用。双击 [Manage.cmd](./Manage.cmd) 编译并注册本包，或在总安装面板单独勾选本功能；[Manage.cmd](./Manage.cmd) 只卸载本包菜单，保留日志、备份和运行文件。Windows 11 在“显示更多选项”中查看。安装只写当前用户注册表，需要已有 Visual Studio / Build Tools 的 C++ 桌面工作负载、MSVC 和 Windows SDK；不自动安装编译器、不提权。
 
 原生 DLL 仅注册 `DesktopBackground` handler，并同时核对系统真实桌面路径、没有选中项、宿主为原生 x64；不会在 Explorer 内启动 SDK 或 PowerShell。独立 CLI 也会检查宿主和桌面范围。官方本地模拟器不支持 Windows ARM、32 位处理器或虚拟机，并要求硬件虚拟化等条件，参见[使用环境](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-emulator-requirements)；本入口不自动修改 BIOS、Hyper-V、系统功能或安全设置。
 
@@ -98,7 +100,7 @@ Phone、平板、折叠屏等模拟器受官方中国大陆使用区域限制，
 
 ```text
 JobsHarmonySimulatorCreator/
-├── Install.cmd / Uninstall.cmd   独立安装与卸载
+├── Manage.cmd   独立安装与卸载
 ├── Run.cmd                       独立新建与只读 Check 入口
 ├── Extension.json                本包身份与桌面菜单信息
 ├── README.md
@@ -112,5 +114,7 @@ macOS PowerShell 7.6.8 隔离验证基线：镜像流程 17、业务 64、SDL �
 [依赖安装回归](../Tests/HarmonySimulatorBootstrap.Tests.ps1)与[业务回归](../Tests/HarmonySimulatorCreator.Tests.ps1)与[镜像流程回归](../Tests/HarmonySimulatorImages.Tests.ps1)使用临时目录和假 Emulator，不联网安装、不注册菜单、不创建真实实例；[桌面门禁探针](../Tests/HarmonyDesktopProbe.cpp)核对纯路径范围。macOS PowerShell 7 只能证明可移植业务和夹具行为；Windows PowerShell 5.1、真实 `Emulator.exe` 输出结构、MSVC DLL、Explorer 菜单、硬件虚拟化、许可和真实创建 / 启动仍需 Windows 实机验收。
 
 2026-10-23 验证：PowerShell 7.6.8 下依赖安装回归 36 断言、创建业务 64 断言、独立 Action 模块 168 断言、独立包架构 558 断言全部通过；桌面范围 C++ 探针 13 断言通过。Windows 完整 ZIP 的 CRC 全检和 102,433 条路径核查通过；下载函数已对 SDL 站点完成真实流式读取验证。Windows PowerShell 5.1、扩展路径在 Windows 上的解压、真实 Emulator.exe 与 Explorer 菜单仍待 Windows 实机验收。
+
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -262,7 +262,7 @@ function Publish-JobsHarmonyBinding {
 
 function Invoke-JobsHarmonySdkAction {
     [CmdletBinding()]
-    param([Parameter(Mandatory=$true)][string]$Target, [switch]$Check)
+    param([Parameter(Mandatory=$true)][string]$Target, [switch]$Check, [switch]$RequireCompletion)
     $project = & $script:HarmonyManager { param($Path) Assert-JobsFvmDirectory (Resolve-JobsTarget $Path) } $Target
     Assert-JobsHarmonyBindingPaths $project
     $cache = Get-JobsHarmonyCache
@@ -300,12 +300,12 @@ function Invoke-JobsHarmonySdkAction {
         $choices = @(Get-JobsHarmonyTagChoices $tags)
         if ($choices.Count -eq 0) { throw '来源未返回可验证的 ohos tag；未写项目。' }
         $choice = & $script:HarmonyManager { param($Fzf,$Choices,$Path) Select-JobsFlutterVersion $Fzf $Choices $Path } $chain.Fzf $choices $project
-        if ($null -eq $choice) { Write-Host '已取消，项目未修改。'; return }
+        if ($null -eq $choice) { if ($RequireCompletion) { throw '已取消鸿蒙 SDK 准备，未继续依赖操作。' }; Write-Host '已取消，项目未修改。'; return }
         $refs = Invoke-JobsHarmonyGit $chain.Git @('ls-remote', $script:HarmonyRepository, ('refs/tags/' + $choice.Ref), ('refs/tags/' + $choice.Ref + '^{}'), ('refs/heads/' + $choice.Ref)) $project
         if ((Resolve-JobsHarmonyCommit $refs $choice.Ref) -cne $choice.Commit) { throw '所选 tag 在选择期间改变，请重新选择。' }
         Write-Host ('计划：' + $choice.Ref + ' → ' + $choice.Commit + '；缓存：' + $cache)
         Write-Host 'FVM 先在影子项目初始化并核验；真实项目仅更新 .fvmrc 和 .fvm/flutter_sdk。IDE、ignore、业务源码及其它元数据保持原样。'
-        if ((Read-Host '回车安装/切换；任意非空输入取消') -ne '') { Write-Host '已取消，项目未修改。'; return }
+        if ((Read-Host '回车安装/切换；任意非空输入取消') -ne '') { if ($RequireCompletion) { throw '已取消鸿蒙 SDK 准备，未继续依赖操作。' }; Write-Host '已取消，项目未修改。'; return }
         Assert-JobsHarmonyBindingPaths $project
         if ((Get-JobsHarmonyBindingStamp $project) -cne $stamp) { throw '选版期间项目配置已改变，请重新打开。' }
         $sdk = Install-JobsHarmonySdk $chain.Git $choice $cache $project
