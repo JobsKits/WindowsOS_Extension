@@ -10,16 +10,21 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        id: checkout
       - uses: actions/setup-node@v4
+        id: node
         with:
           node-version: '24'
       - name: Markdown TOC filter regression
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: node --test Tests/MarkdownToc.Tests.mjs
       - name: Committed README table of contents matches its headings
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: node Scripts/MarkdownToc.mjs check
       - name: Parse all scripts with Windows PowerShell 5.1
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -32,27 +37,35 @@ jobs:
             if ($bytes[0] -ne 239 -or $bytes[1] -ne 187 -or $bytes[2] -ne 191) { throw "Missing UTF-8 BOM: $($_.Name)" }
           }
       - name: Core behavior
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\Core.Tests.ps1
       - name: Independent package contents and orchestration
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\Architecture.Tests.ps1
       - name: Selection panel layout, confirmation gates, and package plans
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\SelectionPanel.Tests.ps1
       - name: GUI worker streaming, transaction states, and hidden launchers
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\ManagementExecution.Tests.ps1
       - name: Failed status full log terminal data boundary
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\ManagementLogTerminal.Tests.ps1
       - name: Flutter leaf selection and legacy state compatibility
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterFeatureSelection.Tests.ps1
       - name: Unified Flutter package and dispatch guards
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterTools.Tests.ps1
       - name: Flutter setup compatibility, Wrapper cache and live milestone protocol
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: |
           .\Tests\FlutterProjectSetup.Tests.ps1
@@ -60,42 +73,54 @@ jobs:
           .\Tests\FlutterProjectSetupLogTail.Tests.ps1
           .\Tests\FlutterProjectSetupVersion.Tests.ps1
       - name: Build selected Flutter native menu with MSVC
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: |
           .\JobsFlutterTools\Scripts\Build.ps1 `
             -SourceRoot (Join-Path $PWD 'JobsFlutterTools') `
             -OutputRoot (Join-Path $env:RUNNER_TEMP 'JobsFlutterTools-native')
       - name: Infrastructure copies stay in sync
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Scripts\Sync-PackageInfrastructure.ps1
       - name: Per-package registry commands
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\Installer.Tests.ps1
       - name: Isolated package registry transactions
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\PackageInstaller.Tests.ps1
       - name: Independent business module entry points
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\ActionModules.Tests.ps1
       - name: Windows PowerShell 5.1 catalog compatibility
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\Catalog.Tests.ps1
       - name: Terminal package guardrails and command transport
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\Worker.Tests.ps1
       - name: Flutter SDK inspection and version constraint guardrails
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterSdkInspector.Tests.ps1
       - name: Flutter FVM project and offline selection guardrails
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterVersionMgr.Tests.ps1
       - name: OpenHarmony Flutter SDK pinning and project-only publication
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\HarmonyFlutterSdk.Tests.ps1
       - name: Git pull snapshots and conflict choices against temporary bare remotes
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\GitPuller.Tests.ps1
       - name: Git rollback native menu, metadata gate, UTF8 transport and isolated resets
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -136,72 +161,92 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'File viewer menu probe failed.' }
           .\Tests\GitRollback.Tests.ps1 -FzfProbeExecutable (Join-Path $nativeOutput 'GitRollbackFzfProbe.exe')
       - name: Flutter dependency import validation and confirmation guards
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterDependencyImporter.Tests.ps1
       - name: Flutter dependency extraction guards and native argument transport
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterDependencyExtractor.Tests.ps1
       - name: Flutter runner project, lifecycle, and native build guards
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterRunner.Tests.ps1
       - name: Flutter packaging selection, SDK, failure, and artifact guards
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: |
           .\Tests\FlutterPackager.Tests.ps1
           .\Tests\FlutterHarmonyPackage.Tests.ps1
       - name: Flutter doctor and configured codegen guardrails
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterDoctorCodegen.Tests.ps1
       - name: Android simulator desktop, SDK, and creation guardrails
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\AndroidSimulatorCreator.Tests.ps1
       - name: Android simulator SDK repair and same-volume staging
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\AndroidSimulatorRepair.Tests.ps1
       - name: Android emulator storage diagnosis and guarded repairs
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\AndroidSimulatorRepairer.Tests.ps1
       - name: Build standalone Android repair desktop handler with MSVC
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: |
           .\JobsAndroidSimulatorRepairer\Scripts\Build.ps1 `
             -SourceRoot (Join-Path $PWD 'JobsAndroidSimulatorRepairer') `
             -OutputRoot (Join-Path $env:RUNNER_TEMP 'JobsAndroidSimulatorRepairer-native')
       - name: Git dynamic proxy desktop, routing and exact user restore
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\GitProxyConfigurator.Tests.ps1
       - name: Android simulator automatic Java and dependency bootstrap
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\AndroidSimulatorBootstrap.Tests.ps1
       - name: Harmony simulator desktop and installed-image creation guardrails
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\HarmonySimulatorCreator.Tests.ps1
       - name: Harmony emulator identity and coldboot repair
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\HarmonySimulatorRepairer.Tests.ps1
       - name: Current user single-file ExecuteFile grant and revoke
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\RunPermissions.Tests.ps1
       - name: Dynamic desktop hidden-file state and isolated preference toggles
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\HiddenFiles.Tests.ps1
       - name: IDE nonempty and project-type eligibility
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\IDEProject.Tests.ps1
       - name: Build dynamic handlers with MSVC
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: |
           foreach ($name in @('JobsHarmonySimulatorRepairer', 'JobsRunAuthorizer', 'JobsRunAuthorizationRevoker', 'JobsHiddenFilesToggler', 'JobsAndroidStudioOpener', 'JobsVSCodeOpener', 'JobsSourcetreeOpener', 'JobsFileContentViewer', 'JobsFileVolumes')) {
             & (Join-Path $PWD ($name + '/Scripts/Build.ps1')) -SourceRoot (Join-Path $PWD $name) -OutputRoot (Join-Path $env:RUNNER_TEMP ($name + '-native'))
           }
       - name: Sourcetree installation visibility and nearest Git repository
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\SourcetreeOpener.Tests.ps1
 
       - name: File viewer thresholds, Unicode and bounded terminal output
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FileContentViewer.Tests.ps1
 
       - name: Exact-selection file volumes and safe streaming roundtrip
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FileVolumes.Tests.ps1

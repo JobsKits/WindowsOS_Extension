@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { checkMarkdown, cleanMarkdown, inspectMarkdown, smudgeMarkdown } from '../Scripts/MarkdownToc.mjs';
+import { checkMarkdown, cleanMarkdown, inspectMarkdown, sameDirectory, smudgeMarkdown } from '../Scripts/MarkdownToc.mjs';
 
 const scriptPath = fileURLToPath(new URL('../Scripts/MarkdownToc.mjs', import.meta.url));
 const start = '<!-- jobs-toc:start -->';
@@ -32,7 +32,7 @@ function linkedAnchorsExist(generated) {
   }
 }
 
-function temporaryRepository(t) {
+function temporaryRepository(t, toolDirectory = 'Scripts') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "Markdown TOC '实验 "));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const globalConfig = path.join(root, 'global.gitconfig');
@@ -52,14 +52,80 @@ function temporaryRepository(t) {
     assert.equal(result.status, 0, `git ${args.join(' ')}\n${result.stderr}`);
     return result.stdout;
   };
-  const cli = mode => run(process.execPath, ['Scripts/MarkdownToc.mjs', mode]);
+  const cli = mode => run(process.execPath, [`${toolDirectory}/MarkdownToc.mjs`, mode]);
   git('init', '--quiet');
   git('config', '--local', 'core.autocrlf', 'false');
-  fs.mkdirSync(path.join(root, 'Scripts'));
-  fs.copyFileSync(scriptPath, path.join(root, 'Scripts/MarkdownToc.mjs'));
+  fs.mkdirSync(path.join(root, toolDirectory));
+  fs.copyFileSync(fileURLToPath(new URL(`../${toolDirectory}/MarkdownToc.mjs`, import.meta.url)),
+    path.join(root, toolDirectory, 'MarkdownToc.mjs'));
+  if (toolDirectory === '.jobs-markdown-toc') {
+    fs.writeFileSync(path.join(root, toolDirectory, 'manifest.json'), JSON.stringify({ version: 1, files: ['README.md'] }));
+  }
   fs.writeFileSync(path.join(root, '.gitattributes'), '/README.md filter=jobs-markdown-toc\n');
   return { root, globalConfig, run, git, cli };
 }
+
+test('repository boundaries compare directory identity instead of path spelling', t => {
+  const repo = temporaryRepository(t);
+  assert.equal(sameDirectory(repo.root, path.join(repo.root, 'Scripts', '..')), true);
+  assert.equal(sameDirectory(repo.root, path.join(repo.root, 'Scripts')), false);
+  assert.equal(sameDirectory(repo.root, path.join(repo.root, 'global.gitconfig')), false);
+  const alternate = path.join(path.dirname(repo.root), path.basename(repo.root).toUpperCase());
+  if (fs.existsSync(alternate)) assert.equal(sameDirectory(repo.root, alternate), true);
+  if (process.platform === 'win32') {
+    assert.match(repo.root, /^[a-z]:/i);
+    const driveAlias = repo.root[0] === repo.root[0].toLowerCase()
+      ? repo.root[0].toUpperCase() + repo.root.slice(1)
+      : repo.root[0].toLowerCase() + repo.root.slice(1);
+    assert.equal(sameDirectory(repo.root, driveAlias), true);
+  }
+});
+
+test('management commands reject a tool copied below the repository root', t => {
+  const repo = temporaryRepository(t);
+  const nested = path.join(repo.root, 'nested');
+  fs.mkdirSync(path.join(nested, 'Scripts'), { recursive: true });
+  fs.copyFileSync(scriptPath, path.join(nested, 'Scripts/MarkdownToc.mjs'));
+  const before = repo.git('config', '--local', '--list');
+  for (const mode of ['install', 'uninstall', 'check', 'verify', 'status']) {
+    const result = repo.run(process.execPath, [path.join('nested', 'Scripts/MarkdownToc.mjs'), mode]);
+    assert.notEqual(result.status, 0, mode);
+    assert.match(result.stderr, /不能改写父仓配置/, mode);
+  }
+  assert.equal(repo.git('config', '--local', '--list'), before);
+});
+
+test('both distributed entry points manage a repository without changing its index or parent config', async t => {
+  for (const directory of ['Scripts', '.jobs-markdown-toc']) {
+    await t.test(directory, sub => {
+      const repo = temporaryRepository(sub, directory);
+      const source = '[toc]\n\n## Section\n';
+      const readme = path.join(repo.root, 'README.md');
+      fs.writeFileSync(readme, source);
+      repo.git('add', 'README.md');
+      const before = repo.git('show', ':README.md');
+      const installed = repo.cli('install');
+      assert.equal(installed.status, 0, installed.stderr);
+      assert.equal(repo.git('show', ':README.md'), before);
+      repo.git('add', 'README.md');
+      assert.equal(repo.git('show', ':README.md'), cleanMarkdown(source));
+      for (const mode of ['check', 'verify', 'status', 'uninstall']) {
+        const result = repo.cli(mode);
+        assert.equal(result.status, 0, `${mode}: ${result.stderr}`);
+      }
+      assert.equal(fs.readFileSync(readme, 'utf8'), cleanMarkdown(source));
+
+      const nested = path.join(repo.root, 'nested', directory);
+      fs.mkdirSync(nested, { recursive: true });
+      fs.copyFileSync(path.join(repo.root, directory, 'MarkdownToc.mjs'), path.join(nested, 'MarkdownToc.mjs'));
+      const config = repo.git('config', '--local', '--list');
+      const refused = repo.run(process.execPath, [path.join('nested', directory, 'MarkdownToc.mjs'), 'install']);
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.stderr, /不能改写父仓配置/);
+      assert.equal(repo.git('config', '--local', '--list'), config);
+    });
+  }
+});
 
 test('clean is idempotent; smudge restores the complete original source', () => {
   const source = '# Project\n\n[toc]\n\n## Install\n\nText stays here.\n\n### Options\n';
