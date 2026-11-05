@@ -3,11 +3,12 @@
 # 项目级 OpenHarmony Flutter 缓存与 FVM 绑定；不改全局 SDK 或环境。
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 $script:HarmonyRepository = 'https://gitcode.com/CPF-Flutter/flutter_flutter.git'
 $script:HarmonyManager = Import-Module (Join-Path $PSScriptRoot 'Actions/sdk-manage/Scripts/Action.psm1') -PassThru -DisableNameChecking
 
 function Invoke-JobsHarmonyGit {
-    param([string]$Git, [string[]]$Arguments, [string]$Directory, [int]$TimeoutSeconds = 120)
+    param([string]$Git, [string[]]$Arguments, [string]$Directory, [int]$TimeoutSeconds = 120, [switch]$LiveCapture)
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $Git
     $quoted = & $script:HarmonyManager { param($Values) @($Values | ForEach-Object { Quote-JobsArgument $_ }) -join ' ' } $Arguments
@@ -21,6 +22,12 @@ function Invoke-JobsHarmonyGit {
     $start.StandardErrorEncoding = New-Object Text.UTF8Encoding($false)
     $start.EnvironmentVariables['GIT_TERMINAL_PROMPT'] = '0'
     foreach ($key in @('GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR','GIT_INDEX_FILE','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES')) { $start.EnvironmentVariables.Remove($key) }
+    $acquire = @($Arguments | Where-Object { $_ -in @('fetch','ls-remote') }).Count -gt 0
+    if ($LiveCapture -or $acquire) {
+        $result = if ($acquire) { Invoke-JobsSdkAcquireProcess $start $TimeoutSeconds -Label 'OpenHarmony Flutter Git 获取' } else { Invoke-JobsSdkLiveProcess $start $TimeoutSeconds }
+        if ($result.ExitCode -ne 0) { throw ('Git 失败（' + $result.ExitCode + '），请检查上方实时输出；缓存现场保留。') }
+        return $result.StdOut.TrimEnd("`r", "`n")
+    }
     $process = New-Object Diagnostics.Process
     $process.StartInfo = $start
     try {
@@ -166,8 +173,10 @@ function Install-JobsHarmonySdk {
     $candidate = Join-Path $stage 'sdk'
     try {
         Write-Host ('下载 SDK 来源：' + $script:HarmonyRepository + '；tag：' + $Choice.Ref + '；commit：' + $Choice.Commit)
-        [void](Invoke-JobsHarmonyGit $Git @('clone', '--no-checkout', $script:HarmonyRepository, $candidate) $Directory 3600)
-        [void](Invoke-JobsHarmonyGit $Git @('-C', $candidate, 'checkout', '--detach', $Choice.Commit) $Directory 120)
+        [void](Invoke-JobsHarmonyGit $Git @('init', $candidate) $Directory)
+        [void](Invoke-JobsHarmonyGit $Git @('-C',$candidate,'remote','add','origin',$script:HarmonyRepository) $Directory)
+        [void](Invoke-JobsHarmonyGit $Git @('-C',$candidate,'fetch','--progress','--depth','1','origin',('refs/tags/' + $Choice.Ref)) $Directory 120 -LiveCapture)
+        [void](Invoke-JobsHarmonyGit $Git @('-C', $candidate, 'checkout', '--detach', $Choice.Commit) $Directory 120 -LiveCapture)
         Assert-JobsHarmonySdk $Git $candidate $Choice.Commit $Directory
         # 同文件系统无覆盖发布；其它会话先创建目标时 Directory.Move 失败。
         [IO.Directory]::Move($candidate, $target)
@@ -324,9 +333,9 @@ function Invoke-JobsHarmonySdkAction {
         $linkedPath = [string]$targets[0]
         if (-not [IO.Path]::IsPathRooted($linkedPath)) { $linkedPath = Join-Path (Split-Path -Parent $link.FullName) $linkedPath }
         if (-not [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($linkedPath).TrimEnd('\','/'), [IO.Path]::GetFullPath($sdk).TrimEnd('\','/'))) { throw '项目 SDK 链接未指向所选缓存。' }
-        $version = & $script:HarmonyManager { param($Fvm,$Path) Invoke-JobsFvmTool $Fvm @('flutter','--version','--machine') $Path -TimeoutSeconds 300 } $chain.Fvm $inspection
+        $version = & $script:HarmonyManager { param($Fvm,$Path) Invoke-JobsFvmTool $Fvm @('flutter','--version','--machine') $Path -TimeoutSeconds 300 -LiveCapture } $chain.Fvm $inspection
         if ($version.ExitCode -ne 0) { throw '所选 SDK 初始化或版本体检失败。' }
-        $actual = $version.StdOut | ConvertFrom-Json -ErrorAction Stop
+        $actual = ConvertFrom-JobsSdkMachineOutput $version.StdOut
         if ($actual.frameworkRevision -cne $choice.Commit) { throw '实际 Flutter commit 与锁定版本不一致。' }
         $help = & $script:HarmonyManager { param($Fvm,$Path) Invoke-JobsFvmTool $Fvm @('flutter','build','hap','--help') $Path -TimeoutSeconds 120 } $chain.Fvm $inspection
         if ($help.ExitCode -ne 0 -or ($help.StdOut + $help.StdErr) -notmatch '\bhap\b') { throw '所选 SDK 不提供 build hap；已停止。' }
@@ -417,8 +426,8 @@ function Invoke-JobsNativeSdkFromHarmony {
         if (-not [IO.Path]::IsPathRooted($actualPath)) { $actualPath = Join-Path (Split-Path -Parent $link.FullName) $actualPath }
         if (-not [StringComparer]::OrdinalIgnoreCase.Equals([IO.Path]::GetFullPath($actualPath).TrimEnd('\','/'), [IO.Path]::GetFullPath($sdk).TrimEnd('\','/'))) { throw '官方 SDK 联接超出所选缓存。' }
         if ((Invoke-JobsHarmonyGit $chain.Git @('-C',$sdk,'remote','get-url','origin') $inspection) -cnotin @($official,'https://github.com/flutter/flutter')) { throw 'SDK 缓存来源不是官方 Flutter，未发布。' }
-        $version = & $script:HarmonyManager { param($Fvm,$Path) Invoke-JobsFvmTool $Fvm @('flutter','--version','--machine') $Path -TimeoutSeconds 300 } $chain.Fvm $inspection
-        if ($version.ExitCode -ne 0 -or ($version.StdOut | ConvertFrom-Json -ErrorAction Stop).frameworkVersion -cne $choice.Version) { throw '官方 SDK 实际版本不匹配，真实项目保持原绑定。' }
+        $version = & $script:HarmonyManager { param($Fvm,$Path) Invoke-JobsFvmTool $Fvm @('flutter','--version','--machine') $Path -TimeoutSeconds 300 -LiveCapture } $chain.Fvm $inspection
+        if ($version.ExitCode -ne 0 -or (ConvertFrom-JobsSdkMachineOutput $version.StdOut).frameworkVersion -cne $choice.Version) { throw '官方 SDK 实际版本不匹配，真实项目保持原绑定。' }
         Publish-JobsHarmonyBinding $project $sdk (($after | ConvertTo-Json -Depth 100) + [Environment]::NewLine) $stamp
         Write-Host ('成功：当前项目已切回官方 Flutter ' + $choice.Version + '；OpenHarmony SDK 缓存保留，可从相邻菜单切回。')
     } finally {

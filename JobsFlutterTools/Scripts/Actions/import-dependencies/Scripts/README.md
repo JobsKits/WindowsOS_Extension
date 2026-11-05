@@ -23,6 +23,8 @@
 
 ## 一、<span id="usage">输入与交互</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
+普通 Pub 导入根据 `snapshotKind: flutter-private-dependencies` 自动启用私库校验；无需切换菜单才能恢复默认私库提取的结果。原始 Pub/Gradle 缓存或一键迁移产物请使用统一菜单的“一键导入 Flutter 依赖”。
+
 快照含提取时的 `warnings` 时，预检计划显示告警数量与原 `manifest.json` 路径；已跳过的源内容不会由导入补齐。导入产物的 `source-manifest.json` 原字节保留该清单。
 
 1、先在统一包管理面板安装 / 更新并勾选导入项；原生动作表更新后需重载 Explorer，单改仓库源码不会改变已安装菜单。在目标 Flutter 工程右键选择“导入Flutter第三方依赖”，打开独立 CMD 后，在提示处输入或拖入本工具导出的完整目录。目录提示处空回车或空白输入会继续询问，直到输入有效路径；按 `Ctrl+C` 或真正输入结束（EOF）退出，不会在 EOF 反复重问。路径支持空格、中文和拖入时的外层引号，按数据读取，不作为命令执行。

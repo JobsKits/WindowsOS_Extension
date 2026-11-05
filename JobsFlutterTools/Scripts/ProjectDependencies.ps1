@@ -47,7 +47,7 @@ if ($Ohos -or $pin -cmatch '^custom_jobs_ohos_') {
 function Get-JobsDependencyJava {
     param([string]$Project, [string]$Fzf)
     $profile = Get-JobsSetupProfile $Project
-    if ($profile) {
+    if ($profile -and $profile.JavaMode -cin @('jenv','system')) {
         try { $java = Get-JobsSetupJava $profile.JavaHome $Project; $java | Add-Member Mode $profile.JavaMode; return $java }
         catch { Write-JobsSetupMessage ('已记录 JDK 不可用：' + $_.Exception.Message) }
     }
@@ -127,18 +127,9 @@ function Invoke-JobsDependencyOhos {
         Assert-JobsSetupFile $file
         if (-not [IO.File]::Exists($file)) { throw ('缺少鸿蒙工程声明：' + $file) }
     }
-    $packager = Import-Module (Join-Path $PSScriptRoot 'Actions/package/Scripts/Action.psm1') -PassThru -DisableNameChecking
-    & $packager { Initialize-JobsPackagerHarmonyEnvironment }
-    $ohpm = Find-JobsExecutable 'ohpm.bat' @('ohpm.cmd','ohpm')
-    $wrapper = $null
-    foreach ($name in @('hvigorw.bat','hvigorw.cmd','hvigorw')) {
-        $candidate = Join-Path $directory $name
-        if ([IO.File]::Exists($candidate)) { Assert-JobsSetupFile $candidate; $wrapper = $candidate; break }
-    }
-    if (-not $ohpm -or -not $wrapper) { throw '缺少可用 ohpm 或工程自己的 Hvigor wrapper；请准备匹配工程版本的 DevEco 工具，未安装全局 npm 包。' }
-    [void](Invoke-JobsSetupProcess $ohpm @('--version') $directory 30)
-    $help = Invoke-JobsSetupProcess $wrapper @('--help') $directory 120
-    if (($help.StdOut + $help.StdErr) -notmatch '(?i)(?:^|\s)--sync(?:\s|[=,]|$)') { throw '此工程 Hvigor wrapper 未声明 --sync，请根据工程固定版本确认同步命令。' }
+    $tools = Initialize-JobsSetupOhos $Project
+    $ohpm = $tools.Ohpm
+    $wrapper = $tools.Wrapper
     Set-JobsSetupProgress deps.plugins running 'ohpm 原生库与工程固定 Hvigor 插件同步'
     [void](Invoke-JobsSetupProcess $ohpm @('install') $directory 1800)
     [void](Invoke-JobsSetupProcess $wrapper @('--sync') $directory 1800)
@@ -159,14 +150,9 @@ function Invoke-JobsDependencyWeb {
         if ($managers.Count -ne 1) { throw ('JS 工程必须提供唯一管理器的锁文件（npm/pnpm/yarn），未猜测安装方式：' + $directory) }
         $manager = $managers[0]
         if ($manifest.PSObject.Properties['packageManager'] -and [string]$manifest.packageManager -notmatch ('^' + $manager + '@')) { throw 'packageManager 与锁文件不一致。' }
-        $node = Find-JobsExecutable 'node.exe' @('node')
-        $tool = Find-JobsExecutable ($manager + '.cmd') @(($manager + '.bat'),($manager + '.exe'),$manager)
-        if (-not $node -or -not $tool) { throw ('缺少本项目所需 Node / ' + $manager + '，请按工程版本准备，不会全局安装最新版本。') }
-        [void](Invoke-JobsSetupProcess $node @('--version') $directory 30)
-        $version = Invoke-JobsSetupProcess $tool @('--version') $directory 30
-        if ($manifest.PSObject.Properties['packageManager'] -and [string]$manifest.packageManager -match '@([0-9]+\.[0-9]+\.[0-9]+)') {
-            if (($version.StdOut + $version.StdErr).Trim() -cne $Matches[1]) { throw '已安装 JS 包管理器与 packageManager 固定版本不一致。' }
-        }
+        $tools = Initialize-JobsSetupWebTools $directory $manifest $manager $Project
+        $tool = $tools.Tool
+        $version = [pscustomobject]@{StdOut=$tools.Version;StdErr=''}
         $arguments = @('ci')
         if ($manager -ceq 'pnpm') { $arguments = @('install','--frozen-lockfile') }
         elseif ($manager -ceq 'yarn') {
@@ -263,7 +249,7 @@ function Invoke-JobsProjectDependencyAction {
     if ($Action -eq 'web-dependencies' -and -not @(@($project,(Join-Path $project 'web')) | Where-Object { [IO.File]::Exists((Join-Path $_ 'package.json')) }).Count) { Invoke-JobsDependencyWeb $project; return }
     if ($Action -eq 'android-dependencies' -and 'Android' -cnotin $platforms) { throw '工程没有 Android 平台。' }
     if ($Action -eq 'ohos-dependencies' -and 'Ohos' -cnotin $platforms) { throw '工程没有 ohos 平台。' }
-    $saved = Get-JobsSetupEnvironmentSnapshot @('JAVA_HOME','PATH','GRADLE_OPTS','ANDROID_HOME','ANDROID_SDK_ROOT','TOOL_HOME','DEVECO_SDK_HOME','NO_COLOR','FORCE_COLOR','CLICOLOR','ANSI_COLORS_DISABLED','npm_config_color')
+    $saved = Get-JobsSetupEnvironmentSnapshot @('JAVA_HOME','PATH','GRADLE_OPTS','ANDROID_HOME','ANDROID_SDK_ROOT','TOOL_HOME','DEVECO_STUDIO_HOME','DEVECO_SDK_HOME','NO_COLOR','FORCE_COLOR','CLICOLOR','ANSI_COLORS_DISABLED','npm_config_color')
     try {
         $logs = Join-Path (Get-JobsInstallRoot) 'logs'; [void][IO.Directory]::CreateDirectory($logs)
         $script:SetupLog = Join-Path $logs ('dependencies-' + [guid]::NewGuid().ToString('N') + '.log')

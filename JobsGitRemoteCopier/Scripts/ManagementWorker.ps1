@@ -30,12 +30,23 @@ function Main {
     $request = Get-Content -LiteralPath $RequestPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $operations = @($request.Plan)
     if ($operations.Count -eq 0) { throw '管理计划为空。' }
+    $route = 'installed'
+    if ($null -ne $request.PSObject.Properties['DeploymentMode']) { $route = [string]$request.DeploymentMode }
+    if ($route -notin @('installed', 'build')) { throw '部署路线无效。' }
+    $autoCleanup = $null -ne $request.PSObject.Properties['AutoCleanup'] -and [bool]$request.AutoCleanup
     $failedCount = 0
     for ($index = 0; $index -lt $operations.Count; $index++) {
         $operation = $operations[$index]
+        if ($null -ne $request.PSObject.Properties['StopRequestPath'] -and -not [string]::IsNullOrWhiteSpace([string]$request.StopRequestPath) -and (Test-Path -LiteralPath $request.StopRequestPath -PathType Leaf)) {
+            foreach ($pending in @($operations[$index..($operations.Count - 1)])) { Write-JobsManagementEvent -State Skipped -FeatureIds @($pending.FeatureIds) -Message ('已停止，未执行：' + $pending.Label) }
+            Write-JobsManagementEvent -State Stopped -FeatureIds @() -Message '已停止安装：当前包已结束，后续包未执行。'
+            if ($failedCount -gt 0) { exit 1 }
+            return
+        }
         Write-JobsManagementEvent -State Running -FeatureIds @($operation.FeatureIds) -Message ($operation.DisplayMode + '：' + $operation.Label)
+        $cleanupWarning = $null
         try {
-            if ($operation.Mode -notin @('Install', 'Uninstall')) { throw '所选包的操作模式无效。' }
+            if ($operation.Mode -notin @('Install', 'Uninstall', 'Cleanup')) { throw '所选包的操作模式无效。' }
             $manifestPath = Join-Path $operation.PackagePath 'Extension.json'
             $manifest = Get-Content -LiteralPath $manifestPath -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
             if ($manifest.Id -cne $operation.Id -or ($null -ne $operation.PSObject.Properties['Name'] -and -not [string]::IsNullOrWhiteSpace([string]$operation.Name) -and $manifest.Name -cne $operation.Name)) { throw ('功能清单与所选包身份不一致：' + $operation.PackagePath) }
@@ -43,12 +54,30 @@ function Main {
             if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) { throw ('所选包缺少安装器：' + $modulePath) }
             $module = Import-Module $modulePath -PassThru -Force -DisableNameChecking
             Write-Host ('来源：' + $operation.PackagePath)
-            if ($null -ne $operation.PSObject.Properties['ActionIds']) {
-                & $module { param($Path, $Mode, $Ids) Invoke-JobsPackageChange -PackagePath $Path -Mode $Mode -ActionIds $Ids } $operation.PackagePath $operation.Mode @($operation.ActionIds) | ForEach-Object { Write-JobsManagementResult $_ }
+            if ($operation.Mode -eq 'Cleanup') {
+                if ($route -ne 'installed') { throw '临时构建路线禁止清理运行产物。' }
+                & $module { param($Path) Clear-JobsPackageBuildArtifacts -PackagePath $Path } $operation.PackagePath | ForEach-Object { Write-JobsManagementResult $_ }
             } else {
-                & $module { param($Path, $Mode) Invoke-JobsPackageChange -PackagePath $Path -Mode $Mode } $operation.PackagePath $operation.Mode | ForEach-Object { Write-JobsManagementResult $_ }
+                $parameters = @{ PackagePath = $operation.PackagePath; Mode = $operation.Mode }
+                # 无路线字段的旧隔离计划继续兼容；GUI 新计划总是显式传递。
+                if ($null -ne $request.PSObject.Properties['DeploymentMode']) { $parameters.DeploymentMode = $route }
+                if ($null -ne $operation.PSObject.Properties['ActionIds']) { $parameters.ActionIds = @($operation.ActionIds) }
+                $result = @(& $module { param($Parameters) Invoke-JobsPackageChange @Parameters } $parameters)
+                $result | ForEach-Object { Write-JobsManagementResult $_ }
+                if ($autoCleanup -and $route -eq 'installed' -and $operation.Mode -eq 'Install') {
+                    try {
+                        $buildPaths = @($result | Where-Object { $null -ne $_.PSObject.Properties['BuildPath'] -and -not [string]::IsNullOrWhiteSpace([string]$_.BuildPath) } | ForEach-Object { $_.BuildPath })
+                        foreach ($buildPath in $buildPaths) { & $module { param($Path, $Build) Clear-JobsPackageBuildArtifacts -PackagePath $Path -BuildPath $Build } $operation.PackagePath $buildPath | ForEach-Object { Write-JobsManagementResult $_ } }
+                    } catch {
+                        # 安装事务已经提交；清理失败只记录警告，不改变安装结果。
+                        $cleanupWarning = '安装成功，清理失败：' + $_.Exception.Message
+                        [Console]::Error.WriteLine($cleanupWarning)
+                    }
+                }
             }
-            Write-JobsManagementEvent -State Succeeded -FeatureIds @($operation.FeatureIds) -Message ('完成：' + $operation.Label)
+            $successMessage = '完成：' + $operation.Label
+            if ($cleanupWarning) { $successMessage += '；' + $cleanupWarning }
+            Write-JobsManagementEvent -State Succeeded -FeatureIds @($operation.FeatureIds) -Message $successMessage
         } catch {
             Write-JobsManagementEvent -State Failed -FeatureIds @($operation.FeatureIds) -Message ($_.Exception.Message)
             $failedCount++

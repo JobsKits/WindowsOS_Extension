@@ -90,6 +90,45 @@ try{
  Assert ($start.Arguments-notmatch'main_test|device-safe') '用户参数不拼接进 CMD 源码'
  Assert ($start.EnvironmentVariables['JOBS_SETUP_ARGUMENT_0']-ceq'run') '真实 argv 通过独立环境载体传入'
  $dashboard=[IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/ProjectSetupDashboard.ps1'))
+ # 直接执行仪表盘的状态/布局函数和活动回调，临时对象不创建窗口或启动业务。
+ $parseErrors=$null
+ $dashboardAst=[Management.Automation.Language.Parser]::ParseInput($dashboard,[ref]$null,[ref]$parseErrors)
+ Assert ($parseErrors.Count-eq0) '仪表盘源码可解析'
+ foreach($name in @('Get-JobsSetupStatusText','Get-JobsSetupMilestoneHeight')){
+  $function=$dashboardAst.Find({param($node)$node-is[Management.Automation.Language.FunctionDefinitionAst]-and$node.Name-ceq$name},$true)
+  Assert ($null-ne$function) ('可执行的仪表盘函数存在：'+$name)
+  Set-Item ('Function:'+ $name) $function.Body.GetScriptBlock()
+ }
+ $frames=@(0..6|ForEach-Object{Get-JobsSetupStatusText running $_})
+ Assert (($frames-join'|')-ceq'◉ 进行中|◉ 进行中.|◉ 进行中..|◉ 进行中...|◉ 进行中....|◉ 进行中.....|◉ 进行中') '进行中真实文案按0至5点循环再归零'
+ foreach($state in @('done','failed','waiting','attention','skipped','pending')){
+  Assert ((Get-JobsSetupStatusText $state 5)-notmatch'\.') ('非进行中状态清除圆点：'+$state)
+ }
+ Assert ((Get-JobsSetupMilestoneHeight @(100,196,148) 500)-eq196) '流程高度取实际内容最大值'
+ Assert ((Get-JobsSetupMilestoneHeight @(100,196,148) 900)-eq196) '扩大窗口不按比例撑高流程区'
+ Assert ((Get-JobsSetupMilestoneHeight @(100,196,148) 300)-eq112) '内容超高时保留终端最小高度供流程滚动'
+ Assert ((Get-JobsSetupMilestoneHeight @() 500)-eq64) '空内容仍保留可拖动的最小流程高度'
+ $activityAst=$dashboardAst.Find({param($node)$node-is[Management.Automation.Language.InvokeMemberExpressionAst]-and$node.Expression.Extent.Text-ceq'$activityTimer'-and$node.Member.Value-ceq'Add_Tick'},$true)
+ $activity=$activityAst.Arguments[0].ScriptBlock.GetScriptBlock()
+ $states=@{active='running';done='done';waiting='waiting'}
+ $labels=@{active=[pscustomobject]@{Text='◉ 进行中';ForeColor='blue'};done=[pscustomobject]@{Text='✓ 已完成';ForeColor='green'};waiting=[pscustomobject]@{Text='! 等待用户';ForeColor='orange'}}
+ $script:runningDotFrame=0
+ foreach($dots in @(1,2,3,4,5,0)){
+  & $activity
+  Assert ($labels.active.Text-ceq('◉ 进行中'+('.'*$dots))) '真实计时回调推进当前执行节点'
+ }
+ Assert ($labels.done.Text-ceq'✓ 已完成'-and$labels.waiting.Text-ceq'! 等待用户') '计时回调保留完成和等待状态'
+ $stopAst=$dashboardAst.Find({param($node)$node-is[Management.Automation.Language.AssignmentStatementAst]-and$node.Left.Extent.Text-ceq'$stopActivity'},$true)
+ $stop=$stopAst.Right.Find({param($node)$node-is[Management.Automation.Language.ScriptBlockExpressionAst]},$true).ScriptBlock.GetScriptBlock()
+ $activityTimer=[pscustomobject]@{Stopped=$false};$activityTimer|Add-Member ScriptMethod Stop {$this.Stopped=$true}
+ $colors=@{attention='orange';pending='gray';done='green';waiting='orange';running='blue';failed='red'}
+ $groups=@(,@('fixture','active','活动节点','done','完成节点'));$heads=@([pscustomobject]@{ForeColor='blue'})
+ $refreshAst=$dashboardAst.Find({param($node)$node-is[Management.Automation.Language.AssignmentStatementAst]-and$node.Left.Extent.Text-ceq'$refreshGroupHeads'},$true)
+ $refreshGroupHeads=$refreshAst.Right.Find({param($node)$node-is[Management.Automation.Language.ScriptBlockExpressionAst]},$true).ScriptBlock.GetScriptBlock()
+ & $stop
+ Assert ($activityTimer.Stopped-and$states.active-ceq'attention'-and$labels.active.Text-ceq'! 需确认状态'-and$heads[0].ForeColor-ceq'orange') '流程结束停止计时并清除遗留执行点、更新组状态'
+ & $activity
+ Assert ($labels.active.Text-ceq'! 需确认状态') '终态节点即使收到额外计时回调也保持静止'
  Assert ($dashboard.Contains('SetParent')-and$dashboard.Contains('conhost.exe')-and$dashboard.Contains('MoveWindow')) '真实控制台嵌入实现，不以纯日志假装终端'
  Assert ($dashboard.Contains('系统未允许嵌入')-and$dashboard.Contains('独立 CMD')) '原生限制有明确回退'
  Assert ($dashboard.Contains('/PID')-and$dashboard.Contains('DialogResult]::No')) '关闭可停止本次树或转独立终端'

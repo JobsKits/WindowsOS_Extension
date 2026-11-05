@@ -4,6 +4,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 
 function Assert-JobsPackagerDirectory {
     param([string]$Path)
@@ -278,6 +279,11 @@ function Assert-JobsPackagerJava17 {
 function Invoke-JobsPackagerTool {
     param([string]$File, [string[]]$Arguments, [string]$Project)
     if (@($Arguments | Where-Object { $_ -cnotmatch '^[A-Za-z0-9._-]+$' }).Count -gt 0) { throw '构建参数不合法。' }
+    if ($Arguments -contains '--version' -or ($Arguments.Count -gt 0 -and $Arguments[0] -ceq 'precache')) {
+        $bootstrap = Invoke-JobsPackagerProbe $File $Arguments $Project
+        if ($bootstrap.ExitCode -ne 0) { throw 'Flutter SDK 初始化未完成。' }
+        return
+    }
     Write-JobsPackagerMessage ('执行：' + $File + ' ' + ($Arguments -join ' '))
     Push-Location -LiteralPath $Project
     try {
@@ -329,6 +335,8 @@ function Invoke-JobsPackagerBuild {
     $savedPath = $env:PATH
     try {
         Assert-JobsPackagerJava17 $Project
+        Invoke-JobsPackagerTool -File $flutter -Arguments @('--version') -Project $Project
+        Invoke-JobsPackagerTool -File $flutter -Arguments @('precache','--android') -Project $Project
         Write-JobsPackagerMessage ('工程：' + $Project)
         Write-JobsPackagerMessage ('Flutter SDK：' + $flutter)
         Write-JobsPackagerMessage ('产物：' + $Type + '；模式：' + $options.Mode + '；Flavor：' + $options.Flavor)
@@ -418,15 +426,19 @@ function Initialize-JobsPackagerHarmonyEnvironment {
 function Invoke-JobsPackagerProbe {
     param([string]$File, [string[]]$Arguments, [string]$Project)
     if (@($Arguments | Where-Object { $_ -cnotmatch '^[A-Za-z0-9._-]+$' }).Count -gt 0) { throw '工具检查参数不合法。' }
-    Push-Location -LiteralPath $Project
-    try {
-        # 通过 PowerShell 启动 .bat / .cmd，兼容 Windows 工具链的脚本入口。
-        $ErrorActionPreference = 'Continue'
-        $global:LASTEXITCODE = -1
-        $output = @(& $File @Arguments 2>&1 | ForEach-Object { [string]$_ })
-        $code = $LASTEXITCODE
-    } finally { Pop-Location }
-    return [pscustomobject]@{ ExitCode = $code; Output = (ConvertTo-JobsPackagerPlainText ($output -join [Environment]::NewLine)) }
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $File
+    $start.Arguments = @($Arguments | ForEach-Object { Quote-JobsArgument $_ }) -join ' '
+    $start.WorkingDirectory = $Project
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT -and [IO.Path]::GetExtension($File) -in @('.bat', '.cmd')) {
+        if ($File -match '["\x00-\x1f]') { throw '工具路径不合法。' }
+        $start.FileName = Join-Path ([Environment]::GetFolderPath('System')) 'cmd.exe'
+        $start.EnvironmentVariables['JOBS_PACKAGER_PROBE_TOOL'] = $File
+        $start.Arguments = '/d /v:off /s /c ""%JOBS_PACKAGER_PROBE_TOOL%" ' + ($Arguments -join ' ') + '"'
+    }
+    if ([IO.Path]::GetFileName($File) -match '^flutter(\.(bat|exe|cmd))?$' -and ($Arguments -contains '--version' -or ($Arguments.Count -gt 0 -and $Arguments[0] -ceq 'precache'))) { $result = Invoke-JobsSdkAcquireProcess $start 300 -Sanitize -Label 'Flutter/Dart 首次初始化' }
+    else { $result = Invoke-JobsSdkLiveProcess $start 300 -Sanitize }
+    return [pscustomobject]@{ ExitCode = $result.ExitCode; Output = (ConvertTo-JobsPackagerPlainText ($result.StdOut + $result.StdErr)) }
 }
 
 function Assert-JobsPackagerHarmonyToolchain {
@@ -510,6 +522,9 @@ function Invoke-JobsPackagerHarmonyBuild {
         $targets = @($options.Type)
         if ($options.Type -eq 'all') { $targets = @('hap', 'app') }
         Assert-JobsPackagerHarmonyToolchain -Project $Project -Flutter $flutter -Targets $targets
+        $precacheHelp = Invoke-JobsPackagerProbe $flutter @('precache','--help') $Project
+        if ($precacheHelp.ExitCode -ne 0 -or $precacheHelp.Output -notmatch '--(?:\[no-\])?ohos\b') { throw '当前 Harmony Flutter SDK 未确认支持 precache --ohos，未开始构建。' }
+        Invoke-JobsPackagerTool -File $flutter -Arguments @('precache','--ohos') -Project $Project
         Write-JobsPackagerMessage ('工程：' + $Project)
         Write-JobsPackagerMessage ('Flutter SDK：' + $flutter)
         Write-JobsPackagerMessage ('OpenHarmony 产物：' + $options.Type + '；模式：' + $options.Mode + '；签名沿用工程现有配置。')

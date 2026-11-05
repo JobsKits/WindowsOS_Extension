@@ -67,7 +67,8 @@ function Main {
     if ($Mode -eq 'Manage') { $selected = @() }
     $buildPlan = {
         param($Choice)
-        Get-JobsPackageOperationPlan -Packages $packages -Selected @($Choice.Features) -Installed $installed -Mode $Choice.Mode
+        $routeInstalled = @(Get-JobsManagementRouteInstalled -Packages $packages -DeploymentMode $Choice.DeploymentMode)
+        Get-JobsPackageOperationPlan -Packages $packages -Selected @($Choice.Features) -Installed $routeInstalled -Mode $Choice.Mode
     }.GetNewClosure()
     $choice = Show-JobsFeatureSelection -Packages $display -Selected $selected -Installed $installed -Mode $Mode -Preview:$Preview -BuildPlan $buildPlan -WorkerPath (Join-Path $PSScriptRoot 'ManagementWorker.ps1')
     if ($Preview -and $null -ne $choice) { $choice | ConvertTo-Json -Depth 3 }

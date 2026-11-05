@@ -31,12 +31,10 @@ static bool ReadSelection(JobsFlutterTools::Selection& selected, std::wstring* c
     selected.fill(false);
     auto folder = ReleaseFolder();
     if (folder.empty()) return false;
-    wchar_t local[32768];
-    DWORD localLength = GetEnvironmentVariableW(L"LOCALAPPDATA", local, 32768);
-    if (!localLength || localLength >= 32768) {
-        if (FAILED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, SHGFP_TYPE_CURRENT, local))) return false;
-    }
-    const auto statePath = std::wstring(local) + L"\\Jobs\\WindowsExtension\\extensions\\flutter-tools\\menu-state.txt";
+    auto root = folder;
+    root.resize(root.find_last_of(L"\\/"));
+    root.resize(root.find_last_of(L"\\/"));
+    const auto statePath = root + L"\\menu-state.txt";
     WIN32_FILE_ATTRIBUTE_DATA data;
     if (GetFileAttributesExW(statePath.c_str(), GetFileExInfoStandard, &data)) {
         if ((data.dwFileAttributes & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_REPARSE_POINT)) || data.nFileSizeHigh || data.nFileSizeLow > 65536) return false;

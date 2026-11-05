@@ -41,6 +41,8 @@ static const Entry Entries[] = {
     {L"repair-namespace", L"🏷️ 修复 Flutter 插件 namespace"},
     {L"export-private-dependencies", L"🔐 提取Flutter项目工程私库依赖"},
     {L"import-private-dependencies", L"📥 导入Flutter项目工程私库依赖"},
+    {L"export-all-dependencies", L"🚚 一键提取 Flutter 依赖"},
+    {L"import-all-dependencies", L"🚚 一键导入 Flutter 依赖"},
 };
 static const unsigned Count = sizeof(Entries) / sizeof(Entries[0]);
 using Selection = std::array<bool, Count>;
@@ -85,13 +87,15 @@ inline unsigned ActionGroup(unsigned index) {
 inline std::vector<unsigned> SelectedGroupEntries(unsigned group, const Selection& selected) {
     std::vector<unsigned> result;
     if (group == ExportDependencies || group == ImportDependencies) {
+        const auto combined = ActionIndex(group == ExportDependencies ? L"export-all-dependencies" : L"import-all-dependencies");
+        if (combined < Count && selected[combined]) result.push_back(combined);
         const auto first = ActionIndex(group == ExportDependencies ? L"extract" : L"import-dependencies");
         const auto second = ActionIndex(group == ExportDependencies ? L"export-private-dependencies" : L"import-private-dependencies");
         for (const auto index : {first, second}) {
             if (index < Count && selected[index]) result.push_back(index);
         }
         for (unsigned index = 0; index < Count; ++index) {
-            if (index != first && index != second && selected[index] && ActionGroup(index) == group) result.push_back(index);
+            if (index != combined && index != first && index != second && selected[index] && ActionGroup(index) == group) result.push_back(index);
         }
     } else if (group == Resources) {
         for (const auto action : {L"gradle-download", L"flutter-precache", L"native-dependencies"}) {

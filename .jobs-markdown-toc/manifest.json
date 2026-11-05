@@ -73,6 +73,9 @@
     "JobsFileContentViewer/Scripts/README.md",
     "JobsFileVolumes/README.md",
     "JobsFileVolumes/Scripts/README.md",
-    "JobsFlutterTools/Scripts/Actions/import-dependencies/Scripts/README.md"
+    "JobsFlutterTools/Scripts/Actions/import-dependencies/Scripts/README.md",
+    "Tests/DeploymentRoutes.Tests.ps1/README.md",
+    "Tests/NativeRuntimeDeployment.Tests.ps1/README.md",
+    "Tests/PanelPreferences.Tests.ps1/README.md"
   ]
 }

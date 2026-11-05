@@ -28,7 +28,7 @@ try {
         @('ohos','ohos',(Join-Path $project 'ohos/.hvigor'),'.hvigor'),
         @('native','android',(Join-Path $project 'build/app'),''),
         @('native','windows',(Join-Path $project 'build/windows'),''),
-        @('precache','windows',(Join-Path $temp 'flutter/bin/cache/artifacts'),''),
+        @('precache','windows',(Join-Path $temp 'flutter/bin/cache'),''),
         @('web','web',(Join-Path $project 'node_modules'),'')
     )
     foreach($row in $shapes){
@@ -60,6 +60,7 @@ try {
         function script:Read-Host {
             param($Prompt)
             if($script:cancelInitial){return 'cancel'}
+            if($Prompt -like '*完整提取本层*'){return 'all'}
             if($Prompt.StartsWith('输入精确')){return $script:answer}
             return ''
         }

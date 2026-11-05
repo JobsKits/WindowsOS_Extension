@@ -33,11 +33,11 @@ try{
   $script:RealArchiveProcess=${function:Invoke-JobsSetupProcess}
   function script:Get-JobsInstallRoot{$script:fixtureRoot}
   function script:Test-JobsSetupInteractive{$true}
-  function script:Read-Host{param($Prompt)if($Prompt.StartsWith('输入精确')){return $script:fixtureAnswer};return ''}
+  function script:Read-Host{param($Prompt)if($Prompt -like '*完整提取本层*'){return 'all'};if($Prompt.StartsWith('输入精确')){return $script:fixtureAnswer};return ''}
   function script:Get-JobsSetupFzf{param($p)'fixture-fzf'}
   function script:Get-JobsArchiveDart{param($p)$script:fixtureDart}
   function script:Read-JobsArchiveDirectory{param($Prompt,$Default,$MayBeMissing)if($script:fixtureOperation-ceq'import'){return $script:fixtureSnapshot};return $script:fixtureOutput}
-  function script:Get-JobsArchiveCachePlan{param($Project,$Kind,$Fzf,$Manifest,[switch]$Import)[pscustomobject]@{Root=$script:fixtureCache;Platform='windows';ToolVersion='Flutter 3.29.3 arch windows_x64'}}
+  function script:Get-JobsArchiveCachePlan{param($Project,$Kind,$Fzf,$Manifest,[switch]$Import)[pscustomobject]@{Root=$script:fixtureCache;Platform=$(if($Kind-ceq'precache'){'web'}else{'windows'});ToolVersion='Flutter 3.29.3 arch windows_x64'}}
   function script:Invoke-JobsSetupProcess{
    param($File,[string[]]$Arguments,$Directory,$TimeoutSeconds)
    $script:engineCalls++
@@ -73,6 +73,30 @@ try{
   Assert ($LASTEXITCODE-eq0-and$text-match'只读') ('完整发布CLI只读参数能抵达对应业务：'+$action)
  }
  Assert ([IO.File]::ReadAllText($artifact)-ceq'local different file') '所有CLI Check均未修改工程数据'
+ # 平台资源v2必须由已发布Windows wrapper携带白名单标志，并真实恢复Web SDK及配对stamp。
+ $cache=Join-Path $temp 'flutter sdk/bin/cache'
+ $webFile=Join-Path $cache 'flutter_web_sdk/kernel/dart_sdk.js'
+ [void][IO.Directory]::CreateDirectory((Split-Path -Parent $webFile))
+ [IO.File]::WriteAllText($webFile,'web sdk bytes')
+ [IO.File]::WriteAllText((Join-Path $cache 'flutter_web_sdk.stamp'),'engine revision')
+ [IO.File]::WriteAllText((Join-Path $cache 'macos-sdk.stamp'),'missing platform payload')
+ [void][IO.Directory]::CreateDirectory((Join-Path $cache 'dart-sdk/bin'))
+ [IO.File]::WriteAllText((Join-Path $cache 'dart-sdk/bin/dart'),'excluded runtime')
+ [IO.File]::WriteAllText((Join-Path $cache 'engine-dart-sdk.stamp'),'excluded runtime readiness')
+ &$module{param($c)$script:fixtureCache=$c;$script:fixtureOperation='export';$script:fixtureAnswer='';$script:engineCalls=0} $cache
+ &$module{param($p)Invoke-JobsProjectDependencyArchiveAction $p export-precache-dependencies} $project
+ $webSnapshot=&$module{$script:fixtureSnapshot}
+ $webManifest=Get-Content -LiteralPath (Join-Path $webSnapshot 'manifest.json') -Raw -Encoding UTF8|ConvertFrom-Json
+ Assert ($webManifest.formatVersion-eq2-and$webManifest.kind-ceq'precache') '已发布wrapper导出v2平台白名单布局'
+ $webNames=@($webManifest.files|ForEach-Object path)
+ Assert ($webNames.Count-eq2-and'flutter_web_sdk.stamp'-cin$webNames-and'flutter_web_sdk/kernel/dart_sdk.js'-cin$webNames) '只归档Web SDK及配对stamp，不伪造其它平台/Dart就绪'
+ $restoredCache=Join-Path $temp 'restored sdk/bin/cache'
+ &$module{param($c)$script:fixtureCache=$c;$script:fixtureOperation='import';$script:fixtureAnswer='YES';$script:engineCalls=0} $restoredCache
+ &$module{param($p)Invoke-JobsProjectDependencyArchiveAction $p import-precache-dependencies} $project
+ Assert ([IO.File]::ReadAllText((Join-Path $restoredCache 'flutter_web_sdk/kernel/dart_sdk.js'))-ceq'web sdk bytes') 'Windows wrapper真实恢复Web SDK载荷'
+ Assert ([IO.File]::ReadAllText((Join-Path $restoredCache 'flutter_web_sdk.stamp'))-ceq'engine revision') 'Windows wrapper真实恢复原配对stamp'
+ Assert (-not[IO.File]::Exists((Join-Path $restoredCache 'macos-sdk.stamp'))-and-not[IO.Directory]::Exists((Join-Path $restoredCache 'dart-sdk'))-and-not[IO.File]::Exists((Join-Path $restoredCache 'engine-dart-sdk.stamp'))) '未恢复无载荷平台stamp或SDK运行态'
+ Assert ((&$module{$script:engineCalls})-eq2) 'v2导入确认前后均重新完整核验'
  Write-Host ('PASS: FlutterDependencyArchiveEndToEnd.Tests.ps1 ('+$count+' assertions; published Windows wrapper and real Dart on '+[Environment]::OSVersion.Platform+'; not Windows native UI)')
 }finally{
  Remove-Module $module -ErrorAction SilentlyContinue

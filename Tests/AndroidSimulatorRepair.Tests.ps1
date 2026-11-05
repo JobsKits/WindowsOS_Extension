@@ -30,10 +30,11 @@ try {
         param($Archive, $Repository)
         $script:FixtureArchive = $Archive; $script:FixtureRepository = $Repository; $script:Downloads = @(); $script:FailDownload = $false
         function script:Confirm-JobsAndroidDownload { param($Description) return $true }
-        function script:Invoke-WebRequest {
-            param([switch]$UseBasicParsing, $Uri, $OutFile, $TimeoutSec)
+        function script:Receive-JobsSdkWebFile {
+            param($Uri, $Destination, $TimeoutSeconds)
+            $OutFile = $Destination
             $script:Downloads += $OutFile
-            if ($script:FailDownload) { throw 'fixture network unavailable' }
+            if ($script:FailDownload) { throw '已取消 fixture SDK 获取' }
             if ($Uri.EndsWith('.xml')) { [IO.File]::WriteAllText($OutFile, $script:FixtureRepository) }
             else { Copy-Item -LiteralPath $script:FixtureArchive -Destination $OutFile }
         }
@@ -53,8 +54,8 @@ try {
     $second = & $module { param($Sdk) Install-JobsAndroidCommandTools $Sdk } $sdk
     Assert-Repair ($second -ne $installed -and (Test-Path -LiteralPath $installed)) '重复修复创建独立新目录，不覆盖上一版本'
     & $module { $script:FailDownload = $true }
-    Assert-RepairThrows { & $module { param($Sdk) Install-JobsAndroidCommandTools $Sdk } $sdk } '下载失败传播'
-    Assert-Repair (@(Get-ChildItem -LiteralPath (Join-Path $sdk 'cmdline-tools') -Force | Where-Object { $_.Name -like '.jobs-stage-*' }).Count -eq 0) '失败精确清除私有 stage'
+    Assert-RepairThrows { & $module { param($Sdk) Install-JobsAndroidCommandTools $Sdk } $sdk } '用户取消SDK获取时传播停止'
+    Assert-Repair (@(Get-ChildItem -LiteralPath (Join-Path $sdk 'cmdline-tools') -Force | Where-Object { $_.Name -like '.jobs-stage-*' }).Count -eq 1) '取消后保留本次私有 stage，不清空已有缓存'
     Assert-Repair ((Test-Path -LiteralPath $second) -and (Test-Path -LiteralPath (Join-Path $oldTools 'existing.txt'))) '失败保留两个已安装版本及旧目录'
     Remove-Module $module
     $module = Import-Module $path -PassThru -DisableNameChecking -Force

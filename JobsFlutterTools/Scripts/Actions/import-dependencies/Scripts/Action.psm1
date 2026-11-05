@@ -304,6 +304,11 @@ function Invoke-JobsFlutterDependencyImport {
     }
     $source = ConvertFrom-JobsImporterPathInput -Text $inputPath
     Assert-JobsImporterSource $source
+    $sourceManifest = Get-Content -LiteralPath (Join-Path $source 'manifest.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($sourceManifest.PSObject.Properties['snapshotKind'] -and $sourceManifest.snapshotKind -ceq 'flutter-private-dependencies') {
+        $PrivateOnly = $true
+        Write-Host '已识别私库快照，将按私库模式恢复。'
+    }
     $dart = Find-JobsImporterDart $Directory
     $engine = Join-Path $PSScriptRoot 'ImportFlutterDependencies.dart'
     Assert-JobsImporterPlainFile $engine

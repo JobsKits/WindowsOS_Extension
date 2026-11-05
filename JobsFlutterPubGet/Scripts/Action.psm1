@@ -5,14 +5,15 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 
 function Write-JobsWorkerMessage {
-    param([string]$Message)
+    param([string]$Message, [switch]$AuditOnly)
     $safe = $Message -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@'
     $safe = $safe -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]'
     $safe = $safe -replace '(?im)(authorization\s*[:=]\s*)[^\r\n]+', '$1[已省略]'
     $safe = $safe -replace '(?im)((?:access[_-]?token|authorization|password|secret)\s*[:=]\s*)\S+', '$1[已省略]'
-    Write-Host $safe
+    if (-not $AuditOnly) { Write-Host $safe }
     Write-JobsLog $safe
 }
 
@@ -56,28 +57,12 @@ function Invoke-JobsFlutterProcess {
     $start.UseShellExecute = $false
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
-    $process = New-Object Diagnostics.Process
-    $process.StartInfo = $start
-    try {
-        Write-JobsWorkerMessage ("执行：Flutter {0}；目录：{1}" -f ($Arguments -join ' '), $Directory)
-        [void]$process.Start()
-        $stdout = $process.StandardOutput.ReadToEndAsync()
-        $stderr = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            # taskkill 只终止本次 cmd 及其子进程，避免超时后 pub get 继续修改目录。
-            $taskkill = Join-Path ([Environment]::GetFolderPath('System')) 'taskkill.exe'
-            $kill = Invoke-JobsProcess -FilePath $taskkill -Arguments @('/PID', [string]$process.Id, '/T', '/F') -WorkingDirectory $Directory
-            if ($kill.ExitCode -ne 0) { throw "Flutter 超时，终止进程失败，请检查 PID $($process.Id)。" }
-            throw 'Flutter 操作超时，已停止本次进程树。'
-        }
-        $tasks = [Threading.Tasks.Task[]]@($stdout, $stderr)
-        if (-not [Threading.Tasks.Task]::WaitAll($tasks, 5000)) { throw 'Flutter 已退出，但输出管道未能按时关闭。' }
-        $output = $stdout.GetAwaiter().GetResult()
-        $errors = $stderr.GetAwaiter().GetResult()
-        if ($output) { Write-JobsWorkerMessage $output.TrimEnd() }
-        if ($errors) { Write-JobsWorkerMessage $errors.TrimEnd() }
-        if ($process.ExitCode -ne 0) { throw "Flutter 操作失败（退出码 $($process.ExitCode)）。" }
-    } finally { $process.Dispose() }
+    Write-JobsWorkerMessage ("执行：Flutter {0}；目录：{1}" -f ($Arguments -join ' '), $Directory)
+    if ($Arguments -contains '--version') { $result = Invoke-JobsSdkAcquireProcess $start ([Math]::Max(120,$TimeoutSeconds)) -Sanitize -Label 'Flutter/Dart 首次初始化' }
+    else { $result = Invoke-JobsSdkLiveProcess $start $TimeoutSeconds -Sanitize }
+    if ($result.StdOut) { Write-JobsWorkerMessage $result.StdOut.TrimEnd() -AuditOnly }
+    if ($result.StdErr) { Write-JobsWorkerMessage $result.StdErr.TrimEnd() -AuditOnly }
+    if ($result.ExitCode -ne 0) { throw "Flutter 操作失败（退出码 $($result.ExitCode)）。" }
 }
 
 function Invoke-JobsFlutterAction {

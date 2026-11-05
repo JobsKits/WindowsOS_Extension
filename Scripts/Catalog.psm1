@@ -51,7 +51,7 @@ function Get-JobsSelectableFeatures {
         foreach ($entry in $catalog) {
             [pscustomobject]@{
                 Id = 'flutter-' + $entry.Id; Label = $entry.Label; Description = $package.Description
-                PackageId = $package.Id; ActionId = $entry.Id; Group = $entry.Group
+                PackageId = $package.Id; ActionId = $entry.Id; Group = $entry.Group; PackagePath = $package.PackagePath
             }
         }
     }
@@ -70,7 +70,14 @@ function Expand-JobsFeatureSelection {
 
 # 选择映射：普通选项一包一事务；flutter-* 叶子折叠成 flutter-tools 的 ActionIds，未选功能保留既有策略。
 function Get-JobsPackageOperationPlan {
-    param([object[]]$Packages, [string[]]$Selected, [string[]]$Installed, [ValidateSet('Install', 'Configure', 'Uninstall')][string]$Mode)
+    param([object[]]$Packages, [string[]]$Selected, [string[]]$Installed, [ValidateSet('Install', 'Configure', 'Uninstall', 'Cleanup')][string]$Mode)
+    if ($Mode -eq 'Cleanup') {
+        foreach ($package in $Packages) {
+            $ids = @($Selected | Where-Object { $_ -eq $package.Id -or ($package.Id -eq 'flutter-tools' -and $_ -like 'flutter-*') })
+            if ($ids.Count -gt 0) { [pscustomobject]@{ Id = $package.Id; Name = $package.Name; Label = $package.Label; PackagePath = $package.PackagePath; Mode = 'Cleanup'; DisplayMode = 'Cleanup'; FeatureIds = $ids } }
+        }
+        return
+    }
     $selectedFeatures = @(Expand-JobsFeatureSelection -Packages $Packages -Selected $Selected)
     $installedFeatures = @(Expand-JobsFeatureSelection -Packages $Packages -Selected $Installed)
     foreach ($package in $Packages) {

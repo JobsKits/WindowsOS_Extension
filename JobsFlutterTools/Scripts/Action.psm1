@@ -87,9 +87,14 @@ function Repair-JobsToolsAndroidSdk {
 }
 
 function Invoke-JobsFeature {
-    param([string]$Target, [ValidateSet('run','pub-get','extract','export-private-dependencies','import-private-dependencies','import-dependencies','sdk-version','sdk-manage','ohos-sdk-manage','java-manage','android-dependencies','ohos-dependencies','native-dependencies','flutter-precache','web-dependencies','export-gradle-dependencies','import-gradle-dependencies','export-ohos-dependencies','import-ohos-dependencies','export-native-dependencies','import-native-dependencies','export-precache-dependencies','import-precache-dependencies','export-web-dependencies','import-web-dependencies','gradle-download','project-setup','package','build-harmony','codegen','native-doctor','harmony-doctor','maintenance','repair-android','repair-imports','repair-namespace')][string]$Action)
+    param([string]$Target, [ValidateSet('run','pub-get','extract','export-private-dependencies','import-private-dependencies','export-all-dependencies','import-all-dependencies','import-dependencies','sdk-version','sdk-manage','ohos-sdk-manage','java-manage','android-dependencies','ohos-dependencies','native-dependencies','flutter-precache','web-dependencies','export-gradle-dependencies','import-gradle-dependencies','export-ohos-dependencies','import-ohos-dependencies','export-native-dependencies','import-native-dependencies','export-precache-dependencies','import-precache-dependencies','export-web-dependencies','import-web-dependencies','gradle-download','project-setup','package','build-harmony','codegen','native-doctor','harmony-doctor','maintenance','repair-android','repair-imports','repair-namespace')][string]$Action)
     $project = Resolve-JobsTarget $Target
-    if (-not [IO.File]::Exists((Join-Path $project 'pubspec.yaml')) -or ($Action -notin @('import-dependencies','import-private-dependencies') -and -not [IO.Directory]::Exists((Join-Path $project 'lib')))) { throw '请选择 Flutter 工程根目录。' }
+    if (-not [IO.File]::Exists((Join-Path $project 'pubspec.yaml')) -or ($Action -notin @('import-dependencies','import-private-dependencies','export-all-dependencies','import-all-dependencies') -and -not [IO.Directory]::Exists((Join-Path $project 'lib')))) { throw '请选择 Flutter 工程根目录。' }
+    if ($Action -in @('export-all-dependencies','import-all-dependencies')) {
+        $migration = Import-Module (Join-Path $PSScriptRoot 'FlutterDependencyMigration.psm1/FlutterDependencyMigration.psm1') -PassThru -DisableNameChecking
+        & $migration { param($p,$a) Invoke-JobsFlutterMigration -Project $p -Action $a } $project $Action
+        return
+    }
     if ($Action -in @('export-private-dependencies','import-private-dependencies')) {
         $workerAction = if ($Action -eq 'export-private-dependencies') { 'extract' } else { 'import-dependencies' }
         $worker = Import-Module (Join-Path $PSScriptRoot ('Actions/' + $workerAction + '/Scripts/Action.psm1')) -PassThru -DisableNameChecking

@@ -4,28 +4,49 @@
 
 `JobsFlutterTools` 是 Flutter 工程右键菜单的统一入口。只有同层 `pubspec.yaml` 声明 Flutter SDK 的工程文件夹才展示菜单；支持选中文件夹或工程内空白处。菜单由单个扩展创建，子菜单顺序固定，不再由多个独立扩展竞争排列。其他软件提供的菜单相对于本组的位置由操作系统决定。
 
+## 一键迁移依赖
+
+在“提取Flutter项目工程依赖”及“导入Flutter项目工程依赖”子菜单的首项使用“🚚 一键提取 Flutter 依赖”和“🚚 一键导入 Flutter 依赖”；安装面板中分别勾选这两项。源码更新后需安装 / 更新菜单，旧驻留 DLL 还需重新加载 Explorer 或注销再登录，安装器不会关闭现有窗口。
+
+- 提取的重点是私库：直接回车只提取可识别的私库候选；任意字符（含空格）加回车才全提取。Git、path、非公共源按候选处理，原生私库按工程证据选择；来源不能确认时会列出缺口，不能把整个共享缓存当成私库。
+- 提取完成后，直接回车打包 ZIP、非空不打包；ZIP 校验通过后，直接回车保留原始提取目录、非空删除本次目录。ZIP 失败或文件变化保留原目录。
+- 导入可选择完整产物，也可选择直接拷来的 Pub / Gradle 缓存（名称可改），或者同时包含它们的父目录。ZIP 先解压。引擎按结构识别，预检显示计划后，精确大写 `YES` 才融合；已存在且相同的文件复用，同名不同内容停止。
+- Pub 缓存写入当前 `PUB_CACHE` 或 Windows 默认的用户本地缓存目录，Gradle 写入当前 `GRADLE_USER_HOME` 或用户 `.gradle`。排除已知的缓存认证配置，不执行缓存脚本。普通 Pub 提取也默认私库；普通 Pub 导入自动识别私库快照。原生分层提取回车改用一键私库流程，非空才完整提取所选层。
+- 工程 + `.gradle` + `.pub-cache` 只覆盖部分依赖材料。完整迁移还要保留锁文件及 FVM/Java 版本声明、本地路径依赖与子模块、各目标平台私库载荷和必要的工具链版本；认证由目标机自行配置。Windows 不安装或运行 CocoaPods / Apple SPM 工具链，跨平台二进制缓存不保证可用。
+
+完整交互、输出与验证边界见[一键迁移脚本说明](./Scripts/FlutterDependencyMigration.psm1/README.md)。当前隔离检查不等于 Windows 原生安装、真实缓存导入或离线构建已经验收。
+
 **系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
 
 **本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。运行宿主另需系统 .NET Framework 的 `csc.exe`。Flutter / Dart / FVM、Java、Android / DevEco 工具链随实际版本可能提高系统或 build 下限；Android / Harmony 本地模拟器按 AMD64 物理机单独验收，不能由 Windows ARM 虚拟机菜单测试推定可运行。
 
 **管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
 
+
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / English / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。
+
+**两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
+
+**构建产物清理：** 安装位置选择、显示中的自动清理复选框与红色“🧹 清除构建产物”按钮排在同一行，垂直居中、间隔统一。英文或窄窗空间不足时，该行可水平滚动，文字保持完整，不拆成两行。仅默认安装位置路线显示默认关闭的“安装成功后清除此轮构建产物”和红底白字的“🧹 清除构建产物”独立按钮。自动清理仅处理本次成功安装产生的编译 GUID 子目录；独立按钮按当前选择清理本包 `work\JobsExtensionBuild` 专用编译工作区，不需要重新安装。临时路线隐藏清理控件。清理验证运行文件、标记与路径边界并持有事务锁，保留已经安装的 `.exe`、`.dll`、`.cmd`、`.ps1`、配置和注册表；自动清理失败明确显示“安装成功，清理失败”，独立清理失败正常报错。
+
+**停止安装：** 安装进行中原按钮变为“停止安装”。点击只写停止请求，等待当前包事务完整结束，再把后续包标记为“未执行”；不强杀安装器、编译进程或资源管理器，未执行项不计失败或完成百分比。完成后可在同一面板继续清理、重试或关闭。
+
 ## 一键配置与 Gradle 插件下载
 
 “🚀 一键配置 Flutter 项目”（`project-setup`）、“📚 下载Gradled分发与构建插件”（`gradle-download`）及“☕ 安装/切换Java SDK”（`java-manage`）由 [ProjectSetup.psm1](./Scripts/ProjectSetup.psm1) 实现，都是本包可独立勾选的叶动作。源码更新后通过本包 `Manage.cmd` 或总管理面板安装 / 更新并选中；新增原生动作需要重启 Explorer 或注销后载入新 DLL。只改源码不会更新已安装菜单。
 
-一键流程：原生仪表盘 → 下半真实 CMD 自述回车 → fzf 选择工程已有 Android / Web / Windows / OpenHarmony 目标 → Flutter / Java 管理方式和 SDK → 补齐所选平台工具与 Flutter 平台资源 → Android 所选 JDK / Gradle / AGP 兼容检查、固定分发与 Wrapper 初始化 → `pub get` / 构建插件 → 对应 Maven、OHPM / Hvigor 或可选 JS 依赖 → 按所选启动配置实际 debug 构建原生库与延迟依赖 → doctor / 设备诊断 → 选择实际运行或本次仅准备。只有 Android 目标需要 Gradle；选择 Android 却缺少合法 Wrapper 时停止，未选 Android 不受该目录的 Wrapper 故障阻断，独立 Gradle 动作在没有 Android 平台时拒绝执行。Apple 目标要求 macOS，Linux 桌面要求 Linux 宿主，不显示为 Windows 可运行平台；OpenHarmony 始终要求鸿蒙适配 SDK 与已有 DevEco 工具。
+一键流程：原生仪表盘 → 下半真实 CMD 自述回车 → fzf 选择工程已有 Android / Web / Windows / OpenHarmony 目标 → Flutter SDK 与目标所需工具（Android 选择 Java，鸿蒙复检匹配 DevEco 的 Java）→ 补齐所选平台工具与 Flutter 平台资源 → Android 所选 JDK / Gradle / AGP 兼容检查、固定分发与 Wrapper 初始化 → `pub get` / 构建插件 → 对应 Maven、OHPM / Hvigor 或可选 JS 依赖 → 按所选启动配置实际 debug 构建原生库与延迟依赖 → doctor / 设备诊断 → 选择实际运行或本次仅准备。只有 Android 目标需要 Gradle；选择 Android 却缺少合法 Wrapper 时停止，未选 Android 不受该目录的 Wrapper 故障阻断，独立 Gradle 动作在没有 Android 平台时拒绝执行。Apple 目标要求 macOS，Linux 桌面要求 Linux 宿主，不显示为 Windows 可运行平台；OpenHarmony 始终要求鸿蒙适配 SDK 与已有 DevEco 工具。
 
 - **Flutter 选择**：首项推荐 [FVM](https://fvm.app/)，复用当前工程 SDK 或进入已有安装 / 切换流程；该流程结束后输入 `CONTINUE` 才继续使用实际项目 SDK，取消不会默默进入下游。系统模式复用 PATH 中的普通 Flutter、手动指定 SDK 根目录，或从 [Flutter 官方归档](https://docs.flutter.dev/install/archive) 选择 Stable 版并校验官方元数据 SHA-256、解压到当前用户缓存。系统模式只绑定本工具本次流程及工程配置，不改计算机全局 PATH、不删除原 `.fvmrc`。两个模式均检查 Flutter 与同源 Dart。
-- **Java 选择**：首项推荐原生 [JEnv-for-Windows](https://github.com/FelixSelter/JEnv-for-Windows)，它与 macOS 的 [jenv.be](https://www.jenv.be/) 为不同实现。也可复用系统 JDK、手动指定目录，或选择 [Temurin](https://adoptium.net/) 主版本 17 / 21 / 25 / 27 / 26 / 11 / 8，按本机 x64 / ARM64 获取官方 API 元数据与 ZIP 并校验 SHA-256。系统中只有 JRE、java/javac 主版本不一致，或选择与工程 Gradle/AGP 不兼容时停止，不擅自升级工程版本。
+- **Java 选择**：仅 Android / 独立 Gradle 和 Java 管理动作需要该选择。纯 Web / Windows 桌面跳过 JDK；OpenHarmony 使用实际匹配 DevEco 的 Java 并显示检测版本。首项推荐原生 [JEnv-for-Windows](https://github.com/FelixSelter/JEnv-for-Windows)，它与 macOS 的 [jenv.be](https://www.jenv.be/) 为不同实现。也可复用系统 JDK、手动指定目录，或选择 [Temurin](https://adoptium.net/) 主版本 17 / 21 / 25 / 27 / 26 / 11 / 8，按本机 x64 / ARM64 获取官方 API 元数据与 ZIP 并校验 SHA-256。系统中只有 JRE、java/javac 主版本不一致，或选择与工程 Gradle/AGP 不兼容时停止，不擅自升级工程版本。
 - **jEnv 安装与绑定**：有健康 Git 时从作者仓库首次克隆到用户缓存，显示并记录提交，后续复用同一缓存；源码改动或 origin 不符时停止。直接调用上游 `add` / `local` 模块写入其原生 `APPDATA` 下 `JEnv/jenv.config.json`，保留 global 和其它项目映射并先备份；避开主脚本会修改全局 PATH 的初始化，不安装全局 shim。缺 Git 时经确认复用本包 WinGet 依赖安装与复检；取消则停止，或返回选择系统 Java。后续在其它终端使用 jEnv 时仍须按上游说明自行初始化；本工具直接为 Gradle 子进程绑定 JDK。
 - **Java 生效范围**：所选完整 JDK 通过本次进程 `JAVA_HOME`、PATH 和 `GRADLE_OPTS` 的 `org.gradle.java.home` 传给 Wrapper 与构建插件，结束后精确恢复未设置 / 空值 / 原值。工程已有 `android/gradle/gradle-daemon-jvm.properties` 时停止要求核对，它优先于常规 Java 环境。不会运行全局 `flutter config --jdk-dir`。
 
-[Gradle](https://docs.gradle.org/current/userguide/gradle_wrapper.html) 版本始终取 `android/gradle/wrapper/gradle-wrapper.properties` 的固定 `distributionUrl`，不依据 Java 自动升级 Gradle 或 AGP。优先使用项目 `distributionSha256Sum`；没有时从官方 `.sha256` 获取可信摘要。下载可选“官方 + 官方备用”或“官方 + 官方备用 + 腾讯分发 / 阿里云插件镜像回退”；镜像 ZIP 仍用项目或官方摘要核验。下载有 15 秒连接限制、30 秒低速判断、有界重试和来源切换；不用 `-k`、不改系统代理或持久镜像。小文件请求限 60 秒、Gradle ZIP 每次限 900 秒，失败保留日志后停止。
+[Gradle](https://docs.gradle.org/current/userguide/gradle_wrapper.html) 版本始终取 `android/gradle/wrapper/gradle-wrapper.properties` 的固定 `distributionUrl`，不依据 Java 自动升级 Gradle 或 AGP。优先使用项目 `distributionSha256Sum`；没有时从官方 `.sha256` 获取可信摘要。下载可选“官方 + 官方备用”或“官方 + 官方备用 + 腾讯分发 / 阿里云插件镜像回退”；镜像 ZIP 仍用项目或官方摘要核验。连接与无数据读取设单次时限，网络失败后持续自动重试并轮换来源；传输有进度时持续进行，没有总时长和次数上限。支持来源校验后的续传，失败或取消保留临时文件；不用 `-k`、不改系统代理或持久镜像。
 
 已验证 ZIP 按 Wrapper 的 URL MD5 / base36 规则预填真正的 `zipStoreBase / zipStorePath` 缓存，遵循 `GRADLE_USER_HOME` 和 `PROJECT`（以 `android/` 为根），同时校验分发目录。支持标准两种 base 与安全相对路径；未知 base、重复键或越界路径停止。发布使用 Wrapper 同名 `.lck` 排他锁和原子替换，不伪造 `.ok`；随后由工程 `gradlew.bat --version` 自行解压、验证并核对实际版本，后续 `flutter build` 复用同一缓存。插件解析仅网络故障再试一次，认证 / 权限 / 证书 / 编译错误直接停止。可选阿里云仓库通过本次 `--init-script` 增加，不改工程和用户仓库声明；插件仍遵循项目既有 Gradle 依赖校验配置。
 
-本工具选择保存到工程 `.jobs/flutter-environment.json`（`Platform`、`FlutterMode`、`FlutterPath`、`JavaMode`、`JavaHome`），含本机绝对路径，宜作为本机配置忽略。Java 独立动作保存 `.jobs/java-environment.json`，后续一键流程可选择复用。跨平台配置不会直接沿用，原配置有唯一备份。SDK / 下载归档在本包用户数据的 `toolchains/`，日志为 `logs/project-setup-<运行编号>.log`，终端显示实际位置；jEnv 配置、工程环境 JSON 与 `android/local.properties` 更新前各保留就近备份。`local.properties` 增量更新所选 `flutter.sdk` 及所准备的 Android `sdk.dir`，保留其它字段。恢复前应核对文件之后是否已有其它改动，再使用对应备份；不自动卸载已安装 SDK。
+本工具选择保存到工程 `.jobs/flutter-environment.json`（`Platform`、`FlutterMode`、`FlutterPath`、`JavaMode`、`JavaHome`；无需 Java 且无旧记录时 `JavaMode=none`），含本机绝对路径，宜作为本机配置忽略。Java 独立动作保存 `.jobs/java-environment.json`，后续需要 Java 的一键流程可选择复用。Web / Windows 保存 SDK 时保留既有 Android Java 记录，不检查或强制修复无关 JDK。跨平台配置不会直接沿用，原配置有唯一备份。SDK / 下载归档在本包用户数据的 `toolchains/`，日志为 `logs/project-setup-<运行编号>.log`，终端显示实际位置；jEnv 配置、工程环境 JSON 与 `android/local.properties` 更新前各保留就近备份。`local.properties` 增量更新所选 `flutter.sdk` 及所准备的 Android `sdk.dir`，保留其它字段。恢复前应核对文件之后是否已有其它改动，再使用对应备份；不自动卸载已安装 SDK。
 
 fzf 中 Enter 选定、Esc / Ctrl+C 取消；子层 `←` 返回真正上一选择层。返回 / 取消停止后续步骤，已经完成的安装、项目绑定、配置和缓存保留，不能视为全流程回滚。首次自述取消不执行 SDK 安装或配置。未安装 fzf 时经确认使用 WinGet 当前用户安装并复检；选择系统模式不强制安装 FVM。日志脱敏，不记录私库密码或 Token。
 
@@ -36,14 +57,17 @@ fzf 中 Enter 选定、Esc / Ctrl+C 取消；子层 `←` 返回真正上一选�
 ### 平台工具准备
 
 - Android 复用随包 `Actions/android-support` 的 Google 官方下载、健康检查与修复核心，确定工程 compileSdk、选择或遵循 build-tools，补齐 platform-tools 与所声明的 NDK / CMake，安装后检查关键文件。最新命令行工具需要 Java21+ 时使用独立工具 JDK，Gradle 仍绑定所选项目 JDK。SDK 许可证直接在下方控制台由本人阅读接受，不自动回答 yes。
-- Windows 桌面先用 vswhere 检查对应架构 C++ 工具。缺失时可选择通过 WinGet 官方源安装 Visual Studio Build Tools 2022 的 C++ 工作负载与推荐 SDK；安装器可能请求管理员 UAC，未授权或复检失败则停止。不会因为当前不是 Windows 桌面目标而强装 C++。
-- Web 检查 Chrome / Edge；缺失时可选择经 WinGet 安装 Chrome。各平台执行对应 `flutter precache`，不擅自生成其它平台工程。
+- Windows 桌面同时核对对应架构的 MSVC、VS CMake 组件和实际 `cmake --version`，以及同一 Windows SDK 版本的 headers、libraries、`rc.exe`。缺失时可选择补齐 VC、CMake 与 Windows SDK 26100；已有 VS 实例通过官方 Installer `modify` 修复，否则使用 WinGet 官方源安装 Build Tools 2022。安装器可能请求管理员 UAC；复检全部通过后才标记完成，未授权停止，要求重启时提示本人处理，不自动重启。其它目标不会强装 C++。
+- Web 检查 Chrome / Edge；缺失时可选择经 WinGet 安装 Chrome。存在 `package.json` 和唯一管理器锁文件时，同时检查 [**Node.js**](https://nodejs.org/) 与 npm / pnpm / Yarn。`engines.node`、数字 `.nvmrc` / `.node-version` 共同约束运行时，由 npm 自带 semver 解释范围；无法核验的别名停止，要求先固定版本。健康工具直接复用，缺失或不匹配时明确选择安装 / 切换 Node、只准备包管理器或自行处理后复检。
+- Node 安装必须输入精确 `x.y.z`，从 [Node 官方归档](https://nodejs.org/dist/) 取得对应架构 ZIP 和 `SHASUMS256.txt`，核对 SHA-256 后放入本包 `toolchains/node-<版本>-<架构>/`；相同版本健康缓存直接复用，损坏分支条件修复，旧目录保留为具名备份。包管理器遵守 `packageManager` 精确版本，未固定时也须本人输入精确版本；使用当前 npm registry 及已有认证，通过显式 `--prefix` 安装到本包用户缓存，不写全局 npm 配置。现代 Yarn 使用 `@yarnpkg/cli-dist`。Node / npm、项目版本范围和管理器精确版本二次复检通过后，才继续 `npm ci` / 冻结锁安装；只刷新本次进程 PATH，结束恢复。生命周期脚本按项目原有行为执行。
+- OpenHarmony 在平台阶段先检查已有工程声明、工程自身 Hvigor wrapper、DevEco / SDK 环境与 Node、npm、OHPM、Java 的实际版本及 `--sync` 能力。缺失时可指定已安装的 DevEco / SDK 路径，或打开 [DevEco 官方安装说明](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-software-install)，由本人完成匹配版本与许可后复检；不自动装全局最新 OHPM / Hvigor。复检失败停止，不会因 `precache` 成功就宣称鸿蒙工具链完成。所选目录仅影响本次进程，结束精确恢复。
+- 各平台执行对应 `flutter precache`，不擅自生成其它平台工程。
 
 ### 原生仪表盘与完整日志
 
-[ProjectSetupDashboard.ps1](./Scripts/ProjectSetupDashboard.ps1) 上方为五组横向里程碑与各组子节点，组间以等宽 ASCII `>>>>>` 连接；上部里程碑与下部黑色终端使用可拖动的水平分隔条，分别保留最小高度，拖动同步调整原生控制台，按实际事件显示未开始 / 执行中 / 等待用户 / 已完成 / 失败 / 不适用，不使用估算百分比。下方优先通过独立经典 `conhost.exe` 承载 CMD / PowerShell，再用 Win32 `SetParent`、子窗口样式和 `MoveWindow` 嵌入真实控制台；fzf、许可、启动参数和运行控制均保持原生 TTY 输入。嵌入前核对 HWND 可见、未最小化且客户区非零；ConPTY 仅消息 HWND 或系统 DPI / 终端宿主等条件不允许嵌入时，界面明确显示“独立终端”回退，下方增量显示原始工具日志末尾；不能把该回退称为已成功嵌入。日志读取保留字节 offset 与 UTF8 Decoder，每轮最多读取 128 KiB，回退视图最多显示约 20 万 UTF16 字符，积压时直接追到有界尾部；跨块中文 / emoji 保持完整，原始文件从不截断。此原生路径仍须目标 Windows 桌面验收。
+[ProjectSetupDashboard.ps1](./Scripts/ProjectSetupDashboard.ps1) 顶部单独显示“一键配置 Flutter 项目”，项目名与工具版号另占一行。下方为五组横向里程碑与各组子节点，组间以等宽 ASCII `>>>>>` 连接，节点名称与状态分行显示。流程区默认按实际内容取紧凑高度，放大窗口时额外空间留给终端；实际版本出现后按需增高，手动拖过分隔条后保留用户选择，高度不足时流程区可滚动。上部里程碑与下部黑色终端使用可拖动的水平分隔条，分别保留最小高度，拖动同步调整原生控制台，按实际事件显示未开始 / 进行中 / 等待用户 / 已完成 / 失败 / 不适用；进行中每 0.35 秒循环显示 0～5 个 ASCII 小圆点，固定状态控件宽度避免跳动，退出或转为其它状态时清点停止，不使用估算百分比。下方优先通过独立经典 `conhost.exe` 承载 CMD / PowerShell，再用 Win32 `SetParent`、子窗口样式和 `MoveWindow` 嵌入真实控制台；fzf、许可、启动参数和运行控制均保持原生 TTY 输入。嵌入前核对 HWND 可见、未最小化且客户区非零；ConPTY 仅消息 HWND 或系统 DPI / 终端宿主等条件不允许嵌入时，界面明确显示“独立终端”回退，下方增量显示原始工具日志末尾；不能把该回退称为已成功嵌入。日志读取保留字节 offset 与 UTF8 Decoder，每轮最多读取 128 KiB，回退视图最多显示约 20 万 UTF16 字符，积压时直接追到有界尾部；跨块中文 / emoji 保持完整，原始文件从不截断。此原生路径仍须目标 Windows 桌面验收。
 
-窗口工具版号取同包 [SetupVersion.json](./Scripts/SetupVersion.json)，当前为 `v1.1.0 build 2026.10.29.2`。版本与节点状态分开显示：Flutter / 同源 Dart / FVM、完整 Java / javac / 厂商构建号 / jEnv、Wrapper 实际 Gradle、同一 Gradle 进程已加载 AGP、Android API / Build Tools / platform-tools / NDK / CMake / cmdline-tools、VS / MSVC / Windows SDK 或浏览器。安装后读取实际工具输出、组件 `source.properties` 和本机文件版本；没有可确认信息时写“未检测”或“不适用”，不拿期望安装号当实测号。节点小字容纳不下的完整版本可悬停查看。AGP 探针以临时只读 init script 运行并清理，不改项目版本或仓库。
+窗口工具版号取同包 [SetupVersion.json](./Scripts/SetupVersion.json)，当前为 `v1.1.0 build 2026.10.29.2`。版本与节点状态分开显示：Flutter / 同源 Dart / FVM、完整 Java / javac / 厂商构建号 / jEnv、Wrapper 实际 Gradle、同一 Gradle 进程已加载 AGP、Android API / Build Tools / platform-tools / NDK / CMake / cmdline-tools、VS / MSVC / Windows SDK 或浏览器。安装后读取实际工具输出、组件 `source.properties` 和本机文件版本；尚未收到实际版本时不额外占行；明确不适用时显示“不适用”，不拿期望安装号当实测号。节点小字容纳不下的完整版本可悬停查看。AGP 探针以临时只读 init script 运行并清理，不改项目版本或仓库。
 
 每次 GUI 会话在系统临时目录创建 `JobsFlutterSetup-<运行编号>/`：`events.jsonl` 保存里程碑，`raw.log` 保存未经过脱敏或摘要替换的工具 stdout / stderr，`transcript.log` 保存交互会话文本，`raw.log.stdout.bin` / `raw.log.stderr.bin` 额外保留两条原始字节流，便于外部工具使用不同编码时复核；fzf 原生屏幕绘制不作为可复现日志承诺。终端与原始文件同步输出，不用阶段摘要代替原始内容。日志仅保留在本机；“打开完整日志”可定位该会话目录。独立 CLI 的原始日志与本包 `project-setup-*.log` 审计日志相邻；审计日志继续脱敏。窗口关闭时可选择只停止本次 PID 子树、转独立终端继续、或取消关闭；不按进程名终止其它 Flutter 会话。停止不卸载已经安装的设备应用、SDK 或已创建 AVD。
 
@@ -105,7 +129,7 @@ Windows 此资源菜单只提供本机支持的已有 Android / Windows / Web / 
 | `gradle` | 在菜单内选择 Maven 原生库 / 插件 `caches/modules-2`，或项目 Wrapper 固定版本的分发目录，两种快照分开。同宿主、相同项目固定 Gradle / 组件与锁指纹才允许导入；支持项目配置的 Wrapper zipStorePath。`modules-2` 是共享缓存，可能包含其它工程包，不包含整个 Gradle 用户目录、`gradle.properties`、`init.d` 或 daemon。 |
 | `ohos` | 分别选择 `ohos/oh_modules`（OHPM）或 `.hvigor` 缓存层；根据本机真实 OHPM / 工程 Hvigor wrapper 版本区分，不能互换。可显式指定同类型根目录；不捆绑 DevEco 安装目录或用户凭证。 |
 | `native` | 仅当前工程所选目标的 `build/app`（Android）、`build/windows`、`build/web` 或 `build/ohos`，不会提取整个 `build`。绑定本机 OS / ABI、Flutter 版本及工程锁；这是目标构建缓存，不能替代源码或跨系统构建链，未选平台和散落在其它路径的插件缓存不在快照内。 |
-| `precache` | 所选 Flutter SDK 的 `bin/cache/artifacts`；保留对应 SDK / ABI 与目标标签，不包含 SDK 源码、Dart runtime。导入到本次指定的 SDK 产物目录，只有匹配版本才可用。 |
+| `precache` | v2 使用 SDK 缓存根白名单，包含 `artifacts`、`flutter_web_sdk`、缓存引擎包及与载荷配对的 stamp；完整载荷复制后最后写标记。不含 SDK 源码、Dart runtime 或 Flutter tools。旧 v1 仅恢复 artifacts，不补造 Web SDK / 标记；导入后仍需所选目标预缓存或构建复验。 |
 | `web` | 根或 `web/` 中实际 `package.json` 所在目录的 `node_modules`；区分这两个作用域，核对同宿主 / Node / ABI 及锁指纹。导入只复制已校验内容，不运行 `postinstall` 等归档脚本；需要重新安装或运行构建钩子时使用相应依赖菜单。 |
 
 提取时确认缓存组件、源根与输出父目录，默认输出父目录为系统桌面；共享引擎建立唯一快照目录，写入 `manifest.json` 与 `payload/`。清单包含类型、宿主、目标、工具版本、工程配置 / 锁指纹和逐文件 SHA-256 / 长度 / 执行权限信息，避免保存来源机器的绝对路径。Dart 运行时优先从项目 SDK、显式 `DART_SDK` 或已安装命令发现，健康检查失败可手动指定已有 SDK，本动作不自动安装运行时。
@@ -140,6 +164,7 @@ Windows 此资源菜单只提供本机支持的已有 Android / Windows / Web / 
 │  ├─ 🕊️ 拉取 OpenHarmony 依赖
 │  └─ 🌐 拉取 Web 工程依赖
 ├─ 🧩 提取Flutter项目工程依赖
+│  ├─ 🚚 一键提取 Flutter 依赖
 │  ├─ 🧩 提取 Flutter Pub 依赖
 │  ├─ 🔐 提取Flutter项目工程私库依赖
 │  ├─ 🧩 提取 Gradle 分发与依赖缓存
@@ -148,6 +173,7 @@ Windows 此资源菜单只提供本机支持的已有 Android / Windows / Web / 
 │  ├─ 🧩 提取 Flutter 平台资源
 │  └─ 🧩 提取 Web 依赖
 ├─ 📤 导入Flutter项目工程依赖
+│  ├─ 🚚 一键导入 Flutter 依赖
 │  ├─ 📤 导入 Flutter Pub 依赖
 │  ├─ 📥 导入Flutter项目工程私库依赖
 │  ├─ 📤 导入 Gradle 分发与依赖缓存
@@ -180,14 +206,14 @@ Windows 此资源菜单只提供本机支持的已有 Android / Windows / Web / 
 
 后续 Flutter 动作应增加到本包的固定动作表和对应分组，不再新增独立的顶层扩展。修复组也是一级菜单，其顺序固定在开发辅助组之后。
 
-菜单中的分组标题不算可执行动作。固定白名单共 36 项，与安装 `ActionIds`、原生菜单和 PowerShell 参数枚举对账；不能通过旧 URL 或直接传入未知动作绕过开关。Windows 不添加 CocoaPods / Swift Package 的拉取或快照动作。
+菜单中的分组标题不算可执行动作。固定白名单共 38 项，与安装 `ActionIds`、原生菜单和 PowerShell 参数枚举对账；不能通过旧 URL 或直接传入未知动作绕过开关。Windows 不添加 CocoaPods / Swift Package 的拉取或快照动作。
 
 | 组 / 叶动作数 | 固定动作 ID |
 | --- | --- |
 | 根层日常操作 / 6 | `run`、`project-setup`、`package`、`build-harmony`、`codegen`、`maintenance` |
 | 拉取Flutter项目工程相关依赖 / 4 | `pub-get`、`android-dependencies`、`ohos-dependencies`、`web-dependencies` |
-| 提取Flutter项目工程依赖 / 7 | `extract`、`export-private-dependencies`、`export-gradle-dependencies`、`export-ohos-dependencies`、`export-native-dependencies`、`export-precache-dependencies`、`export-web-dependencies` |
-| 导入Flutter项目工程依赖 / 7 | `import-dependencies`、`import-private-dependencies`、`import-gradle-dependencies`、`import-ohos-dependencies`、`import-native-dependencies`、`import-precache-dependencies`、`import-web-dependencies` |
+| 提取Flutter项目工程依赖 / 8 | `export-all-dependencies`、`extract`、`export-private-dependencies`、`export-gradle-dependencies`、`export-ohos-dependencies`、`export-native-dependencies`、`export-precache-dependencies`、`export-web-dependencies` |
+| 导入Flutter项目工程依赖 / 8 | `import-all-dependencies`、`import-dependencies`、`import-private-dependencies`、`import-gradle-dependencies`、`import-ohos-dependencies`、`import-native-dependencies`、`import-precache-dependencies`、`import-web-dependencies` |
 | 安装/切换Flutter运行环境 / 3 | `sdk-manage`、`ohos-sdk-manage`、`java-manage` |
 | Flutter 资源与构建依赖 / 3 | `gradle-download`、`flutter-precache`、`native-dependencies` |
 | Flutter项目体检 / 3 | `sdk-version`、`native-doctor`、`harmony-doctor` |
@@ -253,11 +279,13 @@ SDK 安装/切换完成后使用“OpenHarmony Flutter 环境体检”核对 Dev
 
 安装本包后停用旧 Flutter 独立菜单，包括 Terminal 的旧 pub-get 项。其余菜单保留。旧 Flutter 安装入口会转到本包；旧源代码、运行数据及卸载入口保留供兼容和排查。卸载统一组不会重新启用已停用的旧菜单。
 
+**运行前设备发现：** 设备枚举前先执行 `flutter precache --universal`，准备 `sky_engine`、patched SDK 等通用资源，再进入短时设备查询。只准备通用制品，不强制下载全部平台；保留项目绑定 SDK，复用健康缓存。缺失制品沿随包网络选路实时显示真实下载进度，失败持续自动重试，Ctrl+C／停止结束；准备失败不会被误报为“无设备”，也不启动应用。
+
 现有运行、依赖提取、SDK 查询/管理、打包和代码生成流程复用本仓库对应工具；常规工具及附带 worker 约束到项目 FVM；一键配置、Java 与 Gradle 准备入口支持明确选择的系统 SDK。更新这些工具时应同步本包资源并运行回归测试。Mac / Windows 共用的 `FlutterProjectTools.dart` 必须保持逐字节一致。
 
 ## Windows 安装与验证
 
-运行唯一 `Manage.cmd` 打开本包安装 / 更新与卸载面板，无需父目录。面板展开上方菜单的全部 **36 项叶功能**（2026-10-30，依据 `FeatureActions.psm1` 与 `FlutterToolsMenu.h` 按可执行动作去重），按日常开发、联网拉取、本地提取、本地导入、运行环境、资源、体检和修复分组，每组和底部均有全选 / 全不选，短屏只滚动内容区。至少勾选一个功能才能安装；所有选中项仍由同一个包构建注册一次。安装 / 更新 Flutter 组时，将本次勾选合并到已启用动作；未选的兄弟动作保留。卸载面板可仅移除某些叶功能，剩余动作继续保留。未启用任何子项的归档、体检或修复组自动隐藏。
+运行唯一 `Manage.cmd` 打开本包安装 / 更新与卸载面板，无需父目录。面板展开上方菜单的全部 **38 项叶功能**（依据 `FeatureActions.psm1` 与 `FlutterToolsMenu.h` 按可执行动作去重），按日常开发、联网拉取、本地提取、本地导入、运行环境、资源、体检和修复分组，每组和底部均有全选 / 全不选，短屏只滚动内容区。至少勾选一个功能才能安装；所有选中项仍由同一个包构建注册一次。安装 / 更新 Flutter 组时，将本次勾选合并到已启用动作；未选的兄弟动作保留。卸载面板可仅移除某些叶功能，剩余动作继续保留。未启用任何子项的归档、体检或修复组自动隐藏。
 
 安装状态的 `ActionIds` 保存实际动作白名单；同一事务发布包根的 `menu-state.txt`，包含当前 release 和相同动作白名单。原生 DLL 每次展开和点击都读该稳定指针并派发当前 release，仅切换当前 DLL 已认识的动作时，后续重新选择不依赖 Explorer 重新载入 DLL；卸载墓碑使用空白名单。release 内另存 `menu-actions.txt` 作为兼容白名单。PowerShell 执行再次检查当前选择和 release。旧安装没有子功能字段时按全部现有动作兼容；损坏、重复或未知动作不会自动变成全开。**首次从不支持子功能选择的旧 DLL 升级，或安装包含新原生动作（例如“提取 / 导入原生构建缓存”）的版本后，需要先关闭正在操作的资源管理器窗口，再重启 Explorer，或注销重新登录，使新 DLL 被载入**；安装器不会主动终止窗口。独立面板默认空选，切换操作会清空勾选；未安装功能在卸载时置灰。空选、取消或关闭不执行；安装 / 更新与卸载均以面板按钮为最终确认，在隐藏后台执行，无终端二次输入。
 
@@ -269,4 +297,26 @@ SDK 安装/切换完成后使用“OpenHarmony Flutter 环境体检”核对 Dev
 
 管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
-一键配置隔离回归：`Tests/FlutterProjectSetup.Tests.ps1`，验证版本门禁、官方 / 备用线路、SHA-256、标准 Wrapper 缓存、锁冲突、配置备份、阶段顺序、取消、失败停止与环境恢复；仪表盘、原始流与机器协议见 `Tests/FlutterProjectSetupDashboard.Tests.ps1`，增量日志与消息 HWND 门禁见 `Tests/FlutterProjectSetupLogTail.Tests.ps1`。版本、ASCII 连接符及可拖分隔协议见 `Tests/FlutterProjectSetupVersion.Tests.ps1`。这些测试不会真实下载 SDK、注册菜单或修改业务工程。
+平台依赖闭环回归：`Tests/FlutterProjectToolchains.Tests.ps1` 覆盖按平台跳过 Java、旧选择保留、Node 精确版本 / SHA / 缓存复用、包管理器修复与失败复检、OHOS 缺失引导和 VS SDK/CMake 健康门禁。全部使用隔离替身，不执行真实安装、下载、构建或注册。
+
+一键配置隔离回归：`Tests/FlutterProjectSetup.Tests.ps1`，验证版本门禁、官方 / 备用线路、SHA-256、标准 Wrapper 缓存、锁冲突、配置备份、阶段顺序、取消、失败停止与环境恢复；仪表盘、原始流与机器协议见 `Tests/FlutterProjectSetupDashboard.Tests.ps1`，增量日志与消息 HWND 门禁见 `Tests/FlutterProjectSetupLogTail.Tests.ps1`。版本、独立标题、ASCII 连接符及可拖分隔协议见 `Tests/FlutterProjectSetupVersion.Tests.ps1`；仪表盘回归还执行真实状态动画回调、终态清点及紧凑高度计算，不创建业务窗口。这些测试不会真实下载 SDK、注册菜单或修改业务工程。
+
+迁移快照保留工程声明和锁文件，可能包含私有地址或开发机路径；自行写在源码、声明中的敏感内容不能依靠缓存文件名过滤消除，跨人分享前应检查产物。导入使用预检计划指纹绑定本次源文件与目标状态，确认期间发生变化会停止。
+
+仅一键文件迁移允许在项目 FVM Dart 不可用时复用已有健康的原生系统 `dart.exe`；系统 Flutter 的 `dart.bat` 只用于定位旁边已安装的 `cache/dart-sdk/bin/dart.exe`，不执行 shim，不下载或切换项目 SDK。普通 Pub 提取 / 导入保持原有项目 FVM 约束。
+
+**SDK 下载明细与进度：** 原生 Flutter 的 FVM 安装 / 切换、OpenHarmony Flutter 克隆、系统 SDK 归档、FVM 工具包，以及第一次执行 Flutter 时补齐 Dart / 工具缓存，都在当前业务终端显示下载过程。已有 FVM 原生安装输出保留；鸿蒙克隆强制显示 Git 进度，机器响应查询同时实时展示并独立保留 JSON。无 curl 的下载回退显示已收字节、总量（服务端未知时明确标记）、速度与完成字节，不依赖隐藏日志或宿主进度条设置。依赖 / 平台资源入口和一键配置复用相同 SDK 准备流程；安装管理面板只部署菜单，不下载 Flutter SDK。源码修改后需由现有管理入口安装 / 更新，已经运行中的旧脚本不会热更新。
+
+| 入口 | 下载展示 |
+| --- | --- |
+| 安装 / 切换 Flutter SDK、OpenHarmony SDK；鸿蒙切回原生 | FVM 原生进度、Git `--progress`、初始化实时双流；返回 JSON 不混入展示文字。 |
+| 一键配置；Pub / 原生 / 鸿蒙 / 平台资源依赖准备 | 复用 SDK 管理器；系统归档显示 curl 原生进度，无 curl 时显示真实字节与速度。 |
+| 运行 / 依赖 / 打包前首次 Flutter 检查 | 若触发 SDK 初始化，准备输出即时显示；PubGet 沿用 URL 与认证字段脱敏。 |
+
+隔离验证入口为 [`Tests/FlutterSdkDownloadProgress.Tests.ps1`](../Tests/FlutterSdkDownloadProgress.Tests.ps1)，用假进程与回环 HTTP 检查任务结束前可见、CR / 无换行、跨块 UTF8、JSON、失败、超时和副本一致性；不代表 Windows 原生菜单、真实网络 SDK 安装及 Ctrl+C 已验收。
+
+**SDK 平台缓存：** 选定运行设备／打包目标后先执行相应 `flutter precache --android`／`--windows`／`--web`；鸿蒙先核实当前 SDK 帮助支持 `--ohos` 再获取，平台引擎制品准备成功后才启动运行或构建。
+
+**SDK 环境准备：** 已选择的 SDK／版本所需下载、安装及首次 Flutter／Dart 缓存补齐自动执行；网络失败或无进度超时后持续重试，间隔逐步增加并封顶 30 秒，没有次数和总时长上限，直到成功或本人 Ctrl+C／停止。仍在输出下载进度的传输不按总时长截断；成功后才进入后续业务。目标／版本选择、官方许可证与系统权限仍由本人处理；路径、权限、磁盘或明确不存在的版本会报告具体原因。每次尝试和真实进度追加到终端所示日志；同一 URL 有 ETag／Last-Modified 时安全续传，跨来源保留独立临时文件，不拼接不同来源。失败／取消保留下载现场；业务构建和配置写入不因网络重试而整体重放。
+
+**下载前版本上下文：** 每次 SDK 初始化／平台缓存获取前，先显示项目声明的 Flutter、本地 SDK 的版本标识与实际路径、目标内置 Dart、engine 提交以及宿主系统／架构，并写入同一获取日志。这里只读取本地文件及本地 Git exact tag，不执行 Flutter／Dart 探测或联网查询版本。Dart 只采用明确的源码版本文件、engine 匹配的版本 JSON 或 engine stamp 匹配的当前缓存；旧缓存及 `dart-sdk.old` 不作为目标版本。缺少可信依据时明确显示“未解析”，下载完成后再确认。

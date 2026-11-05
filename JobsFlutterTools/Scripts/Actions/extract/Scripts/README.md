@@ -31,7 +31,7 @@
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、调用、依赖与参数 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-由统一包 [Scripts 调度](../../../README.md) 选择此 Action，再以明确 Target 调用 `Invoke-JobsFeature`；此目录不单独注册菜单或作为安装包。读取目标已有解析记录，选择健康 Dart 引擎，不自动获取项目依赖；具体版本选择、构建产物、输入与默认随对应动作声明，不强行共用同一套写操作。
+由统一包 [Scripts 调度](../../../README.md) 选择此 Action，再以明确 Target 调用 `Invoke-JobsFeature`；此目录不单独注册菜单或作为安装包。读取目标已有解析记录，选择健康 Dart 引擎，不自动获取项目依赖。默认直接回车只提取 Git、path、非公共 hosted 的私库候选；输入任意字符（包括空格）再回车才全提取，明确的私库菜单固定私库模式；具体版本选择、构建产物、输入与默认随对应动作声明，不强行共用同一套写操作。
 
 ## <span id="jobs-toc-heading-4" data-jobs-toc="v2">三、副作用、日志与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 

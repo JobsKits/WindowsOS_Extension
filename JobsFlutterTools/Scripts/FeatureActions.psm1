@@ -40,7 +40,9 @@ function Get-JobsFlutterActionCatalog {
         @('repair-imports', '🈶 修复 Flutter 项目中文路径', 2),
         @('repair-namespace', '🏷️ 修复 Flutter 插件 namespace', 2),
         @('export-private-dependencies', '🔐 提取Flutter项目工程私库依赖', 4),
-        @('import-private-dependencies', '📥 导入Flutter项目工程私库依赖', 5)
+        @('import-private-dependencies', '📥 导入Flutter项目工程私库依赖', 5),
+        @('export-all-dependencies', '🚚 一键提取 Flutter 依赖', 4),
+        @('import-all-dependencies', '🚚 一键导入 Flutter 依赖', 5)
     )
     foreach ($row in $rows) {
         [pscustomobject]@{ Id = [string]$row[0]; Label = [string]$row[1]; Group = $groups[[int]$row[2]] }

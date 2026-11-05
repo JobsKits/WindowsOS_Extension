@@ -4,6 +4,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 
 function Assert-JobsRunnerDirectory {
     param([string]$Path)
@@ -180,6 +181,117 @@ function Get-JobsRunnerFlutter {
     throw '项目 FVM SDK 缺失；不会回退全局 Flutter。'
 }
 
+# 仅阅读本地 SDK 元数据；探测日志不能触发 Flutter/Dart 自举下载。
+function Read-JobsRunnerSdkMetadata {
+    param([string]$Path)
+    try {
+        $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if ($item.PSIsContainer -or $item.Length -gt 65536) { return '' }
+        return [IO.File]::ReadAllText($item.FullName).Trim()
+    } catch { return '' }
+}
+function Read-JobsRunnerSdkExactTag {
+    param([string]$Sdk)
+    if (-not (Test-Path -LiteralPath (Join-Path $Sdk '.git'))) { return '' }
+    $git = Find-JobsExecutable 'git.exe' @('git')
+    if (-not $git) { return '' }
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName=$git
+    $start.Arguments=(@('--no-optional-locks','-c','core.fsmonitor=false','-C',$Sdk,'describe','--tags','--exact-match','HEAD')|ForEach-Object{Quote-JobsArgument $_}) -join ' '
+    $start.UseShellExecute=$false; $start.CreateNoWindow=$true
+    $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
+    foreach($key in @('GIT_DIR','GIT_WORK_TREE','GIT_COMMON_DIR','GIT_INDEX_FILE','GIT_OBJECT_DIRECTORY','GIT_ALTERNATE_OBJECT_DIRECTORIES')){$start.EnvironmentVariables.Remove($key)}
+    $start.EnvironmentVariables['GIT_NO_LAZY_FETCH']='1'
+    $start.EnvironmentVariables['GIT_TERMINAL_PROMPT']='0'
+    $process=New-Object Diagnostics.Process; $process.StartInfo=$start; $begun=$false
+    try {
+        [void]$process.Start(); $begun=$true
+        $output=$process.StandardOutput.ReadToEndAsync(); $errors=$process.StandardError.ReadToEndAsync()
+        if(-not $process.WaitForExit(5000)){return ''}
+        if(-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($output,$errors),1000)){return ''}
+        $tag=$output.GetAwaiter().GetResult().Trim()
+        if($process.ExitCode-eq0-and$tag-cmatch'^v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)$'){return $Matches[1]}
+    }catch{}
+    finally{if($begun-and-not$process.HasExited){$process.Kill()};$process.Dispose()}
+    return ''
+}
+function Get-JobsRunnerSdkContext {
+    param([string]$Flutter,[string]$Project)
+    $declaration = ''; $declarationSource = ''
+    foreach ($entry in @(@('.fvmrc','flutter'),@('.fvm/fvm_config.json','flutterSdkVersion'))) {
+        $path = Join-Path $Project $entry[0]
+        if (-not [IO.File]::Exists($path)) { continue }
+        try {
+            $config = Read-JobsRunnerSdkMetadata $path | ConvertFrom-Json -ErrorAction Stop
+            if ($null -ne $config.PSObject.Properties[$entry[1]]) {
+                $value = [string]$config.($entry[1])
+                if ($value -cmatch '^[A-Za-z0-9][A-Za-z0-9._/@+-]{0,255}$') { $declaration=$value; $declarationSource=$entry[0] }
+            }
+        } catch { }
+        break
+    }
+    $sdk = [IO.Path]::GetFullPath((Split-Path -Parent (Split-Path -Parent $Flutter)))
+    $selectedSdk = $sdk
+    # FVM 的 junction / symlink 解析只用于说明实际 SDK 位置，不改链接。
+    for ($index=0; $index -lt 8; $index++) {
+        try {
+            $item = Get-Item -LiteralPath $sdk -Force -ErrorAction Stop
+            if (-not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $null -eq $item.PSObject.Properties['Target']) { break }
+            $targets = @($item.Target)
+            if ($targets.Count -ne 1 -or -not $targets[0]) { break }
+            $next = [string]$targets[0]
+            if (-not [IO.Path]::IsPathRooted($next)) { $next = Join-Path (Split-Path -Parent $sdk) $next }
+            $next = [IO.Path]::GetFullPath($next)
+            if ($next -ceq $sdk) { break }
+            $sdk = $next
+        } catch { break }
+    }
+    $engine = Read-JobsRunnerSdkMetadata (Join-Path $sdk 'bin/internal/engine.version')
+    $engineSource = 'bin/internal/engine.version'
+    if ($env:FLUTTER_PREBUILT_ENGINE_VERSION -cmatch '^[a-fA-F0-9]{40,64}$') { $engine=$env:FLUTTER_PREBUILT_ENGINE_VERSION; $engineSource='FLUTTER_PREBUILT_ENGINE_VERSION' }
+    if ($engine -cnotmatch '^[a-fA-F0-9]{40,64}$') { $engine=''; $engineSource='' }
+    $metadata = $null
+    try { $metadata=Read-JobsRunnerSdkMetadata (Join-Path $sdk 'bin/cache/flutter.version.json') | ConvertFrom-Json -ErrorAction Stop } catch { }
+    $versionPattern = '^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$'
+    $flutterVersion = Read-JobsRunnerSdkExactTag $sdk
+    $flutterSource = if ($flutterVersion) { 'SDK Git HEAD 的 exact tag（只读本地）' } else { '' }
+    $metadataEngineMatches = $metadata -and $engine -and $null -ne $metadata.PSObject.Properties['engineRevision'] -and [string]$metadata.engineRevision -ieq $engine
+    if (-not $flutterVersion -and $metadataEngineMatches -and $null -ne $metadata.PSObject.Properties['frameworkVersion'] -and [string]$metadata.frameworkVersion -cmatch $versionPattern) {
+        $flutterVersion=[string]$metadata.frameworkVersion; $flutterSource='bin/cache/flutter.version.json（engine 一致）'
+    }
+    $dart = Read-JobsRunnerSdkMetadata (Join-Path $sdk 'bin/internal/dart-sdk.version')
+    $dartSource = 'bin/internal/dart-sdk.version'
+    if ($dart -cnotmatch $versionPattern) { $dart=''; $dartSource='' }
+    if (-not $dart -and $metadataEngineMatches -and $null -ne $metadata.PSObject.Properties['dartSdkVersion']) {
+        $candidate = [string]$metadata.dartSdkVersion
+        if ($candidate -cmatch '^(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)(?:\s|$)') { $dart=$Matches[1]; $dartSource='bin/cache/flutter.version.json（engine 一致）' }
+    }
+    if (-not $dart -and $engine -and (Read-JobsRunnerSdkMetadata (Join-Path $sdk 'bin/cache/engine-dart-sdk.stamp')) -ieq $engine) {
+        $candidate = Read-JobsRunnerSdkMetadata (Join-Path $sdk 'bin/cache/dart-sdk/version')
+        if ($candidate -cmatch $versionPattern) { $dart=$candidate; $dartSource='bin/cache/dart-sdk/version（engine stamp 一致）' }
+    }
+    $architecture = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+    if (-not $architecture) { try { $architecture=[Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString() } catch { $architecture=if([Environment]::Is64BitOperatingSystem){'64-bit'}else{'32-bit'} } }
+    $hostSystem = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { 'Windows' } else { [Environment]::OSVersion.Platform.ToString() }
+    return [pscustomobject]@{DeclaredFlutter=$declaration;DeclaredSource=$declarationSource;FlutterVersion=$flutterVersion;FlutterSource=$flutterSource;SdkPath=$sdk;SelectedSdkPath=$selectedSdk;FlutterPath=$Flutter;DartVersion=$dart;DartSource=$dartSource;Engine=$engine;EngineSource=$engineSource;HostSystem=$hostSystem;Architecture=$architecture}
+}
+function Write-JobsRunnerSdkContext {
+    param($Context,[string[]]$Arguments)
+    Write-JobsSdkRetryMessage ('━━━━━━━━ SDK 下载/初始化上下文｜' + ($Arguments -join ' ') + ' ━━━━━━━━')
+    $declared = if ($Context.DeclaredFlutter) { $Context.DeclaredFlutter+'（'+$Context.DeclaredSource+'）' } else { '未声明或本地声明未能解析' }
+    $local = if ($Context.FlutterVersion) { $Context.FlutterVersion+'（'+$Context.FlutterSource+'）' } else { '未解析；不执行 Flutter 命令探测' }
+    $dart = if ($Context.DartVersion) { $Context.DartVersion+'（'+$Context.DartSource+'）' } else { '未解析；缺少与目标 engine 对应的可信版本元数据，下载完成后确认' }
+    $engine = if ($Context.Engine) { $Context.Engine+'（'+$Context.EngineSource+'）' } else { '未解析；缺少有效本地 engine 元数据' }
+    Write-JobsSdkRetryMessage ('项目声明 Flutter：'+$declared)
+    Write-JobsSdkRetryMessage ('SDK 本地 Flutter 版本标识：'+$local)
+    Write-JobsSdkRetryMessage ('所选 SDK 位置：'+$Context.SelectedSdkPath)
+    Write-JobsSdkRetryMessage ('实际 SDK 路径：'+$Context.SdkPath)
+    Write-JobsSdkRetryMessage ('Flutter 入口：'+$Context.FlutterPath)
+    Write-JobsSdkRetryMessage ('目标内置 Dart SDK：'+$dart)
+    Write-JobsSdkRetryMessage ('目标 engine：'+$engine)
+    Write-JobsSdkRetryMessage ('运行平台 / 架构：'+$Context.HostSystem+' / '+$Context.Architecture)
+}
+
 function Invoke-JobsRunnerTool {
     param([string]$Flutter, [string[]]$Arguments, [string]$Project, [int]$TimeoutSeconds = 60)
     if ($Flutter -match '["\x00-\x1f]' -or @($Arguments | Where-Object { $_ -cnotmatch '^[A-Za-z0-9._:@/+=-]+$' }).Count -gt 0) {
@@ -202,19 +314,15 @@ function Invoke-JobsRunnerTool {
     $start.StandardErrorEncoding = New-Object Text.UTF8Encoding($false)
     $start.EnvironmentVariables['FLUTTER_SUPPRESS_ANALYTICS'] = 'true'
     $start.EnvironmentVariables['DART_SUPPRESS_ANALYTICS'] = 'true'
-    $process = [Diagnostics.Process]::Start($start)
-    try {
-        $output = $process.StandardOutput.ReadToEndAsync()
-        $errors = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            $taskkill = Join-Path ([Environment]::GetFolderPath('System')) 'taskkill.exe'
-            [void](Invoke-JobsProcess $taskkill @('/PID', [string]$process.Id, '/T', '/F') -WorkingDirectory $Project)
-            throw 'Flutter 设备查询 / 模拟器启动超时；已停止本次查询进程树。'
-        }
-        if (-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($output, $errors), 5000)) { throw 'Flutter 输出管道未按时关闭。' }
-        if ($process.ExitCode -ne 0) { throw ('Flutter 命令失败：' + $errors.GetAwaiter().GetResult()) }
-        return $output.GetAwaiter().GetResult()
-    } finally { $process.Dispose() }
+    if ($Arguments -contains '--version' -or ($Arguments.Count -gt 0 -and $Arguments[0] -ceq 'precache')) {
+        $context = Get-JobsRunnerSdkContext $Flutter $Project
+        Write-JobsRunnerSdkContext $context $Arguments
+        $identity = if ($context.DeclaredFlutter) { $context.DeclaredFlutter } elseif ($context.FlutterVersion) { $context.FlutterVersion } else { '版本未解析' }
+        $result = Invoke-JobsSdkAcquireProcess $start ([Math]::Max(120,$TimeoutSeconds)) -Label ('Flutter '+$identity+' / Dart SDK 初始化')
+    }
+    else { $result = Invoke-JobsSdkLiveProcess $start $TimeoutSeconds }
+    if ($result.ExitCode -ne 0) { throw ('Flutter 命令失败，退出码 ' + $result.ExitCode + '；请检查上方实时输出。') }
+    return $result.StdOut
 }
 
 function ConvertFrom-JobsRunnerList {
@@ -275,7 +383,7 @@ function Select-JobsRunnerDevice {
         }
         $choices = @()
         foreach ($device in $devices) {
-            $choices += [pscustomobject]@{ Kind = 'Device'; Id = [string]$device.id; Name = [string]$device.name }
+            $choices += [pscustomobject]@{ Kind = 'Device'; Id = [string]$device.id; Platform = [string]$device.targetPlatform; Name = [string]$device.name }
         }
         foreach ($emulator in $emulators) {
             $choices += [pscustomobject]@{ Kind = 'Emulator'; Id = [string]$emulator; Name = ('启动 Android 模拟器 · ' + $emulator) }
@@ -290,7 +398,7 @@ function Select-JobsRunnerDevice {
         $number = 0
         if (-not [int]::TryParse($answer, [ref]$number) -or $number -lt 1 -or $number -gt $choices.Count) { continue }
         $choice = $choices[$number - 1]
-        if ($choice.Kind -eq 'Device') { return $choice.Id }
+        if ($choice.Kind -eq 'Device') { $script:RunnerSelectedPlatform = $choice.Platform; return $choice.Id }
         Write-Host ('启动：' + $choice.Name)
         $start = New-Object Diagnostics.ProcessStartInfo
         $start.FileName = $androidEmulator
@@ -395,6 +503,20 @@ function Start-JobsRunnerSession {
     throw ('后台未按时返回状态，请查看：' + $session)
 }
 
+# 设备枚举本身也需要通用制品；先准备，避免短发现超时反复打断首次下载。
+function Initialize-JobsRunnerDiscoverySdk {
+    param([string]$Flutter,[string]$Project)
+    Write-Host '正在准备 Flutter 设备发现所需的通用 SDK 资源；失败自动重试，Ctrl+C 停止。'
+    [void](Invoke-JobsRunnerTool $Flutter @('precache','--universal') $Project 1800)
+}
+
+# 在启动业务前补齐当前目标的引擎制品，不通过重放 flutter run 补环境。
+function Initialize-JobsRunnerPlatformSdk {
+    param([string]$Flutter,[string]$Project,[string]$Platform)
+    $target = if ($Platform -ceq 'android') { 'android' } elseif ($Platform -like 'windows-*') { 'windows' } elseif ($Platform -ceq 'web-javascript') { 'web' } else { throw ('无法确定所选设备的平台缓存：' + $Platform) }
+    [void](Invoke-JobsRunnerTool $Flutter @('precache',('--'+$target)) $Project 120)
+}
+
 function Invoke-JobsFlutterRunAction {
     param([string]$Target)
     Assert-JobsFlutterProject $Target
@@ -410,7 +532,8 @@ function Invoke-JobsFlutterRunAction {
     $flutter = Get-JobsRunnerFlutter $Target
     $health = Invoke-JobsRunnerTool $flutter @('--version', '--machine') $Target
     Write-Host ('Flutter：' + $flutter)
-    try { $version = $health | ConvertFrom-Json; Write-Host ('版本：' + $version.frameworkVersion) } catch { throw 'Flutter SDK 体检失败，请先运行 flutter doctor。' }
+    try { $version = ConvertFrom-JobsSdkMachineOutput $health; Write-Host ('版本：' + $version.frameworkVersion) } catch { throw 'Flutter SDK 体检失败，请先运行 flutter doctor。' }
+    Initialize-JobsRunnerDiscoverySdk $flutter $Target
     $device = Select-JobsRunnerDevice $flutter $Target
     if ($null -eq $device) { return }
     $session = Start-JobsRunnerSession $Target $flutter $device $projectRoot

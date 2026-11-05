@@ -4,6 +4,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 . (Join-Path $PSScriptRoot 'HarmonyTools.ps1')
 
 function ConvertTo-JobsHarmonyPlainText {
@@ -87,7 +88,9 @@ function Get-JobsHarmonyEmulator {
 }
 function Invoke-JobsHarmonyQuery {
     param([string]$Emulator, [string[]]$Arguments)
-    $result = Invoke-JobsProcess -FilePath $Emulator -Arguments $Arguments -TimeoutSeconds 60
+    $result = if (($Arguments -join ' ') -ceq '-imageList -downloaded false') {
+        Invoke-JobsSdkAcquire -Label 'Harmony 可下载系统镜像清单' -Operation { Invoke-JobsProcess -FilePath $Emulator -Arguments $Arguments -TimeoutSeconds 60 }
+    } else { Invoke-JobsProcess -FilePath $Emulator -Arguments $Arguments -TimeoutSeconds 60 }
     $output = ConvertTo-JobsHarmonyPlainText $result.StdOut
     if ($result.ExitCode -ne 0) { throw ('Emulator ' + ($Arguments -join ' ') + ' 失败，退出码 ' + $result.ExitCode + [Environment]::NewLine + $output + (ConvertTo-JobsHarmonyPlainText $result.StdErr)) }
     $output = $output.TrimStart([char]0xfeff).Trim()
@@ -217,6 +220,7 @@ function Invoke-JobsHarmonyInteractive {
     $global:LASTEXITCODE = -1
     & $Emulator @Arguments | Out-Host
     $code = $LASTEXITCODE
+    if ($code -in @(130,143,-1073741510)) { throw (New-Object Management.Automation.PipelineStoppedException) }
     if ($code -ne 0) { throw ('Emulator 操作失败，退出码 ' + $code + '；保留官方输出和已生成的现场。') }
 }
 # 展示随工具分发的许可原文；只有用户明确回车同意后才执行官方接受命令。
@@ -245,12 +249,15 @@ function Install-JobsHarmonyImage {
     $image = @($available | Where-Object { $_.Label -ceq $selected })
     if ($image.Count -ne 1) { throw '选择器返回了无效下载镜像。' }
     Write-JobsHarmonyMessage ('官方 Emulator 下载：' + $selected + '；目录沿用 DevEco 既有配置。')
-    if ((Read-JobsHarmonyInput '回车下载此镜像；任意非空输入取消').Length -ne 0) { throw '已取消镜像下载。' }
+    Write-JobsHarmonyMessage '已选择镜像，自动补齐；失败持续重试，Ctrl+C 可停止。'
     Confirm-JobsHarmonyLicenses $Emulator
     # 仅对已明确确认的新镜像安装跳过重复提示；创建与启动不用 -force。
+    [void](Invoke-JobsSdkAcquire -Label ('Harmony 系统镜像：' + $image[0].Label) -Operation {
     Invoke-JobsHarmonyInteractive $Emulator @('-install', '-deviceType', $image[0].DeviceType, '-osVersion', $image[0].OsVersion, '-force')
     $installed = @(Get-JobsHarmonyImages $Emulator | Where-Object { $_.DeviceType -ieq $image[0].DeviceType -and $_.OsVersion -ceq $image[0].OsVersion })
-    if ($installed.Count -ne 1) { throw '官方安装命令返回，但选中镜像仍未下载就绪；请查看上方许可、网络、地区或账号提示。未创建，不循环复检。' }
+    if ($installed.Count -ne 1) { throw '所选镜像下载未完成，保留现场自动重试。' }
+    })
+    $installed = @(Get-JobsHarmonyImages $Emulator | Where-Object { $_.DeviceType -ieq $image[0].DeviceType -and $_.OsVersion -ceq $image[0].OsVersion })
     Write-JobsHarmonyMessage ('已验证下载镜像：' + $installed[0].Label)
     return $installed[0]
 }

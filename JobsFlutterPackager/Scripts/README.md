@@ -16,6 +16,8 @@
 
 ---
 
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / English / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。
+
 ## 🔥 <span id="前言">前言</span>
 
 本目录独立实现 **Flutter打包**，运行前先看[功能说明](../README.md)。安装和卸载从上一层 `.cmd` 入口进行。
@@ -35,12 +37,20 @@
 
 本包没有跨功能或 SourceTree 运行依赖。`PackageInstaller.psm1` 声明为独立覆盖模板；其它通用副本沿用仓库模板。构建先完成 DLL 再修改菜单和状态；卸载只删除本包处理器与 CLSID，保留日志及备份。右键运行会写入所选 Flutter 工程的依赖 / 构建目录，iOS 选择在任何 Flutter 命令前停止。OpenHarmony 通过同一平台选择器进入，要求已有 ohos 平台；支持 HAP / APP / 两者与 release / debug / profile，显式适配 SDK 优先，否则复用项目 FVM；SDK 缺失不会自动安装。Node、npm、ohpm、hvigorw、Java 及 SDK 包型能力全部通过后才获取依赖。
 
-OpenHarmony 使用 `FLUTTER_OHOS_SDK / OHOS_BUILD_TARGET / BUILD_MODE`，不接受 flavor。DevEco 工具 PATH、Java、SDK 及去色设置限于本次进程，异常后同样恢复。`.bat / .cmd` 检查通过 PowerShell 原生命令调用，不依赖其它功能包或 Mac 脚本；HAP / APP 校验非空输出、保留合法缓存并提示未签名文件。
+OpenHarmony 使用 `FLUTTER_OHOS_SDK / OHOS_BUILD_TARGET / BUILD_MODE`，不接受 flavor。DevEco 工具 PATH、Java、SDK 及去色设置限于本次进程，异常后同样恢复。`.bat / .cmd` 检查通过受控 CMD 参数调用，不依赖其它功能包或 Mac 脚本；HAP / APP 校验非空输出、保留合法缓存并提示未签名文件。
 
 `Invoke-JobsFlutterHarmonyAction` 与聚合副本共用双产物快捷逻辑：再次检查鸿蒙工程及项目 FVM，回车确认后固定 `all / release` 与空 flavor，无临时 SDK 覆盖，按 HAP → APP 顺序验证两种非空产物后才报告完成；它不改变通用平台选择的参数能力。快捷边界见[FlutterHarmonyPackage.Tests.ps1](../../Tests/FlutterHarmonyPackage.Tests.ps1)。
 
 回归入口为 [FlutterPackager.Tests.ps1](../../Tests/FlutterPackager.Tests.ps1)。真实 Windows DLL、菜单、CMD 和 fzf 验收与跨平台脚本检查分开记录。
 
 本目录的 `Manage.ps1`、`SelectionPanel.psm1` 和 `ManagementWorker.ps1` 构成本包自包含管理面板；由上级 `Manage.vbs` 无控制台启动。安装 / 卸载在隐藏后台执行，逐项状态与可复制实时日志留在面板中。日志区上沿的分隔条可上下拖动，调节结果在当前窗口保留；上下限为功能行、操作按钮和日志工具栏留出空间。日志正文右键可“复制”或“全选”，也支持 Ctrl+A / Ctrl+C；全选仅针对当前可见缓冲区，完整输出使用“复制全部日志”。总进度按已处理项 / 本次所选项显示计数和百分比；成功与失败计入已处理，等待中、执行中和未执行项不计入，100% 表示全部处理完毕，结果以成功 / 失败汇总为准。安装 / 更新和卸载分别计时；点击时只清零并启动当前操作计时，后台全部结束或启动失败时只冻结当前耗时。每秒刷新 `HH:mm:ss`（小时可超过 24），执行时显示“安装用时 / 卸载用时”，结束显示“安装总用时 / 卸载总用时”。两份耗时只在当前面板会话内独立保留。安装成功显示绿色“✅ 安装成功”。不改变右键业务工具自己的交互方式。失败状态可点击，在独立 PowerShell 中只读显示本次完整会话日志；包失败不阻止其它所选包，日志不可用时在面板提示。
+
+**SDK 初始化进度：** 随包的 [SdkDownloadOutput.ps1](./SdkDownloadOutput.ps1) 实时展示 SDK 相关命令输出，保留机器响应、退出码和超时边界；第一次调用 Flutter 触发 Dart / 工具缓存下载时，不再等待命令结束才显示。本动作仍要求现有项目 SDK；缺失 SDK 的安装由统一工具包的安装 / 切换入口处理。PubGet 的 URL / 认证信息继续脱敏后显示和落盘；测试不接触真实 SDK、账户缓存或系统菜单。
+
+**SDK 平台缓存：** 选定运行设备／打包目标后先执行相应 `flutter precache --android`／`--windows`／`--web`；鸿蒙先核实当前 SDK 帮助支持 `--ohos` 再获取，平台引擎制品准备成功后才启动运行或构建。
+
+**SDK 环境准备：** 已选择的 SDK／版本所需下载、安装及首次 Flutter／Dart 缓存补齐自动执行；网络失败或无进度超时后持续重试，间隔逐步增加并封顶 30 秒，没有次数和总时长上限，直到成功或本人 Ctrl+C／停止。仍在输出下载进度的传输不按总时长截断；成功后才进入后续业务。目标／版本选择、官方许可证与系统权限仍由本人处理；路径、权限、磁盘或明确不存在的版本会报告具体原因。每次尝试和真实进度追加到终端所示日志；同一 URL 有 ETag／Last-Modified 时安全续传，跨来源保留独立临时文件，不拼接不同来源。失败／取消保留下载现场；业务构建和配置写入不因网络重试而整体重放。
+
+**Flutter SDK网络预检：** 下载／首次Dart自举／precache前，随包网络模块以真实小Range验证来源、TLS、字节和吞吐并择优；显式storage、Pub和代理（含空值）保留，AUTO仅核验官方／CFUG同对象及当前已配置代理，不猜端口、不改系统代理或Git。当前任务短期复用；真实获取失败会降权坏路线、轮换其它已验证候选并持续重试。FVM按实际api context来源处理，能力允许时Git与Dart制品分阶段；用户fork不改源。原生BITS按真实WinINET通道衡量，PAC未能有界解析时保留既有通道并明确未测速。详细边界见[随包选路模块](./SdkDownloadRoute.ps1/README.md)。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -240,7 +240,11 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         param([object[]]$Items, [string[]]$Selected, [string]$Mode, [string[]]$Installed = @())
         & $installer {
             param($Packages, $Choice, $PanelMode, $InstalledIds)
-            New-JobsFeatureSelectionForm -Packages $Packages -Selected $Choice -Installed $InstalledIds -Mode $PanelMode
+            $preferencePath = Join-Path ([IO.Path]::GetTempPath()) ('JobsPanelLayout-' + [guid]::NewGuid().ToString('N') + '.json')
+            try {
+                Save-JobsPanelPreferences -Theme light -Language zh-Hans -Path $preferencePath
+                New-JobsFeatureSelectionForm -Packages $Packages -Selected $Choice -Installed $InstalledIds -Mode $PanelMode -PreferencesPath $preferencePath
+            } finally { if ([IO.File]::Exists($preferencePath)) { [IO.File]::Delete($preferencePath) } }
         } $Items $Selected $Mode $Installed
     }
 
@@ -282,7 +286,20 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         $State.Form.PerformLayout()
         $State.Header.PerformLayout()
         $State.LogToolbar.PerformLayout()
-        Assert-SelectionTextFits $State.HeaderLabel ($Context + ' 页眉')
+        Assert-SelectionTextFits $State.HeaderLabel ($Context + ' 页眉标题') -SingleLine
+        Assert-SelectionTextFits $State.HeaderDetailsLabel ($Context + ' 页眉说明')
+        Assert-Selection (-not $State.HeaderLabel.Bounds.IntersectsWith($State.PreferencePanel.Bounds)) ($Context + ' 右上工具组不遮挡标题')
+        Assert-Selection (-not $State.HeaderDetailsLabel.Bounds.IntersectsWith($State.PreferencePanel.Bounds)) ($Context + ' 右上工具组不遮挡说明')
+        Assert-Selection ($State.PreferencePanel.Right -eq $State.Form.ClientSize.Width - $State.Padding) ($Context + ' 主题语言按内容右边距对齐')
+        $routeCenter = $State.RouteBox.Top + $State.RouteBox.Height / 2.0
+        $autoCenter = $State.CleanupPanel.Top + $State.AutoCleanup.Top + $State.AutoCleanup.Height / 2.0
+        $buttonCenter = $State.CleanupPanel.Top + $State.CleanupButton.Top + $State.CleanupButton.Height / 2.0
+        if ($State.DeploymentMode -eq 'installed') {
+            Assert-Selection ([Math]::Abs($routeCenter - $autoCenter) -le 1 -and [Math]::Abs($routeCenter - $buttonCenter) -le 1) ($Context + ' 安装位置与两个清理控件同排居中')
+            Assert-Selection ($State.CleanupPanel.Left -ge $State.RouteBox.Right) ($Context + ' 位置下拉不覆盖清理选项')
+            Assert-SelectionTextFits $State.AutoCleanup ($Context + ' 自动清理复选框') -SingleLine
+            Assert-SelectionTextFits $State.CleanupButton ($Context + ' 独立清理按钮') -SingleLine
+        }
         if ($null -ne $State.OperationBox) {
             $headerBounds = Get-SelectionBoundsInForm $State.HeaderLabel $State.Form
             $operationBounds = Get-SelectionBoundsInForm $State.OperationBox $State.Form

@@ -79,4 +79,7 @@
 "/JobsFileVolumes/README.md" filter=jobs-markdown-toc
 "/JobsFileVolumes/Scripts/README.md" filter=jobs-markdown-toc
 "/JobsFlutterTools/Scripts/Actions/import-dependencies/Scripts/README.md" filter=jobs-markdown-toc
+"/Tests/DeploymentRoutes.Tests.ps1/README.md" filter=jobs-markdown-toc
+"/Tests/NativeRuntimeDeployment.Tests.ps1/README.md" filter=jobs-markdown-toc
+"/Tests/PanelPreferences.Tests.ps1/README.md" filter=jobs-markdown-toc
 # jobs-markdown-toc:end

@@ -14,45 +14,13 @@ function Get-JobsHarmonyToolsHome {
 }
 function Receive-JobsHarmonyToolArchive {
     param($Package, [string]$Destination)
-    Add-Type -AssemblyName System.Net.Http
     $previousTls = [Net.ServicePointManager]::SecurityProtocol
     try {
         [Net.ServicePointManager]::SecurityProtocol = $previousTls -bor [Net.SecurityProtocolType]::Tls12
-        for ($attempt = 1; $attempt -le 3; $attempt++) {
-            $handler = $null; $client = $null; $response = $null; $inputStream = $null; $outputStream = $null
-            try {
-                $handler = New-Object Net.Http.HttpClientHandler
-                $handler.AllowAutoRedirect = $false
-                $handler.UseCookies = $false
-                $client = New-Object Net.Http.HttpClient($handler)
-                $client.Timeout = [TimeSpan]::FromHours(1)
-                $response = $client.GetAsync($Package.Url, [Net.Http.HttpCompletionOption]::ResponseHeadersRead).GetAwaiter().GetResult()
-                if ([int]$response.StatusCode -ne 200) { throw ('SDL 下载返回 HTTP ' + [int]$response.StatusCode) }
-                if ($response.Content.Headers.ContentLength -and $response.Content.Headers.ContentLength -ne $Package.Size) { throw 'SDL 下载长度与固定版本不一致。' }
-                $inputStream = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
-                $outputStream = [IO.File]::Open($Destination, [IO.FileMode]::Create, [IO.FileAccess]::Write, [IO.FileShare]::None)
-                $buffer = New-Object byte[] 1048576
-                [long]$total = 0
-                while (($read = $inputStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-                    $total += $read
-                    if ($total -gt $Package.Size) { throw 'SDL 下载超过固定大小，已停止。' }
-                    $outputStream.Write($buffer, 0, $read)
-                    Write-Progress -Activity '下载 SDL Harmony 工具依赖（免登录）' -Status ('{0:N0} / {1:N0} MB' -f ($total / 1MB), ($Package.Size / 1MB)) -PercentComplete ([Math]::Min(100, [int](100 * $total / $Package.Size)))
-                }
-                if ($total -ne $Package.Size) { throw 'SDL 下载不完整。' }
-                return
-            } catch {
-                if ($attempt -eq 3) { throw ('SDL 下载失败；可手动下载同一 ZIP 并用 HARMONY_CLT_ARCHIVE 指定：' + $Package.Url + [Environment]::NewLine + $_.Exception.Message) }
-                Write-JobsHarmonyMessage ('SDL 下载失败，重试 ' + ($attempt + 1) + '/3。')
-            } finally {
-                if ($outputStream) { $outputStream.Dispose() }
-                if ($inputStream) { $inputStream.Dispose() }
-                if ($response) { $response.Dispose() }
-                if ($client) { $client.Dispose() }
-                if ($handler) { $handler.Dispose() }
-                Write-Progress -Activity '下载 SDL Harmony 工具依赖（免登录）' -Completed
-            }
-        }
+        [void](Invoke-JobsSdkAcquire -Label ('Harmony CLT：' + $Package.Url) -Operation {
+            Receive-JobsSdkWebFile $Package.Url $Destination 120 -SingleAttempt -ExpectedSha256 $Package.Sha256
+            if ((Get-Item -LiteralPath $Destination).Length -ne $Package.Size) { throw 'SDL 下载不完整，保留文件并自动重试。' }
+        })
     } finally { [Net.ServicePointManager]::SecurityProtocol = $previousTls }
 }
 function Expand-JobsHarmonyToolArchive {
@@ -109,6 +77,7 @@ function Install-JobsHarmonyTools {
     $token = [guid]::NewGuid().ToString('N')
     $stage = Join-Path $root ('.install-' + $token)
     [void][IO.Directory]::CreateDirectory($stage)
+    $complete = $false
     try {
         Write-JobsHarmonyMessage ('SDL 第三方免登录镜像：' + $package.Url)
         Write-JobsHarmonyMessage ('CLT ' + $package.Version + '；' + $package.Size + ' 字节；快照 SHA-256：' + $package.Sha256)
@@ -132,9 +101,10 @@ function Install-JobsHarmonyTools {
         [IO.Directory]::Move($content, $destination)
         $installed = Join-Path $destination 'emulator/Emulator.exe'
         Write-JobsHarmonyMessage ('SDL 工具依赖已安装并通过能力复检：' + $destination)
+        $complete = $true
         return $installed
     } finally {
         $cleanup = ConvertTo-JobsHarmonyFileSystemPath $stage
-        if ([IO.Directory]::Exists($cleanup)) { [IO.Directory]::Delete($cleanup, $true) }
+        if ($complete -and [IO.Directory]::Exists($cleanup)) { [IO.Directory]::Delete($cleanup, $true) } elseif ([IO.Directory]::Exists($cleanup)) { Write-JobsHarmonyMessage ('未完成下载保留：' + $cleanup) }
     }
 }

@@ -4,7 +4,7 @@
 #include <cassert>
 int main() {
     using namespace JobsFlutterTools;
-    assert(Count == 36);
+    assert(Count == 38);
     const auto emoji = [](wchar_t c) { return (c >= 0x2300 && c <= 0x27ff) || (c >= 0x1f000 && c <= 0x1ffff) || (c >= 0xd800 && c <= 0xdbff); };
     for (const auto& entry : Entries) assert(emoji(entry.label[0]));
     for (unsigned group = 0; group < GroupCount; ++group) assert(emoji(GroupLabel(group)[0]));
@@ -23,10 +23,10 @@ int main() {
     assert(ParseSelection("import-dependencies\n", selected));
     const auto importIndex = indexOf(L"import-dependencies");
     assert(importIndex < Count && selected[importIndex] && std::wstring(Entries[importIndex].label) == L"📤 导入 Flutter Pub 依赖");
-    for (const auto action : {L"extract", L"export-private-dependencies", L"export-gradle-dependencies", L"export-ohos-dependencies", L"export-native-dependencies", L"export-precache-dependencies", L"export-web-dependencies"}) {
+    for (const auto action : {L"export-all-dependencies", L"extract", L"export-private-dependencies", L"export-gradle-dependencies", L"export-ohos-dependencies", L"export-native-dependencies", L"export-precache-dependencies", L"export-web-dependencies"}) {
         assert(indexOf(action) < Count && ActionGroup(indexOf(action)) == ExportDependencies);
     }
-    for (const auto action : {L"import-dependencies", L"import-private-dependencies", L"import-gradle-dependencies", L"import-ohos-dependencies", L"import-native-dependencies", L"import-precache-dependencies", L"import-web-dependencies"}) {
+    for (const auto action : {L"import-all-dependencies", L"import-dependencies", L"import-private-dependencies", L"import-gradle-dependencies", L"import-ohos-dependencies", L"import-native-dependencies", L"import-precache-dependencies", L"import-web-dependencies"}) {
         assert(indexOf(action) < Count && ActionGroup(indexOf(action)) == ImportDependencies);
     }
     assert(indexOf(L"export-pods-dependencies") == Count && indexOf(L"import-spm-dependencies") == Count);
@@ -97,6 +97,8 @@ int main() {
     assert(parents == expectedParents);
     for (const auto index : SelectedGroupEntries(Repairs, selected)) ++seen[index];
     for (const auto count : seen) assert(count == 1);
+    assert(SelectedGroupEntries(ExportDependencies, selected).front() == indexOf(L"export-all-dependencies"));
+    assert(SelectedGroupEntries(ImportDependencies, selected).front() == indexOf(L"import-all-dependencies"));
     const auto resources = SelectedGroupEntries(Resources, selected);
     assert(resources.size() == 3 && resources[0] == indexOf(L"gradle-download") && resources[1] == indexOf(L"flutter-precache") && resources[2] == indexOf(L"native-dependencies"));
     selected.fill(false); selected[indexOf(L"build-harmony")] = true;

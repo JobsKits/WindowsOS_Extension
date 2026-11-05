@@ -93,13 +93,13 @@ try {
     }
     & $action { param($Path) Invoke-JobsPackagerBuild -Project $Path -Type 'all' -Mode 'profile' -Flavor 'demo' } $project
     $calls = @(& $action { $script:Calls })
-    Assert-Packager (($calls -join '|') -ceq 'pub get|build apk --profile --flavor demo|build appbundle --profile --flavor demo') '依赖一次，APK 然后 AAB，mode/flavor 精确传递'
+    Assert-Packager (($calls -join '|') -ceq '--version|precache --android|pub get|build apk --profile --flavor demo|build appbundle --profile --flavor demo') '依赖一次，APK 然后 AAB，mode/flavor 精确传递'
     & $action { $script:Calls = @(); $script:Failure = 'pub get' }
     Assert-PackagerThrows { & $action { param($Path) Invoke-JobsPackagerBuild -Project $Path -Type 'all' -Mode 'release' } $project } 'pub get 失败停止'
-    Assert-Packager (@(& $action { $script:Calls }).Count -eq 1) 'pub get 失败不 build'
+    Assert-Packager (@(& $action { $script:Calls }).Count -eq 3) 'pub get 失败不 build'
     & $action { $script:Calls = @(); $script:Failure = 'build apk --release' }
     Assert-PackagerThrows { & $action { param($Path) Invoke-JobsPackagerBuild -Project $Path -Type 'all' -Mode 'release' } $project } 'APK 失败停止'
-    Assert-Packager (@(& $action { $script:Calls }).Count -eq 2) 'APK 失败不运行 AAB'
+    Assert-Packager (@(& $action { $script:Calls }).Count -eq 4) 'APK 失败不运行 AAB'
     & $action { $script:Calls = @(); $script:Failure = ''; $script:Emit = $false }
     Assert-PackagerThrows { & $action { param($Path) Invoke-JobsPackagerBuild -Project $Path -Type 'apk' -Mode 'debug' } $project } '退出 0 但缺产物不能成功'
     $apk = Join-Path $project 'build/app/outputs/flutter-apk/app-demo-profile.apk'
@@ -208,6 +208,7 @@ name=$(basename "$0")
 name=${name%.*}
 printf '%s|%s|%s\n' "$name" "$*" "$PWD" >> "$JOBS_OHOS_TRACE"
 if [ "$JOBS_OHOS_FAIL_TOOL" = "$name" ]; then exit 41; fi
+if [ "$1" = precache ] && [ "$2" = --help ]; then echo "--[no-]ohos"; exit 0; fi
 if [ "$1" = build ] && [ "$3" = --help ]; then
     case "$JOBS_OHOS_HELP_MODE" in
         error) exit 42 ;;
@@ -247,6 +248,7 @@ class HarmonyTool {
         string command = String.Join(" ", args);
         File.AppendAllText(Environment.GetEnvironmentVariable("JOBS_OHOS_TRACE"), name + "|" + command + "|" + Environment.CurrentDirectory + Environment.NewLine);
         if (Environment.GetEnvironmentVariable("JOBS_OHOS_FAIL_TOOL") == name) return 41;
+        if (args.Length > 1 && args[0] == "precache" && args[1] == "--help") { Console.WriteLine("--[no-]ohos"); return 0; }
         if (args.Length > 2 && args[0] == "build" && args[2] == "--help") {
             string mode = Environment.GetEnvironmentVariable("JOBS_OHOS_HELP_MODE");
             if (mode == "error") return 42;
@@ -310,7 +312,7 @@ class HarmonyTool {
         Assert-Packager ($harmonyOptions.Type -ceq 'hap' -and $harmonyOptions.Mode -ceq 'release') 'OpenHarmony 默认 release HAP'
         & $harmony { param($Path) Invoke-JobsPackagerHarmonyBuild -Project $Path } $project
         $records = @(Get-Content -LiteralPath $trace)
-        Assert-Packager (($records | Where-Object { $_ -match '^flutter\|' }) -join '~' -cmatch 'flutter\|--version\|.*~flutter\|build hap --help\|.*~flutter\|pub get\|.*~flutter\|build hap --release\|') '真实假 SDK 健康及能力通过后才依赖和 release HAP'
+        Assert-Packager (($records | Where-Object { $_ -match '^flutter\|' }) -join '~' -cmatch 'flutter\|--version\|.*~flutter\|build hap --help\|.*~flutter\|precache --help\|.*~flutter\|precache --ohos\|.*~flutter\|pub get\|.*~flutter\|build hap --release\|') '真实假 SDK 健康及能力通过后才依赖和 release HAP'
         foreach ($name in $baseEnvironment.Keys) { Assert-Packager ([Environment]::GetEnvironmentVariable($name, 'Process') -ceq $baseEnvironment[$name]) ('OpenHarmony 成功后恢复环境：' + $name) }
         $env:JOBS_OHOS_HELP_MODE = 'color'
         [IO.File]::WriteAllText($trace, '')

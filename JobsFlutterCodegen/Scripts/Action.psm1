@@ -4,6 +4,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 
 function Assert-JobsRunnerDirectory {
     param([string]$Path)
@@ -237,6 +238,10 @@ function New-JobsFlutterToolStartInfo {
 function Invoke-JobsFlutterTool {
     param([string]$Executable, [string[]]$Arguments, [string]$Project, [int]$TimeoutSeconds = 1800)
     Write-JobsFlutterMessage ('执行：' + $Executable + ' ' + ($Arguments -join ' '))
+    if ($Arguments -contains '--version') {
+        [void](Invoke-JobsSdkAcquireProcess (New-JobsFlutterToolStartInfo $Executable $Arguments $Project) $TimeoutSeconds -Sanitize -Label 'Flutter/Dart 首次初始化')
+        return
+    }
     $process = New-Object Diagnostics.Process
     $process.StartInfo = New-JobsFlutterToolStartInfo $Executable $Arguments $Project
     $watch = [Diagnostics.Stopwatch]::StartNew()
@@ -412,6 +417,7 @@ function Invoke-JobsFlutterCodegenAction {
     if (@($plan | Where-Object Name -eq 'build_runner').Count -gt 0) { $delete = Read-JobsCodegenDeleteConsent }
     # 确认后再次校验项目，避免预览期间目录或配置文件被替换成链接。
     Assert-JobsFlutterProject $project
+    Invoke-JobsFlutterTool $sdk.Flutter @('--version') $project 300
     Invoke-JobsFlutterTool $sdk.Flutter @('pub', 'get') $project
     foreach ($step in $plan) {
         $arguments = @($step.Arguments)

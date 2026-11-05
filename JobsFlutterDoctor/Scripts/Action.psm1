@@ -4,6 +4,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 
 function Assert-JobsRunnerDirectory {
     param([string]$Path)
@@ -237,6 +238,10 @@ function New-JobsFlutterToolStartInfo {
 function Invoke-JobsFlutterTool {
     param([string]$Executable, [string[]]$Arguments, [string]$Project, [int]$TimeoutSeconds = 1800, [switch]$Doctor)
     Write-JobsFlutterMessage ('执行：' + $Executable + ' ' + ($Arguments -join ' '))
+    if ($Arguments -contains '--version') {
+        [void](Invoke-JobsSdkAcquireProcess (New-JobsFlutterToolStartInfo $Executable $Arguments $Project) $TimeoutSeconds -Sanitize -Label 'Flutter/Dart 首次初始化')
+        return
+    }
     $process = New-Object Diagnostics.Process
     $process.StartInfo = New-JobsFlutterToolStartInfo $Executable $Arguments $Project
     $watch = [Diagnostics.Stopwatch]::StartNew()

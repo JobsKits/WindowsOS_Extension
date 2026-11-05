@@ -22,7 +22,7 @@ function Main {
     $installed = @()
     if ($state.Enabled) { $installed = @($state.ActionIds) }
     $features = @(& $actions { Get-JobsFlutterActionCatalog } | ForEach-Object {
-        [pscustomobject]@{ Id = $_.Id; Label = $_.Label; Group = $_.Group; Description = '仅处理本包对应子功能；未选的其它功能在卸载时保留。' }
+        [pscustomobject]@{ Id = $_.Id; Label = $_.Label; Group = $_.Group; Description = '仅处理本包对应子功能；未选的其它功能在卸载时保留。'; PackagePath = $package; LocalActions = $true }
     })
     Write-Host 'Jobs Flutter 开发辅助 · 安装 / 卸载管理面板' -ForegroundColor Red
     Write-Host ('来源：' + $package) -ForegroundColor Cyan
@@ -32,6 +32,9 @@ function Main {
     $buildPlan = {
         param($Choice)
         if (@($Choice.Features).Count -eq 0) { return }
+        $routeState = & $installer { param($Path, $Route) Get-JobsPackageState -PackagePath $Path -DeploymentMode $Route } $package $Choice.DeploymentMode
+        $installed = @()
+        if ($routeState.Enabled) { $installed = @($routeState.ActionIds) }
         $operation = $Choice.Mode
         $remaining = @($installed + @($Choice.Features) | Select-Object -Unique)
         if ($Choice.Mode -eq 'Uninstall') {

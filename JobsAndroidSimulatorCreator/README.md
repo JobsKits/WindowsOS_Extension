@@ -17,6 +17,8 @@
 
 ---
 
+**SDK 获取策略：** Java、Android Command-Line Tools、SDK 组件和模拟器系统镜像的下载／远程清单获取失败后持续自动重试，直到成功或按 Ctrl+C／停止主动结束，无须确认重试；等待逐步延长且最多 30 秒。实时显示真实输出，重试日志追加到系统临时目录的 `JobsSdkAcquisition-进程号.log`。归档校验失败仅重取本次私有文件；成功后清理本次暂存，失败／取消保留未提交暂存并显示位置，不删除已有健康 SDK。许可证、架构／参数／权限等确定的本地问题单独处理；创建和启动 AVD 不在重试循环中。
+
 **管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
 
 ## 🔥 <span id="前言">前言</span>
@@ -36,6 +38,15 @@
 
 **本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。创建 / 启动 Android Emulator 仅面向 AMD64（x64）Windows 10 / 11，Windows ARM / 32 位不支持；需要 BIOS 虚拟化与 WHPX 等加速。菜单可在虚拟机检查，模拟器业务须在符合官方要求的物理机验收；虚拟机 / 嵌套虚拟化中的结果不作为受支持结论。`Run.cmd` 无须菜单编译器。
 
+
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / English / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。
+
+**两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
+
+**构建产物清理：** 安装位置选择、显示中的自动清理复选框与红色“🧹 清除构建产物”按钮排在同一行，垂直居中、间隔统一。英文或窄窗空间不足时，该行可水平滚动，文字保持完整，不拆成两行。仅默认安装位置路线显示默认关闭的“安装成功后清除此轮构建产物”和红底白字的“🧹 清除构建产物”独立按钮。自动清理仅处理本次成功安装产生的编译 GUID 子目录；独立按钮按当前选择清理本包 `work\JobsExtensionBuild` 专用编译工作区，不需要重新安装。临时路线隐藏清理控件。清理验证运行文件、标记与路径边界并持有事务锁，保留已经安装的 `.exe`、`.dll`、`.cmd`、`.ps1`、配置和注册表；自动清理失败明确显示“安装成功，清理失败”，独立清理失败正常报错。
+
+**停止安装：** 安装进行中原按钮变为“停止安装”。点击只写停止请求，等待当前包事务完整结束，再把后续包标记为“未执行”；不强杀安装器、编译进程或资源管理器，未执行项不计失败或完成百分比。完成后可在同一面板继续清理、重试或关闭。
+
 ## 一、<span id="installation">安装与运行前提</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 使用系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1` Desktop、x64 Windows 10 / 11 和图形桌面。原生菜单安装需要已经安装 [**Visual Studio Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的 MSVC、Windows SDK 和对应宿主架构工具；缺失时在注册前停止，不自动安装编译器。`Run.cmd` 不需要菜单编译器。
@@ -52,7 +63,7 @@ SDK 按 `ANDROID_HOME`、`ANDROID_SDK_ROOT`、当前用户 `LOCALAPPDATA/Android
 
 3、新建优先选择已安装、匹配宿主的稳定系统镜像，再选择 SDK 自带的设备型号。镜像按 API 从新到旧，Google APIs 优先；兼容 `36.1` 及 `36-extN` 稳定 API，不把代号预览、TV 或其它 CPU 架构混入手机镜像。
 
-4、Command-Line Tools 优先逐份检查已有版本；全部缺失或损坏时自动读取 Google 官方 `repository2-3.xml`，按归档与校验值下载、解压到 SDK 卷内私有 stage，再同卷重命名为独立新版本，不覆盖旧目录。Emulator / ADB 实际检查版本；缺失或损坏自动由 sdkmanager 修复一次，坏的已有工具包先卸载再安装，立即复检，失败停止，AVD / 镜像保留。没有本机镜像时自动查询官方稳定清单，选中镜像后直接安装，`q` / EOF 可退出；依赖及镜像不再逐项要求 `YES`。SDK 许可证仍由官方工具交给用户本人确认，不自动发送 `yes`。下载失败时被替换的坏工具可能暂时缺失。
+4、Command-Line Tools 优先逐份检查已有版本；全部缺失或损坏时自动读取 Google 官方 `repository2-3.xml`，按归档与校验值下载、解压到 SDK 卷内私有 stage，再同卷重命名为独立新版本，不覆盖旧目录。Emulator / ADB 实际检查版本；缺失或损坏自动由 sdkmanager 修复（获取持续重试），坏的已有工具包先卸载再安装，立即复检，失败停止，AVD / 镜像保留。没有本机镜像时自动查询官方稳定清单，选中镜像后直接安装，`q` / EOF 可退出；依赖及镜像不再逐项要求 `YES`。SDK 许可证仍由官方工具交给用户本人确认，不自动发送 `yes`。下载失败时被替换的坏工具可能暂时缺失。
 
 5、最终显示设备、系统镜像、唯一 AVD 名和实际 AVD 目录；直接回车创建并启动，任意非空输入取消。调用 `avdmanager create avd`，不使用 `--force`，名称同时检查现有清单与目录。遵循 `ANDROID_AVD_HOME` / `ANDROID_EMULATOR_HOME` / `ANDROID_USER_HOME`，默认当前用户 `.android/avd`。
 
@@ -64,8 +75,9 @@ SDK 按 `ANDROID_HOME`、`ANDROID_SDK_ROOT`、当前用户 `LOCALAPPDATA/Android
 flowchart TD
     A[桌面右键或 Run.cmd] --> B[首屏回车后体检宿主与完整依赖链]
     B --> C{缺少 SDK 组件?}
-    C -->|是| D[从官方源自动补齐 一次修复并复检]
-    D -->|失败| X[报错停止并保留已有数据]
+    C -->|是| D[从官方源自动补齐 获取重试至成功并复检]
+    D -->|获取失败| D
+    D -->|本地条件错误| X[报错停止并保留已有数据]
     D -->|安装并复检| E{入口模式}
     C -->|否| E
     E -->|独立入口选择已有 AVD| F[选择已有设备]

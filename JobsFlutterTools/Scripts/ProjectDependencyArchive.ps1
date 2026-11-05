@@ -83,7 +83,7 @@ function Assert-JobsArchiveRoot {
         }
         precache {
             $normalized = $Root.Replace('\','/').TrimEnd('/')
-            if (-not $normalized.EndsWith('/bin/cache/artifacts',[StringComparison]::OrdinalIgnoreCase)) { throw 'SDK 产物根必须为 bin/cache/artifacts，不能选择整个 SDK 或 Dart runtime。' }
+            if (-not $normalized.EndsWith('/bin/cache',[StringComparison]::OrdinalIgnoreCase)) { throw 'SDK 平台资源根必须为 bin/cache；内核只处理 artifacts、Web SDK、缓存引擎包和配对 stamp，不能复制整个缓存或 Dart runtime。' }
         }
         web {
             if ($leaf -cne 'node_modules' -or -not [IO.File]::Exists((Join-Path (Split-Path -Parent $Root) 'package.json'))) { throw 'Web 缓存根必须是存在 package.json 的工程 node_modules。' }
@@ -152,7 +152,7 @@ function Get-JobsArchiveCachePlan {
             $flutter = Get-JobsArchiveFlutter $Project
             if (-not $Import) { $platform = (Select-JobsSetupChoice $Fzf '选择本次 SDK 产物使用的平台' (Get-JobsDependencyPlatforms $Project)).ToLowerInvariant() }
             if ($platform -cnotin @('android','windows','web','ohos')) { throw '当前宿主不导入此平台 SDK 产物。' }
-            $cache = Join-Path $flutter.Root 'bin/cache/artifacts'
+            $cache = Join-Path $flutter.Root 'bin/cache'
             $version = 'Flutter '+$flutter.FrameworkVersion+' artifacts arch '+$flutter.Architecture
         }
         web {
@@ -201,10 +201,20 @@ function Invoke-JobsProjectDependencyArchiveAction {
         return
     }
     Write-Host ('原生依赖归档：'+$operation+' / '+$kind) -ForegroundColor Red
-    Write-Host '只复制所选层；Gradle modules-2 可能含其它工程的共享包，OHPM/Hvigor分开，native是本机目标构建缓存，precache不含SDK源码/Dart，JS不执行归档脚本。'
+    Write-Host '只复制所选层；Gradle modules-2 可能含其它工程的共享包，OHPM/Hvigor分开，native是本机目标构建缓存，precache仅含平台资源白名单及配对stamp，不含SDK源码/Dart/tools，JS不执行归档脚本。'
     Write-Host '仅相同宿主、目标、工具版本与工程锁指纹允许导入；同名不同内容拒绝，导入前精确YES。不保证跨系统或完全离线；分享前检查缓存中的私有内容。'
     if (-not (Test-JobsSetupInteractive)) { throw '需要真实交互终端。' }
     if ((Read-Host '回车继续；任意非空输入取消') -ne '') { throw '已取消，未复制归档。' }
+    if ($operation -ceq 'export') {
+        Write-Host '🔐 当前原生缓存层不能按来源可靠区分私库；直接回车改用一键私库提取，非空才完整提取本层。' -ForegroundColor Yellow
+        $scopeAnswer = Read-Host '直接回车 = 一键私库提取；任意字符（含空格）再回车 = 完整提取本层'
+        if ($null -eq $scopeAnswer) { return }
+        if ($scopeAnswer.Length -eq 0) {
+            $migration = Import-Module (Join-Path $PSScriptRoot 'FlutterDependencyMigration.psm1/FlutterDependencyMigration.psm1') -PassThru -DisableNameChecking
+            & $migration { param($p) Invoke-JobsFlutterMigration -Project $p -Action export-all-dependencies -PrivateOnly } $project
+            return
+        }
+    }
     $saved = Get-JobsSetupEnvironmentSnapshot @('PATH','JAVA_HOME','TOOL_HOME','DEVECO_SDK_HOME','NO_COLOR','FORCE_COLOR','CLICOLOR','ANSI_COLORS_DISABLED','npm_config_color')
     try {
         $logs = Join-Path (Get-JobsInstallRoot) 'logs'
@@ -217,7 +227,7 @@ function Invoke-JobsProjectDependencyArchiveAction {
             $directory = Read-JobsArchiveDirectory '输入或拖入完整原生依赖快照目录（含 manifest.json 与 payload）'
             $file = Join-Path $directory 'manifest.json'; Assert-JobsSetupFile $file
             $manifest = Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json
-            if ($manifest.format -cne 'JobsNativeDependencyArchive' -or $manifest.formatVersion -ne 1 -or $manifest.kind -cne $kind) { throw '快照格式/类型不匹配。' }
+            if ($manifest.format -cne 'JobsNativeDependencyArchive' -or ($manifest.formatVersion -ne 1 -and -not ($manifest.formatVersion -eq 2 -and $kind -ceq 'precache')) -or $manifest.kind -cne $kind) { throw '快照格式/类型不匹配。' }
         } else {
             $desktop = [Environment]::GetFolderPath('DesktopDirectory')
             $directory = Read-JobsArchiveDirectory '导出父目录（空回车使用系统桌面）' $desktop
@@ -228,6 +238,7 @@ function Invoke-JobsProjectDependencyArchiveAction {
         Assert-JobsSetupFile $engine
         if (-not [IO.File]::Exists($engine)) { throw '归档引擎缺失，请取得完整发布包。' }
         $arguments = @($engine,$operation,'--project',$project,'--kind',$kind,'--directory',$directory,'--platform',$plan.Platform,'--tool-version',$plan.ToolVersion)
+        if ($kind -ceq 'precache') { $arguments += '--flutter-cache' }
         $arguments += if ($operation -ceq 'import') { @('--target-root',$plan.Root) } else { @('--source-root',$plan.Root) }
         Write-JobsSetupMessage ('缓存层：'+$kind+'；根：'+$plan.Root+'；快照目录：'+$directory+'；版本：'+$plan.ToolVersion)
         # 引擎预检校验全部证据后才确认写入；实际执行仍会重新校验以防等待期间变化。

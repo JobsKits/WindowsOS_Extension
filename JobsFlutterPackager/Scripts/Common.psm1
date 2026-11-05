@@ -193,6 +193,22 @@ function Invoke-JobsProcess {
 }
 
 function Get-JobsInstallRoot {
+    $binding = Join-Path (Split-Path -Parent $PSScriptRoot) 'deployment.json'
+    if (-not (Test-Path -LiteralPath $binding -PathType Leaf)) {
+        # 统一 Flutter 包的内嵌动作随外层 release 定位，日志和工具仍各自隔离。
+        $outerBinding = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../../deployment.json'))
+        if ((Split-Path -Leaf (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))) -eq 'Actions' -and (Test-Path -LiteralPath $outerBinding -PathType Leaf)) {
+            $deployment = Get-Content -LiteralPath $outerBinding -Raw -Encoding UTF8 | ConvertFrom-Json
+            $action = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($deployment.Version -ne 1 -or $deployment.Id -ne 'flutter-tools' -or $action.Id -notmatch '^[a-z][a-z0-9-]+$' -or -not [IO.Path]::IsPathRooted([string]$deployment.Root)) { throw '内嵌动作部署位置无效。' }
+            return Join-Path (Join-Path ([string]$deployment.Root) 'actions') $action.Id
+        }
+    }
+    if (Test-Path -LiteralPath $binding -PathType Leaf) {
+        $deployment = Get-Content -LiteralPath $binding -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($deployment.Version -ne 1 -or -not [IO.Path]::IsPathRooted([string]$deployment.Root)) { throw '运行部署位置无效。' }
+        return [string]$deployment.Root
+    }
     $local = [Environment]::GetEnvironmentVariable('LOCALAPPDATA')
     if ([string]::IsNullOrWhiteSpace($local)) { $local = [Environment]::GetFolderPath('LocalApplicationData') }
     if ([string]::IsNullOrWhiteSpace($local)) { throw '无法定位当前用户本地应用数据。' }

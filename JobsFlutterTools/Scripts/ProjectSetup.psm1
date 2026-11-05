@@ -4,9 +4,11 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 Import-Module (Join-Path $PSScriptRoot 'ProjectSetupProgress.psm1') -DisableNameChecking
 . (Join-Path $PSScriptRoot 'ProjectSetupRun.ps1')
 . (Join-Path $PSScriptRoot 'ProjectDependencies.ps1')
+. (Join-Path $PSScriptRoot 'ProjectSetupToolchains.ps1')
 . (Join-Path $PSScriptRoot 'ProjectDependencyArchive.ps1')
 
 # 输出脱敏来源和步骤，同时保留本次运行日志。
@@ -21,6 +23,23 @@ function Write-JobsSetupMessage {
 # 使用参数数组执行工具；BAT 通过固定环境载体进入 CMD。
 function Invoke-JobsSetupProcess {
     param([string]$File, [string[]]$Arguments = @(), [string]$Directory, [int]$TimeoutSeconds = 120)
+    $sdk = [IO.Path]::GetFileName($File) -match '^(flutter|dart)(\.(bat|cmd|exe))?$' -and $Arguments.Count -gt 0 -and $Arguments[0] -in @('--version','precache')
+    if ($sdk) {
+        return Invoke-JobsSdkAcquire -Label ('SDK 初始化：' + $File + ' ' + ($Arguments -join ' ')) -Operation {
+            if ([IO.Path]::GetExtension($File) -in @('.bat','.cmd')) { $start = New-JobsSetupBatchStart (Join-Path ([Environment]::GetFolderPath('System')) 'cmd.exe') $File $Arguments $Directory }
+            else { $start=New-Object Diagnostics.ProcessStartInfo; $start.FileName=$File; $start.Arguments=(@($Arguments|ForEach-Object{Quote-JobsArgument $_})-join ' '); $start.WorkingDirectory=$Directory }
+            $result = Invoke-JobsSdkLiveProcess $start ([Math]::Max(120,$TimeoutSeconds)) -Sanitize -Acquisition
+            if ($result.ExitCode -eq 0 -and [IO.Path]::GetFileName($File) -match '^flutter(\.(bat|cmd|exe))?$' -and $Arguments[0] -ceq '--version') {
+                $root = Split-Path -Parent (Split-Path -Parent $File)
+                if (-not [IO.File]::Exists((Join-Path $root 'bin/cache/dart-sdk/bin/dart.exe'))) { throw 'Flutter 返回成功但同源 Dart SDK 尚未完整获取。' }
+            }
+            return $result
+        }
+    }
+    return Invoke-JobsSetupProcessOnce $File $Arguments $Directory $TimeoutSeconds
+}
+function Invoke-JobsSetupProcessOnce {
+    param([string]$File, [string[]]$Arguments = @(), [string]$Directory, [int]$TimeoutSeconds = 120, [switch]$SdkAcquisitionAttempt, [switch]$AllowInstallerExitCodes)
     if ($File -match '["\x00-\x1f]') { throw '工具路径含不支持的字符。' }
     if ([IO.Path]::GetExtension($File) -in @('.bat', '.cmd')) {
         if (@($Arguments | Where-Object { $_ -match '["\x00-\x1f]' }).Count) { throw 'BAT 参数含双引号或控制字符。' }
@@ -30,11 +49,11 @@ function Invoke-JobsSetupProcess {
     } elseif ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         $start=New-Object Diagnostics.ProcessStartInfo
         $start.FileName=$File;$start.Arguments=(@($Arguments|ForEach-Object{Quote-JobsArgument $_})-join ' ');$start.WorkingDirectory=$Directory
-        $result=Invoke-JobsSetupLiveProcess $start $TimeoutSeconds
+        if ($SdkAcquisitionAttempt) { $result=Invoke-JobsSdkLiveProcess $start $TimeoutSeconds -Sanitize -Acquisition } else { $result=Invoke-JobsSetupLiveProcess $start $TimeoutSeconds }
     } else { $result = Invoke-JobsProcess -FilePath $File -Arguments $Arguments -WorkingDirectory $Directory -TimeoutSeconds $TimeoutSeconds }
     if ($result.StdOut) { Write-JobsSetupMessage $result.StdOut.TrimEnd() -AuditOnly:([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) }
     if ($result.StdErr) { Write-JobsSetupMessage $result.StdErr.TrimEnd() -AuditOnly:([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) }
-    if ($result.ExitCode -ne 0) {
+    if ($result.ExitCode -ne 0 -and -not $AllowInstallerExitCodes) {
         $failure = New-Object System.InvalidOperationException ('工具失败：{0}，退出码 {1}' -f $File, $result.ExitCode)
         $failure.Data['NetworkFailure'] = Test-JobsSetupNetworkFailure ($result.StdOut + $result.StdErr)
         throw $failure
@@ -127,7 +146,7 @@ function Select-JobsSetupChoice {
         return $selection[0]
     } finally { if ($null -eq $saved) { Remove-Item Env:FZF_DEFAULT_OPTS -ErrorAction SilentlyContinue } else { $env:FZF_DEFAULT_OPTS = $saved } }
 }
-# 管理器版本仅从已安装工具/官方源码读取，不为展示版本触发安装或全局初始化。
+# 复用已有管理器；文本FVM先补实际Dart运行时，取消不作为版本未知处理。
 function Get-JobsSetupManagerVersion {
  param([ValidateSet('fvm','jenv')][string]$Manager,[string]$Project)
  if($Manager-ceq'fvm'){
@@ -135,7 +154,17 @@ function Get-JobsSetupManagerVersion {
   foreach($name in @('fvm.exe','fvm.bat','fvm.cmd')){if(-not$tool){$tool=Find-JobsExecutable $name}}
   $pointer=Join-Path (Get-JobsInstallRoot) 'tools/fvm-path.txt'
   if(-not$tool-and[IO.File]::Exists($pointer)){$candidate=[IO.File]::ReadAllText($pointer).Trim();if([IO.File]::Exists($candidate)){$tool=$candidate}}
-  if($tool){try{$probe=Invoke-JobsSetupProcess $tool @('--version') $Project 30;$text=($probe.StdOut+$probe.StdErr);if($text-match'(?m)(?:FVM\s+)?v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.]+)?)') {return 'FVM '+$Matches[1]}}catch{}}
+  if($tool){
+   try{
+    Import-JobsSdkDownloadRoute
+    $runtimeEnvironment=Get-JobsSdkRouteEnvironment
+    Initialize-JobsSdkFvmRuntime $tool $Project $runtimeEnvironment
+    $text=Read-JobsSdkLocalToolMetadata $tool @('--version') $Project $runtimeEnvironment
+    if($text-match'(?m)(?:FVM\s+)?v?(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.]+)?)'){return 'FVM '+$Matches[1]}
+   }catch [OperationCanceledException]{throw}
+   catch [Management.Automation.PipelineStoppedException]{throw}
+   catch{}
+  }
   return 'FVM 版本未检测'
  }
  $cache=Join-Path (Get-JobsInstallRoot) 'toolchains/JEnv-for-Windows'
@@ -150,7 +179,7 @@ function Get-JobsSetupFlutter {
     param([string]$Path, [string]$Project, [string]$Mode)
     $root = Split-Path -Parent (Split-Path -Parent $Path)
     $dart = Join-Path $root 'bin/cache/dart-sdk/bin/dart.exe'
-    if (-not [IO.File]::Exists($Path) -or -not [IO.File]::Exists($dart)) { throw 'Flutter SDK 不完整，缺少 Flutter 或同源 Dart。' }
+    if (-not [IO.File]::Exists($Path)) { throw 'Flutter SDK 缺少 bin/flutter，无法启动 SDK 自举。' }
     $probe=Invoke-JobsSetupProcess $Path @('--version','--machine') $Project
     $json=$probe.StdOut;$first=$json.IndexOf('{');$last=$json.LastIndexOf('}')
     if($first-lt0-or$last-le$first){throw 'Flutter --version --machine 未返回版本 JSON。'}
@@ -196,29 +225,30 @@ if ($Platform -ceq 'Ohos') {
         return Install-JobsSetupFlutter $Project $Fzf
     }
 }
-# 网络读取有界重试，并恢复 TLS 配置；不修改代理或全局仓库。
+# 来源逐轮轮换；每条来源保留独立续传文件，成功或用户中断才结束。
 function Receive-JobsSetupFile {
-    param([string[]]$Urls, [string]$Destination, [int]$TimeoutSeconds = 600)
+    param([string[]]$Urls, [string]$Destination, [int]$TimeoutSeconds = 600, [string]$Sha256 = '')
+    if (-not $Urls.Count -or @($Urls | Where-Object { $_ -cnotmatch '^https://[^\s]+$' }).Count) { throw '只接受非空 HTTPS 下载源。' }
     $savedTls = [Net.ServicePointManager]::SecurityProtocol
     try {
         [Net.ServicePointManager]::SecurityProtocol = $savedTls -bor [Net.SecurityProtocolType]::Tls12
-        foreach ($url in $Urls) {
-            if ($url -cnotmatch '^https://[^\s]+$') { throw '只接受 HTTPS 下载源。' }
-            for ($attempt = 1; $attempt -le 2; $attempt++) {
-                Write-JobsSetupMessage ('下载来源：{0}；目标：{1}；尝试 {2}/2' -f $url, $Destination, $attempt)
+        return Invoke-JobsSdkAcquire -Label ('SDK/工具链文件：' + $Destination) -Operation {
+            for ($index=0; $index -lt $Urls.Count; $index++) {
+                $url = $Urls[$index]
+                $part = $Destination + '.source' + $index + '.part'
+                Write-JobsSetupMessage ('下载来源：{0}；目标：{1}' -f $url,$Destination)
                 try {
-                    $curl = Find-JobsExecutable 'curl.exe'
-                    if ($curl) {
-                        $parameters = @('--fail','--location','--connect-timeout','15','--max-time',[string]$TimeoutSeconds,'--speed-time','30','--speed-limit','1024','--retry','1','--output', ($Destination + '.part'), $url)
-                        # 每个来源独立覆盖未完成文件，防止跨源拼接不同字节。
-                        [void](Invoke-JobsSetupProcess $curl $parameters (Split-Path -Parent $Destination) ($TimeoutSeconds + 30))
-                    } else { Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile ($Destination + '.part') -TimeoutSec $TimeoutSeconds }
-                    Move-Item -LiteralPath ($Destination + '.part') -Destination $Destination -Force
+                    Receive-JobsSdkWebFile $url $part $TimeoutSeconds -SingleAttempt -ExpectedSha256 $Sha256
+                    Move-Item -LiteralPath $part -Destination $Destination -Force
                     return $url
-                } catch { Write-JobsSetupMessage ('此线路失败：' + $_.Exception.Message) }
+                } catch [Management.Automation.PipelineStoppedException] { throw }
+                catch {
+                    if ($_.Exception -is [UnauthorizedAccessException] -or $_.Exception.Message -match '已取消|access denied|permission denied|no space left|disk.+full') { throw }
+                    Write-JobsSetupMessage ('此线路失败，保留续传文件：' + $_.Exception.Message)
+                    if ($index -eq $Urls.Count - 1) { throw }
+                }
             }
         }
-        throw '所有下载线路均失败；保留日志，请检查网络后重新运行。'
     } finally { [Net.ServicePointManager]::SecurityProtocol = $savedTls }
 }
 # 防止 ZIP 越界及链接文件写入当前用户缓存。
@@ -249,7 +279,7 @@ function Install-JobsSetupFlutter {
     $release = $choices[[array]::IndexOf($labels, $selected)]
     if ($release.archive -cnotmatch '^stable/windows/flutter_windows_[A-Za-z0-9.+_-]+\.zip$' -or $release.sha256 -cnotmatch '^[a-fA-F0-9]{64}$') { throw '官方 Flutter 归档元数据无效。' }
     $zip = Join-Path $cache 'flutter.zip'
-    [void](Receive-JobsSetupFile @(('https://storage.googleapis.com/flutter_infra_release/flutter/' + $release.archive), ('https://storage.flutter-io.cn/flutter_infra_release/flutter/' + $release.archive)) $zip 1800)
+    [void](Receive-JobsSetupFile @(('https://storage.googleapis.com/flutter_infra_release/flutter/' + $release.archive), ('https://storage.flutter-io.cn/flutter_infra_release/flutter/' + $release.archive)) $zip 1800 -Sha256 $release.sha256)
     if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine $release.sha256) { throw 'Flutter SHA-256 校验失败，未解压。' }
     Expand-JobsSetupZip $zip (Join-Path $cache 'sdk')
     return Get-JobsSetupFlutter (Join-Path $cache 'sdk/flutter/bin/flutter.bat') $Project 'system'
@@ -320,7 +350,7 @@ function Install-JobsSetupJava {
     $package = $selected[0].binary.package
     if ($package.link -cnotmatch '^https://github\.com/adoptium/temurin[0-9]+-binaries/releases/download/' -or $package.checksum -cnotmatch '^[a-fA-F0-9]{64}$') { throw 'Temurin 来源或 SHA-256 无效。' }
     $zip = Join-Path $cache 'jdk.zip'
-    [void](Receive-JobsSetupFile @([string]$package.link) $zip 1200)
+    [void](Receive-JobsSetupFile @([string]$package.link) $zip 1200 -Sha256 $package.checksum)
     if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine $package.checksum) { throw 'JDK SHA-256 校验失败，未安装。' }
     Expand-JobsSetupZip $zip (Join-Path $cache 'sdk')
     $roots = @(Get-ChildItem -LiteralPath (Join-Path $cache 'sdk') -Directory)
@@ -504,7 +534,7 @@ function Install-JobsSetupGradle {
     $urls = @($spec.Url, ('https://downloads.gradle.org/distributions/' + $spec.Name), ('https://services.gradle.org/distributions/' + $spec.Name)) | Select-Object -Unique
     if ($choice -match '腾讯') { $urls += 'https://mirrors.cloud.tencent.com/gradle/' + $spec.Name }
     if (-not [IO.File]::Exists($zip) -or (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine $checksum) {
-        [void](Receive-JobsSetupFile $urls $zip 900)
+        [void](Receive-JobsSetupFile $urls $zip 900 -Sha256 $checksum)
     }
     if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine $checksum) { throw 'Gradle 分发 SHA-256 校验失败，未执行。' }
     $gradle = Join-Path $Project 'android/gradlew.bat'
@@ -526,7 +556,18 @@ function Save-JobsSetupProfile {
     Assert-JobsSetupFile $file
     [void][IO.Directory]::CreateDirectory($directory)
     if ([IO.File]::Exists($file)) { Copy-Item -LiteralPath $file -Destination ($file + '.' + [guid]::NewGuid().ToString('N') + '.bak') }
-    $profile = [ordered]@{ Platform='Windows'; FlutterMode=$Flutter.Mode; FlutterPath=$Flutter.Flutter; JavaMode=$Java.Mode; JavaHome=$Java.Home }
+    $javaMode = 'none'; $javaHome = ''
+    if ($null -ne $Java) { $javaMode = $Java.Mode; $javaHome = $Java.Home }
+    elseif ([IO.File]::Exists($file)) {
+        # Web / Windows 不需要 Java，保存 SDK 选择时仍保留先前的 Android Java 记录。
+        $prior = Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($prior.PSObject.Properties['Platform'] -and $prior.Platform -ceq 'Windows' -and
+            $prior.PSObject.Properties['JavaMode'] -and $prior.JavaMode -cin @('jenv','system') -and
+            $prior.PSObject.Properties['JavaHome'] -and $prior.JavaHome -is [string]) {
+            $javaMode = $prior.JavaMode; $javaHome = $prior.JavaHome
+        }
+    }
+    $profile = [ordered]@{ Platform='Windows'; FlutterMode=$Flutter.Mode; FlutterPath=$Flutter.Flutter; JavaMode=$javaMode; JavaHome=$javaHome }
     [IO.File]::WriteAllText($file, ($profile | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
     Write-JobsSetupMessage ('本工程环境选择已保存：' + $file)
 }
@@ -539,7 +580,7 @@ function Get-JobsSetupProfile {
     $value = Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($null -eq $value.PSObject.Properties['Platform'] -or $value.Platform -cne 'Windows') { Write-JobsSetupMessage '工程环境选择来自其它平台，请重新选择当前电脑的 SDK。'; return $null }
     foreach ($name in @('FlutterMode','FlutterPath','JavaMode','JavaHome')) { if ($null -eq $value.PSObject.Properties[$name] -or $value.$name -isnot [string]) { throw '工程环境选择配置无效。' } }
-    if ($value.FlutterMode -cnotin @('fvm','system') -or $value.JavaMode -cnotin @('jenv','system')) { throw '工程环境管理模式无效。' }
+    if ($value.FlutterMode -cnotin @('fvm','system') -or $value.JavaMode -cnotin @('jenv','system','none')) { throw '工程环境管理模式无效。' }
     return $value
 }
 # 进程级绑定 JVM 并阻断会覆盖它的 Gradle daemon criteria。
@@ -735,7 +776,7 @@ function Invoke-JobsProjectSetupAction {
     [void][IO.Directory]::CreateDirectory($logs)
     $script:SetupLog = Join-Path $logs ('project-setup-' + [guid]::NewGuid().ToString('N') + '.log')
     Write-JobsSetupMessage ('工程：' + $project + '；动作：' + $Action + '；日志：' + $script:SetupLog)
-    $saved = Get-JobsSetupEnvironmentSnapshot @('JAVA_HOME','PATH','GRADLE_OPTS','ANDROID_HOME','ANDROID_SDK_ROOT','TOOL_HOME','DEVECO_SDK_HOME','NO_COLOR','FORCE_COLOR','CLICOLOR','ANSI_COLORS_DISABLED','npm_config_color')
+    $saved = Get-JobsSetupEnvironmentSnapshot @('JAVA_HOME','PATH','GRADLE_OPTS','ANDROID_HOME','ANDROID_SDK_ROOT','TOOL_HOME','DEVECO_STUDIO_HOME','DEVECO_SDK_HOME','NO_COLOR','FORCE_COLOR','CLICOLOR','ANSI_COLORS_DISABLED','npm_config_color')
     try {
         $fzf = Get-JobsSetupFzf $project
         $platform = $null
@@ -748,14 +789,16 @@ function Invoke-JobsProjectSetupAction {
             Write-JobsSetupMessage ('Java 已检查：' + $java.Home + '；模式：' + $java.Mode + '。系统模式仅本次选择；完整保存请运行一键配置。')
             return
         }
+        $needsJava = $Action -eq 'gradle-download' -or $platform -ceq 'Android'
+        $java = $null
         if ($profile) {
             $flutter = Get-JobsSetupFlutter $profile.FlutterPath $project $profile.FlutterMode
-            $java = Get-JobsSetupJava $profile.JavaHome $project
-            $java | Add-Member -NotePropertyName Mode -NotePropertyValue $profile.JavaMode
+            if ($needsJava) { $java = Get-JobsDependencyJava $project $fzf }
         } else {
             Set-JobsSetupProgress sdk.flutter running '选择或安装 Flutter SDK'
             $flutter = Select-JobsSetupFlutter $project $fzf $platform
             Set-JobsSetupProgress sdk.flutter done $flutter.Mode -Version (Get-JobsSetupDetectedVersion $flutter)
+            if ($needsJava) {
             $javaFile = Join-Path $project '.jobs/java-environment.json'
             $java = $null
             if ([IO.File]::Exists($javaFile)) {
@@ -766,12 +809,15 @@ function Invoke-JobsProjectSetupAction {
                     if ($reuse.StartsWith('复用')) { $java = Get-JobsSetupJava $javaSaved.JavaHome $project; $java | Add-Member -NotePropertyName Mode -NotePropertyValue $javaSaved.JavaMode }
                 }
             }
-            if ($null -eq $java) { Set-JobsSetupProgress sdk.java running '选择或安装 Java SDK'; $java = Select-JobsSetupJava $project $fzf }; Set-JobsSetupProgress sdk.java done ('Java ' + $java.Major)
+            if ($null -eq $java) { Set-JobsSetupProgress sdk.java running '选择或安装 Java SDK'; $java = Select-JobsSetupJava $project $fzf }
+            }
         }
         Set-JobsSetupProgress sdk.flutter done $flutter.Mode -Version (Get-JobsSetupDetectedVersion $flutter)
-        $javaVersion=Get-JobsSetupDetectedVersion $java
-        $javaManager=if($java.Mode-ceq'jenv'){Get-JobsSetupManagerVersion 'jenv' $project}else{'jEnv 不适用（系统模式）'}
-        Set-JobsSetupProgress sdk.java done ('Java '+$java.Major+'；'+$java.Mode) -Version ($javaVersion+' / '+$javaManager)
+        if ($needsJava) {
+            $javaVersion=Get-JobsSetupDetectedVersion $java
+            $javaManager=if($java.Mode-ceq'jenv'){Get-JobsSetupManagerVersion 'jenv' $project}else{'jEnv 不适用（系统模式）'}
+            Set-JobsSetupProgress sdk.java done ('Java '+$java.Major+'；'+$java.Mode) -Version ($javaVersion+' / '+$javaManager)
+        } else { Set-JobsSetupProgress sdk.java skipped $(if($platform -ceq 'Ohos'){'Java 随 DevEco 工具链实际复检'}else{'所选平台不需要 Java'}) }
         if ($Action -eq 'gradle-download' -or $platform -eq 'Android') { Set-JobsSetupJavaProcess $project $java }
         if ($Action -eq 'project-setup') { Initialize-JobsSetupPlatform $project $flutter $java $fzf $platform }
         Set-JobsSetupProgress deps.gradle running '准备工程固定 Gradle 分发'

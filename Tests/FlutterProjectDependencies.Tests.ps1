@@ -31,6 +31,7 @@ try {
                 '^build .+ --help$' { 'flutter '+($command -replace ' --help$',''); break }
                 '^--help$' { '--sync Synchronize project dependencies'; break }
                 '^--version$' { '9.1.0'; break }
+                '^-version$' { 'openjdk version "17.0.1"'; break }
                 default { 'fixture success' }
             }
             return [pscustomobject]@{ExitCode=0;StdOut=$output;StdErr=''}
@@ -122,6 +123,9 @@ try {
     Assert (-not (($calls -join ';') -match '\|run\b')) 'native 准备不会启动应用'
 
     $packager = Import-Module (Join-Path $root 'JobsFlutterTools/Scripts/Actions/package/Scripts/Action.psm1') -PassThru -DisableNameChecking
+    $savedHarmonySdk=$env:DEVECO_SDK_HOME
+    $env:DEVECO_SDK_HOME=Join-Path $temp 'harmony-sdk'
+    [void][IO.Directory]::CreateDirectory($env:DEVECO_SDK_HOME)
     & $packager { function script:Initialize-JobsPackagerHarmonyEnvironment { } }
     $ohos = Join-Path $project 'ohos'
     [void][IO.Directory]::CreateDirectory((Join-Path $ohos 'hvigor'))
@@ -131,8 +135,8 @@ try {
     & $module { $script:calls.Clear() }
     & $module { param($p) Invoke-JobsDependencyOhos $p } $project
     $calls = @(& $module { $script:calls.ToArray() })
-    Assert ($calls.Count -eq 4 -and $calls[0] -match 'ohpm.bat\|--version' -and $calls[1] -match 'hvigorw.bat\|--help') 'OHOS 先核验现有工具与工程 wrapper 能力'
-    Assert ($calls[2] -match 'ohpm.bat\|install\|' -and $calls[3] -match 'hvigorw.bat\|--sync\|') 'OHOS 原生库和固定插件分别实际执行'
+    Assert ($calls.Count -eq 8 -and $calls[2] -match 'ohpm.bat\|--version' -and $calls[5] -match 'hvigorw.bat\|--help') 'OHOS 先核验 Node/npm/Java/OHPM 与工程 wrapper 能力'
+    Assert ($calls[6] -match 'ohpm.bat\|install\|' -and $calls[7] -match 'hvigorw.bat\|--sync\|') 'OHOS 原生库和固定插件分别实际执行'
     Assert (@($calls | Where-Object { $_ -notlike ('*|'+$ohos) }).Count -eq 0) 'ohpm 与 Hvigor 均在目标 ohos 目录运行'
     & $module { $script:calls.Clear(); $script:failCommand='install' }
     Assert-Throws { & $module { param($p) Invoke-JobsDependencyOhos $p } $project } 'ohpm 失败停止 Hvigor'
@@ -142,12 +146,14 @@ try {
     Assert-Throws { & $module { param($p) Invoke-JobsDependencyOhos $p } $project } '缺少项目 wrapper 不安装全局最新 Hvigor'
     Assert ((& $module { $script:calls.Count }) -eq 0) 'wrapper 缺失没有联网命令'
 
+    $env:DEVECO_SDK_HOME=$savedHarmonySdk
     [IO.File]::WriteAllText((Join-Path $project 'lib/main_custom.dart'),'void main() {}')
     $plan = & $module { param($p) Get-JobsSetupRunArguments $p 'fzf' '' 'Windows' -ForBuild } $project
     Assert (($plan -join '|') -ceq 'build|windows|--debug|--target|lib/main_custom.dart') '原生准备不强制不存在的 lib/main.dart'
     $release = Join-Path $temp 'release'
     $installer = Import-Module (Join-Path $root 'JobsFlutterTools/Scripts/PackageInstaller.psm1') -PassThru -DisableNameChecking
     & $installer { param($p,$d) New-JobsPackageRelease -PackagePath $p -Destination $d } (Join-Path $root 'JobsFlutterTools') $release | Out-Null
+    Assert ([IO.File]::Exists((Join-Path $release 'Scripts/ProjectSetupToolchains.ps1'))) '发布目录包含完整平台工具链 helper，不依赖外部工作树'
     Assert ((Get-FileHash (Join-Path $release 'Scripts/ProjectDependencies.ps1')).Hash -ceq (Get-FileHash (Join-Path $root 'JobsFlutterTools/Scripts/ProjectDependencies.ps1')).Hash) '独立发布携带同字节依赖内核'
     Assert ((Get-FileHash (Join-Path $release 'Scripts/HarmonySdk.psm1')).Hash -ceq (Get-FileHash (Join-Path $root 'JobsFlutterTools/Scripts/HarmonySdk.psm1')).Hash) '独立发布携带同字节鸿蒙取消契约'
 

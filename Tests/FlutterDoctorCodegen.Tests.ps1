@@ -128,12 +128,12 @@ ffigen:
     & $codegen { function script:Read-JobsCodegenConsent { return $true }; function script:Read-JobsCodegenDeleteConsent { return $false } }
     & $codegen { param($Path) Invoke-JobsFlutterCodegenAction $Path } $project
     $calls = @(& $codegen { $script:Calls })
-    Assert-Flutter ($calls.Count -eq 2 -and ($calls[0].Arguments -join ' ') -ceq 'pub get') '确认后先获取依赖再生成'
-    Assert-Flutter ($calls[1].Arguments -notcontains '--delete-conflicting-outputs') '未明确同意不追加冲突删除参数'
+    Assert-Flutter ($calls.Count -eq 3 -and ($calls[0].Arguments -join ' ') -ceq '--version' -and ($calls[1].Arguments -join ' ') -ceq 'pub get') '确认后先补齐SDK、获取依赖再生成'
+    Assert-Flutter ($calls[2].Arguments -notcontains '--delete-conflicting-outputs') '未明确同意不追加冲突删除参数'
     & $codegen { function script:Read-JobsCodegenDeleteConsent { return $true }; $script:Calls = @() }
     & $codegen { param($Path) Invoke-JobsFlutterCodegenAction $Path } $project
     $calls = @(& $codegen { $script:Calls })
-    Assert-Flutter ($calls[1].Arguments -contains '--delete-conflicting-outputs') '明确 YES 才追加冲突删除参数'
+    Assert-Flutter ($calls[2].Arguments -contains '--delete-conflicting-outputs') '明确 YES 才追加冲突删除参数'
     & $codegen { function script:Invoke-JobsFlutterTool { param($Executable, $Arguments, $Project); $script:Calls += 'failure'; throw 'fake pub get failed' }; $script:Calls = @() }
     Assert-FlutterThrows { & $codegen { param($Path) Invoke-JobsFlutterCodegenAction $Path } $project } '获取依赖失败向上抛出错误'
     Assert-Flutter (@(& $codegen { $script:Calls }).Count -eq 1) '首步失败立即停止，不能误报后续成功'

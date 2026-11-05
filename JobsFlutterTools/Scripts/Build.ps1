@@ -79,6 +79,5 @@ $csc = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirect
 if (-not [IO.File]::Exists($csc)) { throw '系统 .NET Framework C# 编译器缺失。' }
 & $csc /nologo /target:winexe /platform:anycpu /optimize+ /reference:System.Web.Extensions.dll ('/out:' + (Join-Path $output 'JobsFlutterRunnerHost.exe')) (Join-Path $scripts 'RunnerHost.cs')
 if ($LASTEXITCODE -ne 0) { throw 'Flutter 后台运行宿主编译失败。' }
-$runnerBin = Join-Path (Split-Path -Parent $output) 'Scripts/Actions/run/bin'
-[void][IO.Directory]::CreateDirectory($runnerBin)
-Copy-Item -LiteralPath (Join-Path $output 'JobsFlutterRunnerHost.exe') -Destination $runnerBin
+if (-not (Test-Path -LiteralPath (Join-Path $output 'JobsFlutterRunnerHost.exe') -PathType Leaf)) { throw 'Flutter 后台运行宿主产物缺失。' }
+# 运行位置由包安装器映射；此脚本只向 OutputRoot 输出编译结果。

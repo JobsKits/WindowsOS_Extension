@@ -30,6 +30,20 @@ try{
  &$module{
   param($base)
   $script:versionRoot=$base
+  Import-JobsSdkDownloadRoute
+  $script:managerCalls=New-Object 'System.Collections.Generic.List[string]'
+  $script:managerCancel=$false;$script:metadataCancel=$false
+  function script:Initialize-JobsSdkFvmRuntime{
+   param($Tool,$Directory,$Environment)
+   $script:managerCalls.Add('runtime')
+   if($script:managerCancel){throw (New-Object OperationCanceledException('fixture manager runtime cancellation'))}
+  }
+  function script:Read-JobsSdkLocalToolMetadata{
+   param($Tool,$Arguments,$Directory,$Environment)
+   $script:managerCalls.Add('metadata')
+   if($script:metadataCancel){throw (New-Object OperationCanceledException('fixture native metadata exit 130'))}
+   return 'FVM 4.0.1'
+  }
   function script:Get-JobsInstallRoot{$script:versionRoot}
   function script:Find-JobsExecutable{param($Name)if($Name-ceq'fvm.exe'){return (Join-Path $script:versionRoot 'fvm.exe')}}
   function script:Invoke-JobsSetupProcess{
@@ -49,6 +63,18 @@ try{
  }$temp
  $flutter=&$module{param($p,$base)Get-JobsSetupFlutter $p $base 'fvm'}(Join-Path $sdk 'bin/flutter.bat') $temp
  Assert ($flutter.VersionText-ceq'Flutter 3.38.2 / Dart 3.10.0 / FVM 4.0.1') 'Flutter/Dart/FVM 分别读取实际工具输出'
+ Assert ((&$module{$script:managerCalls-join','})-ceq'runtime,metadata') 'FVM版本probe前先准备实际管理器Dart运行时'
+ &$module{$script:managerCancel=$true;$script:managerCalls.Clear()}
+ $cancelled=$false
+ try{[void](&$module{param($p)Get-JobsSetupManagerVersion 'fvm' $p}$temp)}catch [OperationCanceledException]{$cancelled=$true}
+ Assert ($cancelled-and((&$module{$script:managerCalls-join','})-ceq'runtime')) '运行时准备取消必须穿透且不调用FVM版本元数据'
+ &$module{$script:managerCancel=$false;$script:metadataCancel=$true;$script:managerCalls.Clear()}
+ $cancelled=$false
+ try{[void](&$module{param($p)Get-JobsSetupManagerVersion 'fvm' $p}$temp)}catch [OperationCanceledException]{$cancelled=$true}
+ Assert ($cancelled-and((&$module{$script:managerCalls-join','})-ceq'runtime,metadata')) '元数据本身的原生取消不能吞成版本未检测'
+ &$module{$script:metadataCancel=$false;function script:Find-JobsExecutable{param($Name)return $null};$script:managerCalls.Clear()}
+ $missing=&$module{param($p)Get-JobsSetupManagerVersion 'fvm' $p}$temp
+ Assert ($missing-ceq'FVM 版本未检测'-and((&$module{$script:managerCalls.Count})-eq0)) '未安装manager沿用版本未检测，不启动其它PATH Flutter'
  $flutter=&$module{param($p,$base)Get-JobsSetupFlutter $p $base 'system'}(Join-Path $sdk 'bin/flutter.bat') $temp
  Assert ($flutter.VersionText.Contains('FVM 不适用')) '系统模式不声称使用了 FVM'
  $java=&$module{param($p,$base)Get-JobsSetupJava $p $base}$jdk $temp
@@ -88,12 +114,14 @@ try{
  $dashboard=[IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/ProjectSetupDashboard.ps1'))
  Assert ($dashboard.Contains("`$arrow.Text='>>>>>'")-and$dashboard.Contains("Drawing.Font('Consolas',9")) '里程碑 ASCII >>>>> 使用独立等宽连接符'
  Assert ($dashboard.Contains('Get-JobsSetupVersion')-and$dashboard.Contains('$toolVersion.Label')) '窗口版本只读取单文件版本源'
- Assert ($dashboard.Contains("版本：尚未检测")-and$dashboard.Contains('$toolTips.SetToolTip($versionLabel')) '版本独立小字显示且完整 tooltip 可访问'
+ Assert ($dashboard.Contains('$versionLabel.Visible=$false')-and$dashboard.Contains('$versionLabel.Visible=$true')-and$dashboard.Contains('$toolTips.SetToolTip($versionLabel')) '实际版本独立小字显示且完整 tooltip 可访问，等待时不占空行'
  $run=[IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/ProjectSetupRun.ps1'))
- Assert ($run.Contains("'installationVersion'")-and$run.Contains('VC/Tools/MSVC')-and$run.Contains('Windows Kits/10/Include')) 'Windows C++ 版本取本机 VS/MSVC/SDK 清单'
+ $windowsTools=[IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/ProjectSetupToolchains.ps1'))
+ Assert ($windowsTools.Contains("'installationVersion'")-and$windowsTools.Contains('VC/Tools/MSVC')-and$windowsTools.Contains('Windows Kits/10')-and$windowsTools.Contains("Join-Path `$sdkRoot 'Include'")) 'Windows C++ 版本取本机 VS/MSVC/SDK 清单'
  Assert ($run.Contains('FileVersionInfo')-and$run.Contains('Get-JobsSetupBrowserVersion')) '浏览器读取已安装二进制版本，不启动浏览器冒充探测'
  Assert ($dashboard.Contains('Windows.Forms.SplitContainer')-and$dashboard.Contains('Orientation]::Horizontal')-and$dashboard.Contains('$split.IsSplitterFixed=$false')) '上下区域使用真实可拖动水平分隔'
- Assert ($dashboard.Contains('$split.Panel1MinSize=265')-and$dashboard.Contains('$split.Panel2MinSize=180')-and$dashboard.Contains('$split.Add_SplitterMoved($resize)')) '分区最小尺寸与原生控制台 resize 同步'
+ Assert ($dashboard.Contains('$split.Panel1MinSize=64')-and$dashboard.Contains('$split.Panel2MinSize=180')-and$dashboard.Contains('$split.Add_SplitterMoved($resize)')-and$dashboard.Contains('FixedPanel]::Panel1')) '流程紧凑且保留真实分隔拖动和原生控制台 resize'
+ Assert ($dashboard.Contains("`$title.Text='一键配置 Flutter 项目'")-and$dashboard.Contains('$nodeTitle.Text=$groups[$g][$j+1]')-and$dashboard.Contains('$activityTimer.Interval=350')) '窗口与节点标题独立显示，活动状态每350毫秒刷新'
  $process=[IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/ProjectSetupProcess.cs'))
  Assert (-not$process.Contains('WaitHandle.WaitAll')-and$process.Contains('outDone.WaitOne(timeout)')-and$process.Contains('errDone.WaitOne(remaining)')) 'Framework STA 排空不使用多句柄 WaitAll，沿用单一超时预算'
  Assert (-not$process.Contains('Kill(true)')-and-not$process.Contains('ArgumentList')) '日志采集没有 .NET Core 专用进程 API'

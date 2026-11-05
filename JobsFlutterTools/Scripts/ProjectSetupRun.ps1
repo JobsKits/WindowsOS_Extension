@@ -105,29 +105,15 @@ function Initialize-JobsSetupAndroid {
 # Windows 桌面缺少 C++ 工作负载时，按用户选择安装官方 Build Tools 后复检。
 function Initialize-JobsSetupWindowsDesktop {
  param([string]$Project,[string]$Fzf)
- $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
- $component=if($env:PROCESSOR_ARCHITECTURE-eq'ARM64'){'Microsoft.VisualStudio.Component.VC.Tools.ARM64'}else{'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'}
- $healthy=$false
- if([IO.File]::Exists($vswhere)){try{$probe=Invoke-JobsSetupProcess $vswhere @('-latest','-products','*','-requires',$component,'-property','installationPath') $Project;$healthy=-not[string]::IsNullOrWhiteSpace($probe.StdOut)}catch{}}
- if(-not$healthy){
-  $choice=Select-JobsSetupChoice $Fzf 'Windows C++ 工具缺失' @('安装 Visual Studio Build Tools C++ 工作负载','已手动安装，重新检查')
-  if($choice.StartsWith('安装')){
-   $winget=Find-JobsExecutable 'winget.exe';if(-not$winget){throw '缺少 WinGet，请先从 Microsoft Store 安装 App Installer，再重新执行。'}
-   Set-JobsSetupProgress platform.tools waiting '官方 Build Tools 安装可能请求管理员 UAC，由本人确认'
-   [void](Invoke-JobsSetupProcess $winget @('install','--id','Microsoft.VisualStudio.2022.BuildTools','--exact','--source','winget','--scope','machine','--accept-source-agreements','--override',('--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add '+$component+' --includeRecommended')) $Project 3600)
-  }
-  if(-not[IO.File]::Exists($vswhere)){throw 'Visual Studio Installer 未就绪，请完成安装后重试。'}
-  $probe=Invoke-JobsSetupProcess $vswhere @('-latest','-products','*','-requires',$component,'-property','installationPath') $Project
-  if([string]::IsNullOrWhiteSpace($probe.StdOut)){throw 'C++ 工具安装后复检失败。'}
+ $tools = Get-JobsSetupWindowsDesktopTools $Project
+ if (-not $tools.Ready) {
+  Write-JobsSetupMessage ('Windows C++ 工具链未就绪：'+($tools.Issues -join '；'))
+  $choice=Select-JobsSetupChoice $Fzf 'Windows C++ 工具缺失或损坏' @('安装/修复 Visual Studio C++、Windows SDK 与 CMake','已手动处理，重新检查')
+  if ($choice.StartsWith('安装')) { Install-JobsSetupWindowsDesktopTools $Project $tools }
+  $tools = Get-JobsSetupWindowsDesktopTools $Project
+  if (-not $tools.Ready) { throw ('Windows C++ 工具链复检失败：'+($tools.Issues -join '；')) }
  }
- $path=$probe.StdOut.Trim()
- $reported=Invoke-JobsSetupProcess $vswhere @('-latest','-products','*','-requires',$component,'-property','installationVersion') $Project 30
- $vsVersion=if($reported.StdOut.Trim()){$reported.StdOut.Trim()}else{'未检测'}
- $vc=Join-Path $path 'VC/Tools/MSVC';$msvc=@()
- if([IO.Directory]::Exists($vc)){$msvc=@(Get-ChildItem -LiteralPath $vc -Directory|Where-Object{$_.Name-match'^\d+\.\d+\.\d+$'}|ForEach-Object{$_.Name}|Sort-Object{[version]$_}-Descending)}
- $sdkRoot=Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/Include';$sdks=@()
- if([IO.Directory]::Exists($sdkRoot)){$sdks=@(Get-ChildItem -LiteralPath $sdkRoot -Directory|Where-Object{$_.Name-match'^\d+\.\d+\.\d+\.\d+$'}|ForEach-Object{$_.Name}|Sort-Object{[version]$_}-Descending)}
- Set-JobsSetupProgress platform.tools done '已读取 Visual Studio 工具清单' -Version ('VS '+$vsVersion+' / MSVC '+$(if($msvc.Count){$msvc-join', '}else{'未检测'})+' / Windows SDK '+$(if($sdks.Count){$sdks-join', '}else{'未检测'}))
+ Set-JobsSetupProgress platform.tools done 'VC、Windows SDK 与 CMake 已完整复检' -Version $tools.VersionText
 }
 # 按所选平台准备工具及 Flutter precache，不生成用户未选择的平台。
 function Initialize-JobsSetupPlatform {
@@ -143,7 +129,7 @@ function Initialize-JobsSetupPlatform {
    Set-JobsSetupProgress platform.tools done '浏览器本地文件版本已读取' -Version (Get-JobsSetupBrowserVersion)
    Set-JobsSetupProgress platform.licenses skipped '浏览器许可沿官方安装器'
   }
-  Ohos{Set-JobsSetupProgress platform.licenses skipped '鸿蒙许可沿现有 DevEco 工具链，本人处理'}
+  Ohos{[void](Initialize-JobsSetupOhos $Project $Fzf);Set-JobsSetupProgress platform.licenses skipped '鸿蒙许可沿现有 DevEco 工具链，本人处理'}
   default{throw '未选择受支持的平台。'}
  }
  Invoke-JobsDependencyPrecache $Project $Flutter $Platform

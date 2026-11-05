@@ -28,14 +28,17 @@ try {
     $module = Import-Module $path -PassThru -DisableNameChecking -Force
     & $module {
         param($Parent, $Archive, $Metadata)
-        $script:Parent = $Parent; $script:Archive = $Archive; $script:Metadata = $Metadata; $script:Downloads = @(); $script:JavaFails = $false
+        $script:Parent = $Parent; $script:Archive = $Archive; $script:Metadata = $Metadata; $script:Downloads = @(); $script:JavaFails = $false; $script:CorruptDownloads = 0
         function script:Get-JobsAndroidJavaRoot { return $script:Parent }
-        function script:Invoke-WebRequest {
-            param([switch]$UseBasicParsing, $Uri, $OutFile, $TimeoutSec)
+        function script:Receive-JobsSdkWebFile {
+            param($Uri, $Destination, $TimeoutSeconds)
+            $OutFile = $Destination
             $script:Downloads += @{ Uri = $Uri; OutFile = $OutFile }
             if ($Uri -like 'https://api.adoptium.net/*') { [IO.File]::WriteAllText($OutFile, $script:Metadata) }
+            elseif ($script:CorruptDownloads -gt 0) { $script:CorruptDownloads--; [IO.File]::WriteAllText($OutFile, 'incomplete fixture transfer') }
             else { Copy-Item -LiteralPath $script:Archive -Destination $OutFile }
         }
+        function script:Start-Sleep { param($Seconds) }
         function script:Invoke-JobsProcess {
             param($FilePath, $Arguments, $TimeoutSeconds)
             if ($script:JavaFails) { return [pscustomobject]@{ ExitCode = 1; StdOut = ''; StdErr = 'broken Java' } }
@@ -56,9 +59,12 @@ try {
     & $module { $script:Metadata = $script:Metadata.Replace('https://github.com/adoptium/', 'https://untrusted.example/adoptium/') }
     Assert-BootstrapThrows { & $module { Install-JobsAndroidJava } } '非官方归档地址在下载前拒绝'
     Assert-Bootstrap (Test-Path -LiteralPath $java) '失败不影响上一次健康Java'
-    & $module { param($Metadata) $script:Metadata = $Metadata } $metadata.Replace($hash, ('0' * 64))
-    Assert-BootstrapThrows { & $module { Install-JobsAndroidJava } } 'Java 归档 SHA-256 错误停止'
-    Assert-Bootstrap (@(Get-ChildItem -LiteralPath $javaRoot -Force | Where-Object { $_.Name -like '.jobs-stage-*' }).Count -eq 0) 'Java 失败后只清理本次 stage'
+    $verifiedArchive = Join-Path $temporary 'verified-after-corrupt-transfer.zip'
+    $downloadsBefore = & $module { $script:CorruptDownloads = 1; $script:Downloads.Count }
+    & $module { param($Destination, $Hash) Receive-JobsAndroidVerifiedArchive -Uri 'https://fixture.invalid/sdk.zip' -Destination $Destination -Algorithm SHA256 -Checksum $Hash } $verifiedArchive $hash
+    Assert-Bootstrap ((Get-FileHash -LiteralPath $verifiedArchive -Algorithm SHA256).Hash -eq $hash) '损坏归档持续重取并校验成功'
+    Assert-Bootstrap ((& $module { $script:Downloads.Count }) -eq $downloadsBefore + 2) '摘要失败仅重取归档，未重放安装'
+    Assert-Bootstrap (@(Get-ChildItem -LiteralPath $javaRoot -Force | Where-Object { $_.Name -like '.jobs-stage-*' }).Count -gt 0) '失败暂存保留供排查和续传'
     & $module { param($Metadata) $script:Metadata = $Metadata; $script:JavaFails = $true } $metadata
     Assert-BootstrapThrows { & $module { Install-JobsAndroidJava } } '下载后Java仍不能运行立即停止'
     Assert-Bootstrap (@(Get-ChildItem -LiteralPath $javaRoot -Directory | Where-Object { $_.Name -like 'temurin-21-*' }).Count -eq 1) '不提交未经健康检查的新JDK目录'
@@ -110,6 +116,51 @@ try {
     Assert-BootstrapThrows { & $module { Invoke-JobsAndroidSimulatorAction desktop-fixture -Create } } '入口首屏可取消自动补齐'
     Assert-Bootstrap (-not (Test-Path -LiteralPath $uncreated)) '首屏取消不创建SDK根'
     Assert-Bootstrap (& $module { $script:InstallCount -eq 0 }) '首屏取消不进入Java和下游工具安装'
+    $retrySdk = Join-Path $temporary 'sdk-retry-fixture'
+    & $module {
+        param($Sdk)
+        $script:RetrySdk = $Sdk
+        $script:SdkAttempts = 0
+        function script:Start-Sleep { param($Seconds) }
+        function script:Invoke-JobsSdkLiveProcess {
+            param($Start, $TimeoutSeconds, [switch]$Sanitize, [switch]$Acquisition)
+            if (-not $Acquisition) { throw 'SDK 获取必须启用停滞超时模式' }
+            $script:SdkAttempts++
+            if ($script:SdkAttempts -le 4) { return [pscustomobject]@{ ExitCode = 1; StdOut = ''; StdErr = 'connection reset fixture' } }
+            if ($script:SdkAttempts -ge 6) {
+                [void][IO.Directory]::CreateDirectory((Join-Path $script:RetrySdk 'platform-tools'))
+                foreach ($name in @('package.xml', 'adb.exe')) { [IO.File]::WriteAllText((Join-Path $script:RetrySdk ('platform-tools/' + $name)), 'fixture') }
+            }
+            return [pscustomobject]@{ ExitCode = 0; StdOut = 'sdk fixture installed'; StdErr = '' }
+        }
+    } $retrySdk
+    $installOutput = @(& $module { Invoke-JobsAndroidTool 'fixture-java' 'fixture-tools' sdkmanager @(('--sdk_root=' + $script:RetrySdk), '--install', 'platform-tools') -Interactive })
+    Assert-Bootstrap ((& $module { $script:SdkAttempts }) -eq 6) 'SDK安装失败四次及退出0但缺文件后，自动第六次成功'
+    Assert-Bootstrap ($installOutput.Count -eq 0) '安装进度不污染调用方返回值'
+    $listing = & $module { Invoke-JobsAndroidTool 'fixture-java' 'fixture-tools' sdkmanager @('--list', '--channel=0') }
+    Assert-Bootstrap ($listing -eq 'sdk fixture installed') 'SDK远程清单在重试后返回原始机器输出'
+    foreach ($component in @(@('platform-tools','adb.exe'), @('platforms;android-35','android.jar'), @('build-tools;35.0.0','aapt2.exe'), @('ndk;27.0.1','ndk-build.cmd'), @('cmake;3.22.1','bin/cmake.exe'))) {
+        $attempts = & $module {
+            param($Sdk, $Identifier, $Required)
+            $script:SdkAttempts = 0; $script:RetrySdk = $Sdk; $script:RetryPackage = $Identifier; $script:RetryRequired = $Required
+            function script:Invoke-JobsSdkLiveProcess {
+                param($Start, $TimeoutSeconds, [switch]$Sanitize, [switch]$Acquisition)
+                $script:SdkAttempts++
+                $directory = Join-Path $script:RetrySdk ($script:RetryPackage.Replace(';', [IO.Path]::DirectorySeparatorChar))
+                [void][IO.Directory]::CreateDirectory($directory)
+                [IO.File]::WriteAllText((Join-Path $directory 'package.xml'), 'fixture metadata only')
+                if ($script:SdkAttempts -ge 2) {
+                    $binary = Join-Path $directory $script:RetryRequired
+                    [void][IO.Directory]::CreateDirectory((Split-Path -Parent $binary))
+                    [IO.File]::WriteAllText($binary, 'fixture binary')
+                }
+                return [pscustomobject]@{ ExitCode = 0; StdOut = ''; StdErr = '' }
+            }
+            Invoke-JobsAndroidTool 'fixture-java' 'fixture-tools' sdkmanager @(('--sdk_root=' + $Sdk), '--install', $Identifier) -Interactive
+            return $script:SdkAttempts
+        } (Join-Path $temporary ('metadata-only-' + $component[0].Replace(';','-'))) $component[0] $component[1]
+        Assert-Bootstrap ($attempts -eq 2) ($component[0] + ' 仅元数据不算成功，关键文件就绪才结束获取')
+    }
     Write-Host ('PASS: AndroidSimulatorBootstrap.Tests.ps1 (' + $script:assertions + ' assertions)')
 } finally {
     if ($module) { Remove-Module $module -ErrorAction SilentlyContinue }

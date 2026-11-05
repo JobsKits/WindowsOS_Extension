@@ -15,13 +15,13 @@ Import-Module (Join-Path $root 'JobsFlutterTools/Scripts/FeatureActions.psm1') -
 $packages = @(Get-JobsFeaturePackages -Root $root)
 $features = @(Get-JobsSelectableFeatures -Packages $packages)
 $actions = @(Get-JobsFlutterActionCatalog)
-Assert ($actions.Count -eq 36) '列出全部现有 Windows Flutter 叶动作'
-$stableOrder = 'run,pub-get,android-dependencies,ohos-dependencies,native-dependencies,flutter-precache,web-dependencies,extract,import-dependencies,export-gradle-dependencies,import-gradle-dependencies,export-ohos-dependencies,import-ohos-dependencies,export-native-dependencies,import-native-dependencies,export-precache-dependencies,import-precache-dependencies,export-web-dependencies,import-web-dependencies,sdk-version,sdk-manage,ohos-sdk-manage,java-manage,gradle-download,project-setup,package,build-harmony,codegen,native-doctor,harmony-doctor,maintenance,repair-android,repair-imports,repair-namespace,export-private-dependencies,import-private-dependencies'
+Assert ($actions.Count -eq 38) '列出全部现有 Windows Flutter 叶动作'
+$stableOrder = 'run,pub-get,android-dependencies,ohos-dependencies,native-dependencies,flutter-precache,web-dependencies,extract,import-dependencies,export-gradle-dependencies,import-gradle-dependencies,export-ohos-dependencies,import-ohos-dependencies,export-native-dependencies,import-native-dependencies,export-precache-dependencies,import-precache-dependencies,export-web-dependencies,import-web-dependencies,sdk-version,sdk-manage,ohos-sdk-manage,java-manage,gradle-download,project-setup,package,build-harmony,codegen,native-doctor,harmony-doctor,maintenance,repair-android,repair-imports,repair-namespace,export-private-dependencies,import-private-dependencies,export-all-dependencies,import-all-dependencies'
 Assert (($actions.Id -join ',') -ceq $stableOrder) '重分组不改原34个ID与偏移保持顺序，新私库动作追加'
 $groupContract = [ordered]@{
     '📥 拉取Flutter项目工程相关依赖' = @('pub-get','android-dependencies','ohos-dependencies','web-dependencies')
-    '🧩 提取Flutter项目工程依赖' = @('extract','export-gradle-dependencies','export-ohos-dependencies','export-native-dependencies','export-precache-dependencies','export-web-dependencies','export-private-dependencies')
-    '📤 导入Flutter项目工程依赖' = @('import-dependencies','import-gradle-dependencies','import-ohos-dependencies','import-native-dependencies','import-precache-dependencies','import-web-dependencies','import-private-dependencies')
+    '🧩 提取Flutter项目工程依赖' = @('extract','export-gradle-dependencies','export-ohos-dependencies','export-native-dependencies','export-precache-dependencies','export-web-dependencies','export-private-dependencies','export-all-dependencies')
+    '📤 导入Flutter项目工程依赖' = @('import-dependencies','import-gradle-dependencies','import-ohos-dependencies','import-native-dependencies','import-precache-dependencies','import-web-dependencies','import-private-dependencies','import-all-dependencies')
     '🔀 安装/切换Flutter运行环境' = @('sdk-manage','ohos-sdk-manage','java-manage')
     '🧱 Flutter 资源与构建依赖' = @('native-dependencies','flutter-precache','gradle-download')
     '🏥 Flutter项目体检' = @('sdk-version','native-doctor','harmony-doctor')
@@ -40,7 +40,7 @@ $exactLabels = @{
     'sdk-version' = '🔎 查看当前Flutter项目工程的SDK版本'
 }
 foreach ($id in $exactLabels.Keys) { Assert (@($actions | Where-Object { $_.Id -ceq $id })[0].Label -ceq $exactLabels[$id]) ('精确叶显示名：' + $id) }
-Assert ($features.Count -eq $packages.Count + 35) '总面板展开单包而不重复显示包级复选框'
+Assert ($features.Count -eq $packages.Count + 37) '总面板展开单包而不重复显示包级复选框'
 Assert (@($features | Where-Object { $_.Id -ceq 'flutter-tools' }).Count -eq 0) '只有可实际执行的子功能可选'
 $header = [IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/FlutterToolsMenu.h'))
 $entryBlock = [regex]::Match($header, '(?s)static const Entry Entries\[\]\s*=\s*\{(.*?)\n\};').Groups[1].Value
@@ -68,7 +68,7 @@ Assert ($combined.Count -eq 1 -and ($combined[0].ActionIds -join ',') -ceq 'run,
 $replace = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @('flutter-codegen') -Installed @('flutter-run') -Mode Configure)
 Assert ($replace.Count -eq 1 -and ($replace[0].ActionIds -join ',') -ceq 'codegen') '显式配置模式仍按完整选择替换'
 $legacy = @(Expand-JobsFeatureSelection -Packages $packages -Selected @('flutter-tools'))
-Assert ($legacy.Count -eq 36) '旧总体功能标识保持全选兼容'
+Assert ($legacy.Count -eq 38) '旧总体功能标识保持全选兼容'
 $plan = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @('flutter-run') -Installed @('flutter-run', 'flutter-codegen') -Mode Uninstall)
 Assert ($plan.Count -eq 1 -and $plan[0].Mode -ceq 'Install' -and @($plan[0].ActionIds).Count -eq 1 -and $plan[0].ActionIds[0] -ceq 'codegen') '部分卸载仅保留其它叶功能'
 $plan = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @('flutter-run') -Installed @('flutter-run') -Mode Uninstall)
@@ -77,7 +77,7 @@ Assert (@(Get-JobsPackageOperationPlan -Packages $packages -Selected @() -Instal
 $plan = @(Get-JobsPackageOperationPlan -Packages $packages -Selected @() -Installed @('flutter-run') -Mode Configure)
 Assert ($plan.Count -eq 1 -and $plan[0].Mode -ceq 'Uninstall') '配置全不选可关闭Flutter组'
 Assert-Throws { Expand-JobsFeatureSelection -Packages $packages -Selected @('flutter-unknown') } '未知叶动作拒绝进入计划'
-Assert (@(Get-JobsFlutterStateActionIds -Settings ([pscustomobject]@{ Version = 2 })).Count -eq 36) '旧设置缺ActionIds保持全开'
+Assert (@(Get-JobsFlutterStateActionIds -Settings ([pscustomobject]@{ Version = 2 })).Count -eq 38) '旧设置缺ActionIds保持全开'
 Assert (@(Get-JobsFlutterStateActionIds -Settings ([pscustomobject]@{ ActionIds = @('codegen') }))[0] -ceq 'codegen') '单项数组只启用该动作'
 Assert (@(Get-JobsFlutterStateActionIds -Settings ([pscustomobject]@{ ActionIds = @() })).Count -eq 0) '空数组不复活任何动作'
 Assert-Throws { Get-JobsFlutterStateActionIds -Settings ([pscustomobject]@{ ActionIds = 'run' }) } '标量配置拒绝'

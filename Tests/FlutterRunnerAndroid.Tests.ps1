@@ -198,7 +198,7 @@ try {
         function script:Get-JobsRunnerSession { return $null }
         function script:Get-JobsRunnerFlutter { return '/fixture/flutter' }
         function script:Invoke-JobsRunnerTool { return '{"frameworkVersion":"fixture"}' }
-        function script:Select-JobsRunnerDevice { $script:RunnerSelectedSdk = '/fixture/selected-sdk'; return 'emulator-5558' }
+        function script:Select-JobsRunnerDevice { $script:RunnerSelectedSdk = '/fixture/selected-sdk'; $script:RunnerSelectedPlatform = 'android'; return 'emulator-5558' }
         function script:Start-JobsRunnerSession { $script:Calls.Add('sdk:' + $env:ANDROID_HOME + '|' + $env:ANDROID_SDK_ROOT); return '/fixture/session' }
         function script:Show-JobsRunnerLog { }
     }

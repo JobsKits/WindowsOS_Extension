@@ -253,6 +253,12 @@ function Invoke-JobsFlutterDependencyAction {
     param([string]$Directory, [switch]$PrivateOnly)
     if (-not (Show-JobsExtractorIntro)) { return }
     Assert-JobsFlutterProject $Directory
+    Write-Host '🔐 私库优先：Git、path、自建 Pub 源按私库候选处理；公共 hosted 包默认不复制。' -ForegroundColor Yellow
+    if (-not $PrivateOnly) {
+        $scopeAnswer = Read-Host '直接回车 = 只提取私库；输入任意字符（含空格）再回车 = 全提取'
+        if ($null -eq $scopeAnswer) { return }
+        $PrivateOnly = $scopeAnswer.Length -eq 0
+    }
     foreach ($relative in @('pubspec.lock', '.dart_tool/package_config.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $Directory $relative) -PathType Leaf)) {
             throw '依赖解析记录不完整，请在项目根目录手动运行 flutter pub get 成功后重试。'

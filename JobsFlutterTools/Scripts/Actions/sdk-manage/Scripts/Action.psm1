@@ -6,6 +6,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 
 function Write-JobsFvmMessage {
     param([string]$Message)
@@ -175,8 +176,36 @@ function Assert-JobsFlutterProject {
     }
 }
 
+# 安装 SDK 和首次初始化自动完成；项目切换写入及普通查询仍只执行一次。
 function Invoke-JobsFvmTool {
-    param([string]$File, [string[]]$Arguments = @(), [string]$Directory, [switch]$Visible, [int]$TimeoutSeconds = 30)
+    param([string]$File, [string[]]$Arguments = @(), [string]$Directory, [switch]$Visible, [int]$TimeoutSeconds = 30, [switch]$LiveCapture)
+    $acquire = $Arguments.Count -gt 0 -and ($Arguments[0] -ceq 'install' -or ($Arguments[0] -ceq 'flutter' -and $Arguments.Count -gt 1 -and $Arguments[1] -in @('--version','precache')))
+    if ($acquire -and $Arguments[0] -ceq 'install') {
+        $help = Invoke-JobsFvmToolOnce $File @('install','--help') $Directory -TimeoutSeconds 30
+        if ($help.ExitCode -eq 0 -and ($help.StdOut + $help.StdErr) -match '--\[no-\]setup|--no-setup' -and $Arguments -notcontains '--no-setup') {
+            $Arguments += '--no-setup'
+            Write-JobsFvmMessage 'FVM已确认支持--no-setup：Git SDK获取与后续Dart/engine自举分阶段预检，不改Git来源。'
+        }
+    }
+    if ($acquire) {
+        return Invoke-JobsSdkAcquire -Label ('Flutter SDK：' + ($Arguments -join ' ')) -Operation {
+            $result = Invoke-JobsFvmToolOnce $File $Arguments $Directory -TimeoutSeconds ([Math]::Max(120,$TimeoutSeconds)) -LiveCapture -Acquisition
+            if ($result.ExitCode -eq 0 -and $Arguments[0] -ceq 'install') {
+                $probe = Invoke-JobsFvmToolOnce $File @('api','context','--compress') $Directory -TimeoutSeconds 30
+                if ($probe.ExitCode -ne 0) { throw 'FVM 缓存上下文无效，SDK 管理器需要人工修复。' }
+                $context = ($probe.StdOut | ConvertFrom-Json -ErrorAction Stop).context
+                if (-not [IO.Path]::IsPathRooted([string]$context.versionsCachePath)) { throw 'FVM 缓存上下文无效，缺少绝对 SDK 缓存目录。' }
+                $sdk = Join-Path $context.versionsCachePath $Arguments[1]
+                if (-not [IO.File]::Exists((Join-Path $sdk 'bin/flutter.bat')) -and -not [IO.File]::Exists((Join-Path $sdk 'bin/flutter.exe'))) { throw ('FVM 返回成功但 SDK 的 bin/flutter 尚未获取完整：' + $sdk) }
+            }
+            return $result
+        }
+    }
+    return Invoke-JobsFvmToolOnce $File $Arguments $Directory -Visible:$Visible -TimeoutSeconds $TimeoutSeconds -LiveCapture:$LiveCapture
+}
+
+function Invoke-JobsFvmToolOnce {
+    param([string]$File, [string[]]$Arguments = @(), [string]$Directory, [switch]$Visible, [int]$TimeoutSeconds = 30, [switch]$LiveCapture, [switch]$Acquisition)
     if ($File -match '["\x00-\x1f]' -or @($Arguments | Where-Object { $_ -cnotmatch '^[A-Za-z0-9._@:+-]+$' }).Count -gt 0) {
         throw '工具路径或参数包含不支持的控制字符。'
     }
@@ -186,6 +215,10 @@ function Invoke-JobsFvmTool {
     if ($batch) {
         $executable = Join-Path ([Environment]::GetFolderPath('System')) 'cmd.exe'
         $parameters = @('/d', '/v:off', '/s', '/c')
+    }
+    if ([IO.Path]::GetFileName($File) -match '^fvm(\.(bat|cmd|ps1|exe))?$') {
+        Import-JobsSdkDownloadRoute
+        Initialize-JobsSdkFvmRuntime $File $Directory (Get-JobsSdkRouteEnvironment)
     }
     $start = New-Object Diagnostics.ProcessStartInfo
     $start.FileName = $executable
@@ -206,6 +239,7 @@ function Invoke-JobsFvmTool {
     $start.EnvironmentVariables['CI'] = 'true'
     $start.EnvironmentVariables['FLUTTER_SUPPRESS_ANALYTICS'] = 'true'
     $start.EnvironmentVariables['DART_SUPPRESS_ANALYTICS'] = 'true'
+    if ($LiveCapture) { return Invoke-JobsSdkLiveProcess $start $TimeoutSeconds -Acquisition:$Acquisition }
     $process = New-Object Diagnostics.Process
     $process.StartInfo = $start
     try {
@@ -278,7 +312,7 @@ function Install-JobsWingetTool {
 function Read-JobsFvmWebJson {
     param([string]$Uri)
     Write-JobsFvmMessage "查询来源：$Uri"
-    $response = Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 20 -Headers @{ 'User-Agent' = 'JobsFlutterVersionMgr'; 'Accept' = 'application/json' }
+    $response = Invoke-JobsSdkAcquire -Label ('SDK 元数据：' + $Uri) -Operation { Invoke-WebRequest -Uri $Uri -UseBasicParsing -TimeoutSec 20 -Headers @{ 'User-Agent' = 'JobsFlutterVersionMgr'; 'Accept' = 'application/json' } }
     return $response.Content | ConvertFrom-Json -ErrorAction Stop
 }
 
@@ -301,14 +335,15 @@ function Install-JobsStandaloneFvm {
         throw 'FVM 包来源或官方 SHA-256 digest 不可验证，已停止。'
     }
     Write-JobsFvmMessage ("FVM 来源：{0}；架构：{1}；SHA-256：{2}" -f $asset.browser_download_url, $architecture, $asset.digest)
-    if ((Read-Host '缺少健康 FVM；回车下载官方独立包到本功能 tools，任意字符取消') -ne '') { throw '已取消 FVM 安装。' }
+    Write-JobsFvmMessage '缺少健康 FVM，自动下载官方独立包；Ctrl+C 可停止。'
     $tools = Join-Path (Get-JobsInstallRoot) 'tools'
     [void][IO.Directory]::CreateDirectory($tools)
     $stage = Join-Path $tools ('fvm-stage-' + [guid]::NewGuid().ToString('N'))
     [void][IO.Directory]::CreateDirectory($stage)
+    $complete = $false
     try {
         $zip = Join-Path $stage 'fvm.zip'
-        Invoke-WebRequest -Uri $asset.browser_download_url -UseBasicParsing -TimeoutSec 300 -OutFile $zip
+        Receive-JobsSdkWebFile $asset.browser_download_url $zip 300 -ExpectedSha256 $asset.digest.Substring(7)
         if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant() -cne $asset.digest.Substring(7)) { throw '官方 FVM 下载包 SHA-256 不匹配。' }
         Add-Type -AssemblyName System.IO.Compression.FileSystem
         $archive = [IO.Compression.ZipFile]::OpenRead($zip)
@@ -330,9 +365,10 @@ function Install-JobsStandaloneFvm {
         $relative = $executables[0].FullName.Substring($expanded.Length).TrimStart([char]92, [char]47)
         $installed = Join-Path $destination $relative
         [IO.File]::WriteAllText((Join-Path $tools 'fvm-path.txt'), $installed, (New-Object Text.UTF8Encoding($false)))
+        $complete = $true
         return $installed
     }
-    finally { if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force } }
+    finally { if ($complete -and (Test-Path -LiteralPath $stage)) { Remove-Item -LiteralPath $stage -Recurse -Force } elseif (Test-Path -LiteralPath $stage) { Write-JobsFvmMessage ('未完成 FVM 下载保留：' + $stage) } }
 }
 
 function Get-JobsFvmToolchain {
@@ -683,9 +719,9 @@ function Invoke-JobsFlutterVersionAction {
             ((Get-Item -LiteralPath $sdkLink -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
             throw '项目 .fvm/flutter_sdk SDK 链接不存在或不完整。'
         }
-        $version = Invoke-JobsFvmTool $chain.Fvm @('flutter', '--version', '--machine') $Directory -TimeoutSeconds 120
+        $version = Invoke-JobsFvmTool $chain.Fvm @('flutter', '--version', '--machine') $Directory -TimeoutSeconds 120 -LiveCapture
         if ($version.ExitCode -ne 0) { throw 'Flutter SDK 切换后的执行体检失败。' }
-        $actual = $version.StdOut | ConvertFrom-Json -ErrorAction Stop
+        $actual = ConvertFrom-JobsSdkMachineOutput $version.StdOut
         if ($actual.frameworkVersion -cne $choice.Version) { throw "实际 Flutter 版本 $($actual.frameworkVersion) 与所选版本 $($choice.Version) 不一致。" }
         Write-JobsFvmMessage ("成功：项目已绑定 Flutter {0}；实际 SDK 已复核。备份：{1}" -f $choice.Version, $backup)
         $fvmCommand = "& '" + $chain.Fvm.Replace("'", "''") + "'"

@@ -1,18 +1,19 @@
 ﻿# Action.psm1
 # JobsFlutterSdkInspector
 # Created by Jobs on 2026年10月21日，星期二.
-# 只读查询当前 Flutter 项目实际使用的 Flutter SDK 版本；FVM 管理的项目显示 FVM 版本，否则显示系统 SDK 环境。
+# 查询当前 Flutter 项目实际使用的 Flutter SDK 版本；首次调用可能补齐缓存；FVM 管理的项目显示 FVM 版本，否则显示系统 SDK 环境。
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 
 function Write-JobsSdkMessage {
-    param([string]$Message)
+    param([string]$Message, [switch]$AuditOnly)
     $safe = $Message -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@'
     $safe = $safe -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]'
     $safe = $safe -replace '(?im)((?:access[_-]?token|authorization|password|secret)\s*[:=]\s*)\S+', '$1[已省略]'
-    Write-Host $safe
+    if (-not $AuditOnly) { Write-Host $safe }
     Write-JobsLog $safe
 }
 
@@ -273,27 +274,11 @@ function Invoke-JobsFlutterMachine {
     $start.EnvironmentVariables['CI'] = 'true'
     $start.EnvironmentVariables['FLUTTER_SUPPRESS_ANALYTICS'] = 'true'
     $start.EnvironmentVariables['DART_SUPPRESS_ANALYTICS'] = 'true'
-    $process = New-Object Diagnostics.Process
-    $process.StartInfo = $start
-    try {
-        Write-JobsSdkMessage "执行：flutter --version --machine；SDK：$FlutterBat"
-        [void]$process.Start()
-        $stdout = $process.StandardOutput.ReadToEndAsync()
-        $stderr = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            $taskkill = Join-Path ([Environment]::GetFolderPath('System')) 'taskkill.exe'
-            [void](Invoke-JobsProcess -FilePath $taskkill -Arguments @('/PID', [string]$process.Id, '/T', '/F') -WorkingDirectory $Directory)
-            throw 'Flutter 版本查询超时，已终止本次进程树。'
-        }
-        $tasks = [Threading.Tasks.Task[]]@($stdout, $stderr)
-        if (-not [Threading.Tasks.Task]::WaitAll($tasks, 5000)) { throw 'Flutter 已退出，但输出管道未能按时关闭。' }
-        $output = $stdout.GetAwaiter().GetResult()
-        $errors = $stderr.GetAwaiter().GetResult()
-        if ($errors) { Write-JobsSdkMessage $errors.TrimEnd() }
-        if ($process.ExitCode -ne 0) { throw "Flutter 版本查询失败（退出码 $($process.ExitCode)）。" }
-        return $output
-    }
-    finally { $process.Dispose() }
+    Write-JobsSdkMessage "执行：flutter --version --machine；SDK：$FlutterBat"
+    $result = Invoke-JobsSdkAcquireProcess $start $TimeoutSeconds -Sanitize -Label 'Flutter/Dart 首次初始化'
+    if ($result.StdErr) { Write-JobsSdkMessage $result.StdErr.TrimEnd() -AuditOnly }
+    if ($result.ExitCode -ne 0) { throw "Flutter 版本查询失败（退出码 $($result.ExitCode)）。" }
+    return $result.StdOut
 }
 
 function Get-JobsMachineField {
@@ -332,7 +317,7 @@ function Get-JobsFvmLinkTarget {
 
 function Invoke-JobsSdkInspect {
     param([string]$Directory)
-    Write-JobsSdkMessage "Flutter SDK 版本查询（只读）；目标：$Directory"
+    Write-JobsSdkMessage "Flutter SDK 版本查询（首次调用可能补齐工具缓存并显示进度）；目标：$Directory"
     $pubspec = Join-Path $Directory 'pubspec.yaml'
     Assert-JobsSdkPlainFile $pubspec
     $manifest = Get-Content -LiteralPath $pubspec -Raw -Encoding UTF8

@@ -18,7 +18,7 @@ function Main {
     $state = & $installer { param($Path) Get-JobsPackageState -PackagePath $Path } $package
     $installed = @()
     if ($state.Enabled) { $installed = @($manifest.Id) }
-    $features = @([pscustomobject]@{ Id = $manifest.Id; Label = $manifest.Label; Group = '本功能'; Description = $manifest.Description })
+    $features = @([pscustomobject]@{ Id = $manifest.Id; Label = $manifest.Label; Group = '本功能'; Description = $manifest.Description; PackagePath = $package })
     Import-Module (Join-Path $PSScriptRoot 'SelectionPanel.psm1') -DisableNameChecking
     $buildPlan = {
         param($Choice)
@@ -35,7 +35,7 @@ function Main {
             $modulePath = Join-Path $target 'Scripts/PackageInstaller.psm1'
             if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) { throw '旧 Flutter 安装入口需要同级完整 JobsFlutterTools。' }
             $unified = Import-Module $modulePath -PassThru -DisableNameChecking
-            $current = & $unified { param($Path) Get-JobsPackageState -PackagePath $Path } $target
+            $current = & $unified { param($Path, $Route) Get-JobsPackageState -PackagePath $Path -DeploymentMode $Route } $target $Choice.DeploymentMode
             $ids = @($legacy[$manifest.Id])
             if ($current.Enabled) { $ids = @(@($current.ActionIds) + $ids | Select-Object -Unique) }
             $operation.PackagePath = $target

@@ -41,6 +41,15 @@
 
 **当前入口与依赖：** `Manage.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Manage.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
 
+
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / English / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。
+
+**两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
+
+**构建产物清理：** 安装位置选择、显示中的自动清理复选框与红色“🧹 清除构建产物”按钮排在同一行，垂直居中、间隔统一。英文或窄窗空间不足时，该行可水平滚动，文字保持完整，不拆成两行。仅默认安装位置路线显示默认关闭的“安装成功后清除此轮构建产物”和红底白字的“🧹 清除构建产物”独立按钮。自动清理仅处理本次成功安装产生的编译 GUID 子目录；独立按钮按当前选择清理本包 `work\JobsExtensionBuild` 专用编译工作区，不需要重新安装。临时路线隐藏清理控件。清理验证运行文件、标记与路径边界并持有事务锁，保留已经安装的 `.exe`、`.dll`、`.cmd`、`.ps1`、配置和注册表；自动清理失败明确显示“安装成功，清理失败”，独立清理失败正常报错。
+
+**停止安装：** 安装进行中原按钮变为“停止安装”。点击只写停止请求，等待当前包事务完整结束，再把后续包标记为“未执行”；不强杀安装器、编译进程或资源管理器，未执行项不计失败或完成百分比。完成后可在同一面板继续清理、重试或关闭。
+
 ## 一、<span id="installation">安装与卸载</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 新安装保留同级完整 `JobsFlutterTools`，双击本目录 `Manage.cmd` 转交统一菜单，或在上级组合面板选择统一 Flutter 工具组；也可直接复制统一包独立交付。`Manage.cmd` 只卸载本旧功能与其 COM 注册。以下逐包构建、事务和路径说明对应保留的旧实现。
@@ -51,7 +60,7 @@
 
 ## 二、<span id="running">设备与运行行为</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-优先使用项目 `.fvm/flutter_sdk/bin/flutter.bat`。存在 `.fvmrc`、`.fvm/fvm_config.json` 或 SDK 链接却缺少项目 SDK 时停止并提示先修复 FVM；只有未绑定 FVM 的工程才使用 PATH 中的 Flutter。先执行 `flutter --version --machine` 检查实际 SDK，再读取 `flutter devices --machine`。设备列表按工程已有 `android` / `.android`、`windows`、`web` 平台目录过滤；Windows 不提供 iOS 运行设备。设备用 fzf 上下键与输入筛选，Enter 确认、Esc 取消；无设备时仍提供“Android 模拟器（启动已有 / 缺失时初始化）”及重新加载入口，不会替项目生成平台文件。缺少或损坏 fzf 时停止并给出修复命令。
+优先使用项目 `.fvm/flutter_sdk/bin/flutter.bat`。存在 `.fvmrc`、`.fvm/fvm_config.json` 或 SDK 链接却缺少项目 SDK 时停止并提示先修复 FVM；只有未绑定 FVM 的工程才使用 PATH 中的 Flutter。先执行 `flutter --version --machine` 检查实际 SDK，先补齐 `flutter precache --universal` 通用缓存，再读取 `flutter devices --machine`。设备列表按工程已有 `android` / `.android`、`windows`、`web` 平台目录过滤；Windows 不提供 iOS 运行设备。设备用 fzf 上下键与输入筛选，Enter 确认、Esc 取消；无设备时仍提供“Android 模拟器（启动已有 / 缺失时初始化）”及重新加载入口，不会替项目生成平台文件。缺少或损坏 fzf 时停止并给出修复命令。
 
 Android AVD 通过官方 [**Android Emulator**](https://developer.android.com/studio/run/emulator-commandline) 查询；已有设备可直接选择并启动，也可选择新建。没有 AVD 时进入内置初始化：回车确认后复用或补齐 Java 21、Command-Line Tools、Emulator / ADB，再选择设备型号与本机 ABI 对应的稳定系统镜像；已有镜像直接复用，缺失镜像显示 Google 官方来源和目标目录，最终回车确认后才下载并创建，SDK 许可证由本人确认。型号 / 镜像子层支持 `←` 返回，Esc、非空确认或输入结束不创建 AVD；已完成的工具准备保留。创建不使用 `--force`，不覆盖既有设备。工具补齐后再次枚举 AVD，发现原有设备可直接复用。
 
@@ -91,5 +100,11 @@ JobsFlutterRunner/
 实现选用 Microsoft 官方的 [IShellExtInit 初始化接口](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellextinit) 与 [IContextMenu::QueryContextMenu](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nf-shobjidl_core-icontextmenu-querycontextmenu)：无效目录插入零个菜单项。Microsoft 明确[不支持 .NET 进程内 Shell 扩展](<https://learn.microsoft.com/en-us/previous-versions/windows/desktop/legacy/dd758089(v=vs.85)>)，因此使用原生 C++ 桥接；CLR 仅运行于独立宿主。Windows 真实 Explorer 的显示 / 隐藏、原生 DLL 加载、设备运行、关闭 CMD 后存活仍需 Windows 实机验收；跨平台静态 / 夹具验证不代替实机结果。
 
 管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
+
+**SDK 平台缓存：** 选定运行设备／打包目标后先执行相应 `flutter precache --android`／`--windows`／`--web`；鸿蒙先核实当前 SDK 帮助支持 `--ohos` 再获取，平台引擎制品准备成功后才启动运行或构建。
+
+**SDK 环境准备：** 已选择的 SDK／版本所需下载、安装及首次 Flutter／Dart 缓存补齐自动执行；网络失败或无进度超时后持续重试，间隔逐步增加并封顶 30 秒，没有次数和总时长上限，直到成功或本人 Ctrl+C／停止。仍在输出下载进度的传输不按总时长截断；成功后才进入后续业务。目标／版本选择、官方许可证与系统权限仍由本人处理；路径、权限、磁盘或明确不存在的版本会报告具体原因。每次尝试和真实进度追加到终端所示日志；同一 URL 有 ETag／Last-Modified 时安全续传，跨来源保留独立临时文件，不拼接不同来源。失败／取消保留下载现场；业务构建和配置写入不因网络重试而整体重放。
+
+**下载前版本上下文：** 每次 SDK 初始化／平台缓存获取前，先显示项目声明的 Flutter、本地 SDK 的版本标识与实际路径、目标内置 Dart、engine 提交以及宿主系统／架构，并写入同一获取日志。这里只读取本地文件及本地 Git exact tag，不执行 Flutter／Dart 探测或联网查询版本。Dart 只采用明确的源码版本文件、engine 匹配的版本 JSON 或 engine stamp 匹配的当前缓存；旧缓存及 `dart-sdk.old` 不作为目标版本。缺少可信依据时明确显示“未解析”，下载完成后再确认。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -3,6 +3,7 @@
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
+. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
 
 function Read-JobsAndroidChoice {
     param([string]$Prompt, [object[]]$Items)
@@ -28,7 +29,7 @@ function Read-JobsAndroidInput {
 function Show-JobsAndroidIntro {
     param([string]$Sdk)
     Write-Host ('Jobs Android 模拟器 · 来源：' + $PSScriptRoot) -ForegroundColor Cyan
-    Write-Host ('继续后自动体检并补齐 SDK 根目录、Java 21、Command-Line Tools、Emulator 和 ADB；健康依赖直接复用，损坏工具自动修复一次并复检。' + [Environment]::NewLine +
+    Write-Host ('继续后自动体检并补齐 SDK 根目录、Java 21、Command-Line Tools、Emulator 和 ADB；健康依赖直接复用，损坏工具自动修复并复检；SDK 下载失败持续自动重试至成功或 Ctrl+C 主动结束。' + [Environment]::NewLine +
         'SDK 目标：' + $Sdk + [Environment]::NewLine + '缺失 Java 安装到当前用户目录：' + (Get-JobsAndroidJavaRoot) + [Environment]::NewLine +
         '下载来源：Google Android SDK 官方源、Adoptium 官方 API / Temurin 21；归档校验后使用。' + [Environment]::NewLine +
         '缺少镜像时自动查询官方稳定清单，选择后直接安装；SDK 许可证由官方工具交给本人确认，不自动回答 yes。' + [Environment]::NewLine +
@@ -88,18 +89,32 @@ function Expand-JobsAndroidArchive {
     } finally { $archiveFile.Dispose() }
     [IO.Compression.ZipFile]::ExtractToDirectory($Archive, $Destination)
 }
+# 下载归档并核对官方摘要；损坏传输只丢弃本次私有文件后自动重取。
+function Receive-JobsAndroidVerifiedArchive {
+    param([string]$Uri, [string]$Destination, [string]$Algorithm, [string]$Checksum)
+    [void](Invoke-JobsSdkAcquire -Label ('Android 工具链归档：' + $Uri) -Operation {
+        Receive-JobsSdkWebFile -Uri $Uri -Destination $Destination -TimeoutSeconds 600
+        if ((Get-FileHash -LiteralPath $Destination -Algorithm $Algorithm).Hash -ine $Checksum) {
+            Remove-Item -LiteralPath $Destination -Force
+            $resume = $Destination + '.resume.json'
+            if (Test-Path -LiteralPath $resume) { Remove-Item -LiteralPath $resume -Force }
+            throw '归档摘要校验失败，将重新下载；未安装。'
+        }
+    })
+}
 function Install-JobsAndroidJava {
     $parent = Get-JobsAndroidJavaRoot
     [void][IO.Directory]::CreateDirectory($parent)
     $stage = Join-Path $parent ('.jobs-stage-' + [guid]::NewGuid().ToString('N'))
     $previousProtocol = [Net.ServicePointManager]::SecurityProtocol
+    $stageInstalled = $false
     try {
         [void][IO.Directory]::CreateDirectory($stage)
         [Net.ServicePointManager]::SecurityProtocol = $previousProtocol -bor [Net.SecurityProtocolType]::Tls12
         $metadata = Join-Path $stage 'temurin.json'
         $metadataUrl = 'https://api.adoptium.net/v3/assets/latest/21/hotspot?architecture=x64&image_type=jdk&os=windows&vendor=eclipse'
         Write-Host ('自动补齐 Java 21；元数据来源：' + $metadataUrl + [Environment]::NewLine + '安装目标：' + $parent)
-        Invoke-WebRequest -UseBasicParsing -Uri $metadataUrl -OutFile $metadata -TimeoutSec 60
+        Receive-JobsSdkWebFile -Uri $metadataUrl -Destination $metadata -TimeoutSeconds 60
         $parsed = Get-Content -LiteralPath $metadata -Raw -Encoding UTF8 | ConvertFrom-Json
         $assets = @($parsed)
         $asset = @($assets | Where-Object { $_.version.major -eq 21 -and $_.binary.os -ceq 'windows' -and $_.binary.architecture -ceq 'x64' -and $_.binary.image_type -ceq 'jdk' -and $_.vendor -ceq 'eclipse' })
@@ -110,8 +125,7 @@ function Install-JobsAndroidJava {
             [string]$package.checksum -cnotmatch '^[a-fA-F0-9]{64}$') { throw 'Java 官方下载地址或 SHA-256 不符合预期，停止。' }
         $zip = Join-Path $stage 'temurin.zip'
         Write-Host ('Java 归档来源：' + $link)
-        Invoke-WebRequest -UseBasicParsing -Uri $link -OutFile $zip -TimeoutSec 600
-        if ((Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash -ine [string]$package.checksum) { throw 'Java 归档 SHA-256 校验失败，未安装。' }
+        Receive-JobsAndroidVerifiedArchive -Uri $link -Destination $zip -Algorithm SHA256 -Checksum ([string]$package.checksum)
         $expanded = Join-Path $stage 'expanded'
         Expand-JobsAndroidArchive -Archive $zip -Destination $expanded
         $roots = @(Get-ChildItem -LiteralPath $expanded -Directory)
@@ -120,10 +134,12 @@ function Install-JobsAndroidJava {
         [IO.Directory]::Move($roots[0].FullName, $destination)
         $java = Join-Path $destination 'bin/java.exe'
         if (-not (Test-JobsAndroidJava $java)) { throw ('Java 安装后复检失败，停止：' + $destination) }
+        $stageInstalled = $true
         return $java
     } finally {
         [Net.ServicePointManager]::SecurityProtocol = $previousProtocol
-        if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+        if ($stageInstalled -and (Test-Path -LiteralPath $stage)) { Remove-Item -LiteralPath $stage -Recurse -Force }
+        elseif (Test-Path -LiteralPath $stage) { Write-Host ('未提交的下载暂存保留：' + $stage) }
     }
 }
 function Get-JobsAndroidJava {
@@ -143,7 +159,7 @@ function Get-JobsAndroidJava {
     }
     foreach ($candidate in $candidates) { if (Test-JobsAndroidJava $candidate) { return $candidate } }
     if ($ReadOnly) { throw '没有健康 Java 21+；只读体检不会下载或修复。' }
-    # 用户目录 ZIP 安装，不运行 MSI、不写全局 JAVA_HOME / PATH；新版本失败不循环安装。
+    # 用户目录 ZIP 安装，不运行 MSI、不写全局 JAVA_HOME / PATH；获取失败自动重试；安装后的确定性本地体检错误停止下游。
     return Install-JobsAndroidJava
 }
 function Get-JobsAndroidTools {
@@ -167,8 +183,9 @@ function Invoke-JobsAndroidTool {
     if ($Tool -eq 'avdmanager') { $mainClass = 'com.android.sdklib.tool.AvdManagerCli' }
     # 直接 Java argv 避开 .bat / CMD 对 SDK 路径内 &、%、单引号的二次解释。
     $argumentsList = @(('-Dcom.android.sdklib.toolsdir=' + $Tools), '-classpath', (Join-Path $Tools ('lib/' + $Tool + '-classpath.jar')), $mainClass) + $Arguments
-    if ($Interactive) {
-        & $Java @argumentsList
+    $acquisition = $Tool -eq 'sdkmanager' -and ($Arguments -contains '--install' -or $Arguments -contains '--list')
+    if ($Interactive -and -not $acquisition) {
+        & $Java @argumentsList | Out-Host
         if ($LASTEXITCODE -ne 0) { throw ($Tool + ' 执行失败，退出码 ' + $LASTEXITCODE) }
         return
     }
@@ -180,6 +197,38 @@ function Invoke-JobsAndroidTool {
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
     $start.RedirectStandardInput = $true
+    if ($acquisition) {
+        $start.RedirectStandardInput = $false
+        $result = Invoke-JobsSdkAcquire -Label ('Android SDK：' + ($Arguments -join ' ')) -Operation {
+            $outcome = Invoke-JobsSdkLiveProcess -Start $start -TimeoutSeconds ([Math]::Max(300, $TimeoutSeconds)) -Sanitize -Acquisition
+            if ($outcome.ExitCode -eq 0 -and $Arguments -contains '--install') {
+                $sdkOption = @($Arguments | Where-Object { $_ -like '--sdk_root=*' })
+                if ($sdkOption.Count -ne 1) { throw 'invalid argument：SDK 安装缺少唯一 --sdk_root。' }
+                $sdkRoot = $sdkOption[0].Substring('--sdk_root='.Length)
+                $installIndex = [Array]::IndexOf($Arguments, '--install')
+                foreach ($identifier in @($Arguments | Select-Object -Skip ($installIndex + 1))) {
+                    if ($identifier.StartsWith('--')) { continue }
+                    $componentRoot = Join-Path $sdkRoot ($identifier.Replace(';', [IO.Path]::DirectorySeparatorChar))
+                    $required = @('package.xml')
+                    if ($identifier -eq 'emulator') { $required += 'emulator.exe' }
+                    elseif ($identifier -eq 'platform-tools') { $required += 'adb.exe' }
+                    elseif ($identifier.StartsWith('platforms;')) { $required += 'android.jar' }
+                    elseif ($identifier.StartsWith('build-tools;')) { $required += 'aapt2.exe' }
+                    elseif ($identifier.StartsWith('ndk;')) { $required += 'ndk-build.cmd' }
+                    elseif ($identifier.StartsWith('cmake;')) { $required += 'bin/cmake.exe' }
+                    elseif ($identifier.StartsWith('system-images;')) { $required += 'system.img' }
+                    foreach ($relative in $required) {
+                        if (-not (Test-Path -LiteralPath (Join-Path $componentRoot $relative) -PathType Leaf)) {
+                            throw ('SDK 获取后组件仍不完整，自动继续获取：' + $identifier + '/' + $relative)
+                        }
+                    }
+                }
+            }
+            return $outcome
+        }
+        if (-not $Interactive) { return $result.StdOut }
+        return
+    }
     $process = [Diagnostics.Process]::Start($start)
     try {
         $stdout = $process.StandardOutput.ReadToEndAsync()
@@ -202,11 +251,12 @@ function Install-JobsAndroidCommandTools {
     $parent = Join-Path $Sdk 'cmdline-tools'
     [void][IO.Directory]::CreateDirectory($parent)
     $temporary = Join-Path $parent ('.jobs-stage-' + [guid]::NewGuid().ToString('N'))
+    $toolsInstalled = $false
     try {
         [Net.ServicePointManager]::SecurityProtocol = $previousProtocol -bor [Net.SecurityProtocolType]::Tls12
         [void][IO.Directory]::CreateDirectory($temporary)
         $xmlPath = Join-Path $temporary 'repository.xml'
-        Invoke-WebRequest -UseBasicParsing -Uri 'https://dl.google.com/android/repository/repository2-3.xml' -OutFile $xmlPath -TimeoutSec 60
+        Receive-JobsSdkWebFile -Uri 'https://dl.google.com/android/repository/repository2-3.xml' -Destination $xmlPath -TimeoutSeconds 60
         $settings = New-Object Xml.XmlReaderSettings
         $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
         $reader = [Xml.XmlReader]::Create($xmlPath, $settings)
@@ -221,8 +271,7 @@ function Install-JobsAndroidCommandTools {
         if ($algorithm -notin @('SHA1', 'SHA256')) { throw '无法识别官方归档校验算法。' }
         $zip = Join-Path $temporary 'tools.zip'
         Write-Host ('下载来源：https://dl.google.com/android/repository/' + $relative)
-        Invoke-WebRequest -UseBasicParsing -Uri ('https://dl.google.com/android/repository/' + $relative) -OutFile $zip -TimeoutSec 600
-        if ((Get-FileHash -LiteralPath $zip -Algorithm $algorithm).Hash -ine $checksum.InnerText.Trim()) { throw '官方归档校验失败，未安装。' }
+        Receive-JobsAndroidVerifiedArchive -Uri ('https://dl.google.com/android/repository/' + $relative) -Destination $zip -Algorithm $algorithm -Checksum $checksum.InnerText.Trim()
         $expanded = Join-Path $temporary 'expanded'
         Expand-JobsAndroidArchive -Archive $zip -Destination $expanded
         $source = Join-Path $expanded 'cmdline-tools'
@@ -231,10 +280,12 @@ function Install-JobsAndroidCommandTools {
         }
         $destination = Join-Path $parent ('jobs-' + (Get-Date -Format 'yyyyMMddHHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
         [IO.Directory]::Move($source, $destination)
+        $toolsInstalled = $true
         return $destination
     } finally {
         [Net.ServicePointManager]::SecurityProtocol = $previousProtocol
-        if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }
+        if ($toolsInstalled -and (Test-Path -LiteralPath $temporary)) { Remove-Item -LiteralPath $temporary -Recurse -Force }
+        elseif (Test-Path -LiteralPath $temporary) { Write-Host ('未提交的下载暂存保留：' + $temporary) }
     }
 }
 function Assert-JobsAndroidCommandTools {
@@ -251,7 +302,7 @@ function Get-JobsAndroidHealthyTools {
         catch { $reason = '现有 Command-Line Tools 体检失败：' + $_.Exception.Message + [Environment]::NewLine }
     }
     if ($ReadOnly) { throw ($reason + '只读体检不会修复或下载。') }
-    # 每次业务只允许安装一个独立版本；新版本再次失败时不循环安装。
+    # 获取自动重试，校验后只提交一个独立版本；确定性本地体检错误停止下游。
     $repaired = Install-JobsAndroidCommandTools -Sdk $Sdk -Reason $reason
     try { Assert-JobsAndroidCommandTools $Java $repaired }
     catch { throw ('Command-Line Tools 安装 / 修复后仍不可用，停止：' + $_.Exception.Message) }
@@ -279,7 +330,7 @@ function Repair-JobsAndroidComponents {
     $details = @($unhealthy | ForEach-Object { $_.Id + '：' + $_.Error }) -join [Environment]::NewLine
     if ($ReadOnly) { throw ('SDK 工具体检失败；只读模式不会修复：' + [Environment]::NewLine + $details) }
     $description = 'SDK 工具缺失或损坏：' + [Environment]::NewLine + $details + [Environment]::NewLine +
-        '从 Google 官方源修复一次到 ' + $Sdk + '。损坏的已有工具包会先卸载再安装；下载失败时可能暂时缺失该工具。AVD、系统镜像及其它工具包保留。'
+        '从 Google 官方源修复到 ' + $Sdk + '。损坏的已有工具包会先卸载再安装；下载失败时可能暂时缺失该工具。AVD、系统镜像及其它工具包保留。'
     Write-Host $description -ForegroundColor Yellow
     Invoke-JobsAndroidTool $Java $Tools 'sdkmanager' @(('--sdk_root=' + $Sdk), '--licenses') -Interactive
     foreach ($component in $unhealthy) {

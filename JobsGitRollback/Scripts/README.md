@@ -12,6 +12,8 @@
 </details>
 <!-- jobs-toc:end -->
 
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / English / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。
+
 ## 🔥 <span id="前言">前言</span>
 
 完整使用说明见[功能 README](../README.md)。`ContextMenu.cpp` + `GitRepository.h` 负责只读菜单过滤；`Action.psm1` 负责真实 Git 复核、fzf 六种回退和危险确认。`Invoke.ps1`、`Common.psm1`、`Manage.ps1` 与仓库基础模板保持一致；本包 `PackageInstaller.psm1` 管理独立原生 COM 构建与注册事务，安装前构建失败不注册菜单。
