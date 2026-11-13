@@ -4,6 +4,266 @@
 [CmdletBinding()]
 param()
 
+# BEGIN JOBS_TERMINAL_STYLE_V1 - session-only colors; no profile or registry changes.
+function New-JobsTerminalStyleState {
+    if ($PSVersionTable.PSVersion.Major -lt 5) { return @{ JobsTerminalPlainFallback = $true; Before = @{} } }
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT -or $Host.Name -ne 'ConsoleHost') { return $null }
+    if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected -or [Console]::IsErrorRedirected) { return $null }
+    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $null }
+    foreach ($key in [Environment]::GetEnvironmentVariables().Keys) {
+        if ([string]$key -match '^(?i:SOURCE_?TREE)') { return $null }
+    }
+    if (-not ('Jobs.TerminalStyleV1.Native' -as [type])) {
+        try {
+        Add-Type -ErrorAction Stop -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
+namespace Jobs.TerminalStyleV1 {
+    public static class Native {
+        [StructLayout(LayoutKind.Explicit, Size=20, CharSet=CharSet.Unicode)]
+        public struct InputRecord {
+            [FieldOffset(0)] public ushort Kind;
+            [FieldOffset(4)] public int Down;
+            [FieldOffset(8)] public ushort Repeat;
+            [FieldOffset(10)] public ushort Key;
+            [FieldOffset(12)] public ushort Scan;
+            [FieldOffset(14)] public char Character;
+            [FieldOffset(16)] public uint Modifiers;
+        }
+        [DllImport("kernel32.dll")] static extern IntPtr GetStdHandle(int n);
+        [DllImport("kernel32.dll")] static extern IntPtr GetConsoleWindow();
+        [DllImport("kernel32.dll")] static extern bool GetConsoleMode(IntPtr h, out uint mode);
+        [DllImport("kernel32.dll")] static extern bool SetConsoleMode(IntPtr h, uint mode);
+        [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr h, uint milliseconds);
+        [DllImport("kernel32.dll")] static extern bool GetNumberOfConsoleInputEvents(IntPtr h, out uint count);
+        [DllImport("kernel32.dll", CharSet=CharSet.Unicode, ExactSpelling=true)] static extern bool ReadConsoleInputW(IntPtr h, [Out] InputRecord[] records, uint count, out uint read);
+        [DllImport("kernel32.dll", CharSet=CharSet.Unicode, ExactSpelling=true)] static extern bool WriteConsoleInputW(IntPtr h, InputRecord[] records, uint count, out uint written);
+        const string OwnerName = "JOBS_TERMINAL_STYLE_WINDOWS_OWNER";
+        static readonly string[] Keys = { "10", "11", "4;0", "4;1", "4;2", "4;3", "4;4", "4;5", "4;6", "4;7", "4;8", "4;9", "4;10", "4;11", "4;12", "4;13", "4;14", "4;15" };
+        static readonly string[] Hex = { "000000", "ff5f56", "5fd787", "ffd75f", "5fafff", "d787ff", "5fd7ff", "eeeeee", "9e9e9e", "ff8787", "87ffaf", "ffff87", "87bfff", "ffafff", "afffff", "ffffff" };
+        static readonly Regex Reply = new Regex("\\x1b\\](?<key>10|11|4;[0-9]{1,2});(?<rgb>rgb:[0-9a-f]{1,4}/[0-9a-f]{1,4}/[0-9a-f]{1,4})(?:\\x07|\\x1b\\\\)", RegexOptions.IgnoreCase);
+        public sealed class State {
+            public IntPtr Input, Output;
+            public uint OutputMode;
+            public ConsoleColor Foreground, Background;
+            public Dictionary<string,string> Original, Applied;
+            public string Owner, PreviousOwner, Recovery;
+            public bool Active, ModeChanged, Fallback;
+            public Dictionary<string,string> EnvironmentBefore = new Dictionary<string,string>();
+        }
+        static string Escape(string key, string value) { return "\x1b]" + key + ";" + value + "\x07"; }
+        static string Rgb(string hex) { return "rgb:" + hex.Substring(0,2) + "/" + hex.Substring(2,2) + "/" + hex.Substring(4,2); }
+        static string Normal(string rgb) {
+            string[] parts = rgb.Substring(4).Split('/');
+            for (int n=0; n<3; n++) {
+                int maximum = (1 << (4 * parts[n].Length)) - 1;
+                int value = Convert.ToInt32(parts[n],16);
+                parts[n] = ((value * 65535L + maximum/2) / maximum).ToString("x4");
+            }
+            return String.Join("/",parts);
+        }
+        // Preserve unrelated key/window records instead of consuming user input during color queries.
+        static Dictionary<string,string> Query(State state) {
+            uint pending;
+            if (!GetNumberOfConsoleInputEvents(state.Input,out pending) || pending != 0) { return null; }
+            StringBuilder commands = new StringBuilder();
+            foreach (string key in Keys) { commands.Append(Escape(key,"?")); }
+            Console.Write(commands.ToString());
+            List<InputRecord> records = new List<InputRecord>();
+            List<int> characterIndices = new List<int>();
+            StringBuilder text = new StringBuilder();
+            Dictionary<string,string> result = new Dictionary<string,string>();
+            Stopwatch timer = Stopwatch.StartNew();
+            try {
+                while (timer.ElapsedMilliseconds < 600) {
+                    if (result.Count == Keys.Length && GetNumberOfConsoleInputEvents(state.Input,out pending) && pending == 0) { break; }
+                    if (WaitForSingleObject(state.Input,20) != 0) { continue; }
+                    InputRecord[] item = new InputRecord[1]; uint read;
+                    if (!ReadConsoleInputW(state.Input,item,1,out read) || read != 1) { break; }
+                    int index = -1;
+                    if (item[0].Kind == 1 && item[0].Character != '\0') {
+                        if (item[0].Down != 0) { index = text.Length; text.Append(item[0].Character); }
+                        else if (text.Length != 0 && text[text.Length-1] == item[0].Character) { index = text.Length-1; }
+                    }
+                    records.Add(item[0]); characterIndices.Add(index);
+                    foreach (Match match in Reply.Matches(text.ToString())) {
+                        string key = match.Groups["key"].Value;
+                        if (Array.IndexOf(Keys,key) >= 0) { result[key] = match.Groups["rgb"].Value; }
+                    }
+                }
+            } finally {
+                bool[] used = new bool[text.Length];
+                foreach (Match match in Reply.Matches(text.ToString())) {
+                    for (int n=match.Index; n<match.Index+match.Length; n++) { used[n] = true; }
+                }
+                List<InputRecord> replay = new List<InputRecord>();
+                for (int n=0; n<records.Count; n++) {
+                    int index = characterIndices[n];
+                    if (index < 0 || !used[index]) { replay.Add(records[n]); }
+                }
+                if (replay.Count != 0) {
+                    uint written;
+                    if (!WriteConsoleInputW(state.Input,replay.ToArray(),(uint)replay.Count,out written) || written != replay.Count) {
+                        Console.Error.WriteLine("[Jobs] Could not replay terminal input; color protection is unavailable.");
+                        result.Clear();
+                    }
+                }
+            }
+            return result.Count == Keys.Length ? result : null;
+        }
+        static void Plain(State state) {
+            foreach (string key in new string[] { "NO_COLOR", "PLAIN_OUTPUT", "FORCE_COLOR", "CLICOLOR", "ANSI_COLORS_DISABLED" }) {
+                state.EnvironmentBefore[key] = Environment.GetEnvironmentVariable(key);
+                Environment.SetEnvironmentVariable(key, key == "FORCE_COLOR" || key == "CLICOLOR" ? "0" : "1");
+            }
+            state.Fallback = true;
+        }
+        public static void Enter(State state) {
+            try {
+                state.Input = GetStdHandle(-10); state.Output = GetStdHandle(-11);
+                uint inputMode;
+                if (!GetConsoleMode(state.Input,out inputMode) || !GetConsoleMode(state.Output,out state.OutputMode)) { Plain(state); return; }
+                IntPtr window = GetConsoleWindow();
+                if (window == IntPtr.Zero) { Plain(state); return; }
+                string identity = window.ToInt64().ToString("x");
+                state.PreviousOwner = Environment.GetEnvironmentVariable(OwnerName);
+                if (!String.IsNullOrEmpty(state.PreviousOwner)) {
+                    string[] owner = state.PreviousOwner.Split(':');
+                    int pid; long started;
+                    if (owner.Length == 3 && owner[0] == identity && Int32.TryParse(owner[1],out pid) && Int64.TryParse(owner[2],out started)) {
+                        try { if (Process.GetProcessById(pid).StartTime.ToUniversalTime().Ticks == started) { return; } } catch {}
+                    }
+                }
+                state.Foreground = Console.ForegroundColor; state.Background = Console.BackgroundColor;
+                if ((state.OutputMode & 4) == 0) {
+                    if (!SetConsoleMode(state.Output,state.OutputMode | 4)) { Plain(state); return; }
+                    state.ModeChanged = true;
+                }
+                state.Original = Query(state);
+                if (state.Original == null) { Restore(state); Plain(state); return; }
+                state.Applied = new Dictionary<string,string>();
+                state.Applied["10"] = "rgb:ff/ff/ff"; state.Applied["11"] = "rgb:00/00/00";
+                for (int n=0; n<16; n++) { state.Applied["4;"+n] = Rgb(Hex[n]); }
+                StringBuilder restore = new StringBuilder();
+                foreach (string key in Keys) { restore.Append(Escape(key,state.Original[key])); }
+                string encoded = Convert.ToBase64String(Encoding.UTF8.GetBytes(restore.ToString()));
+                state.Recovery = Path.Combine(Path.GetTempPath(),"JobsTerminalStyle-"+Process.GetCurrentProcess().Id+"-"+Guid.NewGuid().ToString("N")+".ps1");
+                string manual = "# Restore only the session colors saved by this Jobs script.\r\n"+
+                    "if ([Console]::IsOutputRedirected) { throw 'Run in the original console.' }\r\n"+
+                    "Add-Type -Namespace Jobs -Name RecoveryConsole -MemberDefinition '[System.Runtime.InteropServices.DllImport(\"kernel32.dll\")] public static extern System.IntPtr GetStdHandle(int n); [System.Runtime.InteropServices.DllImport(\"kernel32.dll\")] public static extern bool GetConsoleMode(System.IntPtr h, out uint m); [System.Runtime.InteropServices.DllImport(\"kernel32.dll\")] public static extern bool SetConsoleMode(System.IntPtr h, uint m);'\r\n"+
+                    "$h = [Jobs.RecoveryConsole]::GetStdHandle(-11); [uint32]$m = 0\r\n"+
+                    "if (-not [Jobs.RecoveryConsole]::GetConsoleMode($h, [ref]$m)) { throw 'Run in the original console.' }\r\n"+
+                    "try {\r\nif (-not [Jobs.RecoveryConsole]::SetConsoleMode($h, ($m -bor 4))) { throw 'Cannot enable terminal recovery.' }\r\n"+
+                    "[Console]::Write([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('"+encoded+"')))\r\n"+
+                    "[Console]::ForegroundColor = [ConsoleColor]"+((int)state.Foreground)+"\r\n"+
+                    "[Console]::BackgroundColor = [ConsoleColor]"+((int)state.Background)+"\r\n"+
+                    "[Console]::Write([string][char]27 + '[39;49m')\r\n"+
+                    "} finally { [void][Jobs.RecoveryConsole]::SetConsoleMode($h, $m) }\r\n";
+                File.WriteAllText(state.Recovery,manual,new UTF8Encoding(false));
+                state.Owner = identity+":"+Process.GetCurrentProcess().Id+":"+Process.GetCurrentProcess().StartTime.ToUniversalTime().Ticks;
+                Environment.SetEnvironmentVariable(OwnerName,state.Owner);
+                state.Active = true;
+                foreach (string key in Keys) { Console.Write(Escape(key,state.Applied[key])); }
+                Console.ForegroundColor = ConsoleColor.White; Console.BackgroundColor = ConsoleColor.Black;
+                Dictionary<string,string> check = Query(state);
+                foreach (string key in Keys) {
+                    if (check == null || Normal(check[key]) != Normal(state.Applied[key])) { Restore(state); Plain(state); return; }
+                }
+            } catch (Exception error) {
+                Restore(state); Plain(state);
+                Console.Error.WriteLine("[Jobs] Terminal style unavailable: " + error.Message);
+            }
+        }
+        public static void Restore(State state) {
+            if (state == null) { return; }
+            try {
+                if (state.Active) {
+                    Dictionary<string,string> current = Query(state);
+                    bool complete = current != null;
+                    if (current != null) {
+                        bool restoreForeground = Console.ForegroundColor == ConsoleColor.White && Normal(current["10"]) == Normal(state.Applied["10"]) && Normal(current["4;15"]) == Normal(state.Applied["4;15"]);
+                        bool restoreBackground = Console.BackgroundColor == ConsoleColor.Black && Normal(current["11"]) == Normal(state.Applied["11"]) && Normal(current["4;0"]) == Normal(state.Applied["4;0"]);
+                        foreach (string key in Keys) {
+                            if (Normal(current[key]) == Normal(state.Applied[key])) { Console.Write(Escape(key,state.Original[key])); }
+                            else if (Normal(current[key]) != Normal(state.Original[key])) {
+                                complete = false; Console.Error.WriteLine("[Jobs] Kept a concurrent color change: " + key);
+                            }
+                        }
+                        if (restoreForeground) { Console.ForegroundColor = state.Foreground; Console.Write("\x1b[39m"); }
+                        if (restoreBackground) { Console.BackgroundColor = state.Background; Console.Write("\x1b[49m"); }
+                    }
+                    if (complete) {
+                        Dictionary<string,string> check = Query(state);
+                        foreach (string key in Keys) { if (check == null || Normal(check[key]) != Normal(state.Original[key])) { complete = false; } }
+                    }
+                    if (complete) { File.Delete(state.Recovery); }
+                    else { Console.Error.WriteLine("[Jobs] Color restore needs review. Manual recovery: powershell -NoProfile -File \""+state.Recovery+"\""); }
+                }
+            } catch (Exception error) {
+                Console.Error.WriteLine("[Jobs] Color restore failed: "+error.Message+"; recovery: "+state.Recovery);
+            } finally {
+                if (state.Owner != null && Environment.GetEnvironmentVariable(OwnerName) == state.Owner) { Environment.SetEnvironmentVariable(OwnerName,state.PreviousOwner); }
+                state.Active = false;
+                uint currentMode;
+                if (state.ModeChanged && GetConsoleMode(state.Output,out currentMode) && currentMode == (state.OutputMode | 4)) { SetConsoleMode(state.Output,state.OutputMode); }
+                state.ModeChanged = false;
+                if (state.Fallback) {
+                    foreach (KeyValuePair<string,string> pair in state.EnvironmentBefore) {
+                        string applied = pair.Key == "FORCE_COLOR" || pair.Key == "CLICOLOR" ? "0" : "1";
+                        if (Environment.GetEnvironmentVariable(pair.Key) == applied) { Environment.SetEnvironmentVariable(pair.Key,pair.Value); }
+                    }
+                    state.Fallback = false;
+                }
+            }
+        }
+    }
+}
+'@
+        } catch {
+            [Console]::Error.WriteLine('[Jobs] Terminal style setup failed; using plain output: ' + $_.Exception.Message)
+            return @{ JobsTerminalPlainFallback = $true; Before = @{} }
+        }
+    }
+    return New-Object Jobs.TerminalStyleV1.Native+State
+}
+# Guard setup is optional; failure keeps business behavior and the user's original terminal settings.
+function Start-JobsTerminalStyle {
+    param($State)
+    if ($State -is [Collections.IDictionary] -and $State.Contains('JobsTerminalPlainFallback')) {
+        foreach ($key in @('NO_COLOR', 'PLAIN_OUTPUT', 'FORCE_COLOR', 'CLICOLOR', 'ANSI_COLORS_DISABLED')) {
+            $State.Before[$key] = [Environment]::GetEnvironmentVariable($key)
+            [Environment]::SetEnvironmentVariable($key, $(if (@('FORCE_COLOR', 'CLICOLOR') -contains $key) { '0' } else { '1' }))
+        }
+        return
+    }
+    if ($null -ne $State) { [Jobs.TerminalStyleV1.Native]::Enter($State) }
+}
+# A finally block also runs for script exit and Ctrl+C; direct .NET calls avoid stopped pipelines.
+function Stop-JobsTerminalStyle {
+    param($State)
+    if ($State -is [Collections.IDictionary] -and $State.Contains('JobsTerminalPlainFallback')) {
+        foreach ($key in $State.Before.Keys) {
+            $applied = if (@('FORCE_COLOR', 'CLICOLOR') -contains $key) { '0' } else { '1' }
+            if ([Environment]::GetEnvironmentVariable($key) -ceq $applied) { [Environment]::SetEnvironmentVariable($key, $State.Before[$key]) }
+        }
+        return
+    }
+    if ($null -ne $State) { [Jobs.TerminalStyleV1.Native]::Restore($State) }
+}
+# END JOBS_TERMINAL_STYLE_V1
+
+$__jobsTerminalStyleState = $null
+try {
+    if ($MyInvocation.InvocationName -ne '.') {
+        $__jobsTerminalStyleState = New-JobsTerminalStyleState
+        Start-JobsTerminalStyle $__jobsTerminalStyleState
+    }
+# BEGIN JOBS_TERMINAL_STYLE_ORIGINAL_BODY
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 $script:Assertions = 0
@@ -151,6 +411,30 @@ Assert-Selection $lifecycleChecks.Failed '计时覆盖建立计划，计划失�
 Assert-Selection $lifecycleChecks.Empty '没有操作计划时停止计时且不锁定面板'
 Assert-Selection $lifecycleChecks.StopsOnlyActive '安装结束只停止安装时钟，不修改卸载时钟'
 Assert-Selection $lifecycleChecks.IndependentUninstall '卸载单独重置与停止自己的时钟，不覆盖已冻结的安装时长'
+
+# 运行实际布局/操作函数，验证图标列独立于文本宽度，操作切换保留选择且不越过卸载边界。
+$columnChecks = & $installer {
+    $parts = Split-JobsFeatureLabel '⚙️ Flutter 自动化生产代码'
+    $plain = Split-JobsFeatureLabel '没有图标的功能'
+    $checks = @([pscustomobject]@{Tag='alpha';Checked=$true;Enabled=$true},[pscustomobject]@{Tag='gamma';Checked=$true;Enabled=$true})
+    $state = [pscustomobject]@{Operation='Install';Preview=$false;Language='zh-Hans';Installed=@('alpha');Checks=$checks;ConfirmButton=[pscustomobject]@{Text=''}}
+    Set-JobsPanelOperation $state Uninstall
+    $uninstall = @(Get-JobsPanelActiveSelection $state)
+    $retained = $checks[0].Checked -and $checks[1].Checked -and $checks[0].Enabled -and -not $checks[1].Enabled
+    $checks[0].Checked = $false
+    $empty = @(Get-JobsPanelActiveSelection $state).Count -eq 0
+    Set-JobsPanelOperation $state Install
+    [pscustomobject]@{ Parts=$parts; Plain=$plain; Retained=$retained; Uninstall=$uninstall; Empty=$empty; Restored=($checks[1].Checked-and$checks[1].Enabled-and-not$checks[0].Checked); Columns=@(foreach($scale in @(1.0,1.25,1.5,2.0)){Get-JobsFeatureRowColumns -Left ([int](8*$scale)) -Width ([int](360*$scale)) -Scale $scale}) }
+}
+Assert-Selection ($columnChecks.Parts.Icon-ceq'⚙️'-and$columnChecks.Parts.Title-ceq'Flutter 自动化生产代码') '图标字素与文字独立，保留VS16样式'
+Assert-Selection ($columnChecks.Plain.Icon-ceq''-and$columnChecks.Plain.Title-ceq'没有图标的功能') '没有图标时保留原文，不制造占位素材'
+Assert-Selection $columnChecks.Retained '切换卸载保留所有勾选，只禁用未安装项'
+Assert-Selection (($columnChecks.Uninstall-join',')-ceq'alpha') '未安装但保留勾选的功能不会进入卸载计划'
+Assert-Selection $columnChecks.Empty '只有禁用项被勾选时没有可执行目标'
+Assert-Selection $columnChecks.Restored '切回安装恢复未安装项可选，并保留本人对其它选项的更改'
+foreach($columns in $columnChecks.Columns){Assert-Selection ($columns.IconLeft-eq$columns.CheckLeft+$columns.CheckWidth-and$columns.TitleLeft-gt$columns.IconLeft+$columns.IconWidth-and$columns.TitleWidth-gt0) '各DPI下复选框、图标与文字列按固定几何对齐'}
+Assert-Selection ((Get-JobsPanelText '自定义Explorer右键菜单' zh-Hant)-ceq'自訂Explorer右鍵選單') '新主标题使用本端Explorer术语和繁体翻译'
+Assert-Selection ((Get-JobsPanelText '自定义Explorer右键菜单' en)-ceq'Custom Explorer context menu') '新主标题提供英文翻译'
 
 # 真实字体先在 Windows 测量；此处用像素宽度覆盖高 DPI、减列及超长标题换行。
 foreach ($scale in @(1.0, 1.25, 1.5, 2.0)) {
@@ -317,10 +601,13 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
             Assert-Selection ($group.Counter.Left -ge $group.None.Right) ($Context + ' 组计数不覆盖全不选按钮')
             Assert-Selection ($group.Counter.Right -le $group.Box.ClientSize.Width) ($Context + ' 组计数完整位于分组内')
             foreach ($check in $group.Checks) {
-                Assert-SelectionTextFits $check ($Context + ' 功能标题')
+                $row = $State.FeatureRows[[string]$check.Tag]
+                Assert-SelectionTextFits $row.Title ($Context + ' 功能标题')
+                Assert-SelectionTextFits $row.Icon ($Context + ' 功能图标') -SingleLine
+                Assert-Selection ($check.Right -le $row.Icon.Left -and $row.Icon.Right -lt $row.Title.Left) ($Context + ' 复选框、图标和文字分别对齐不重叠')
                 $featureStatus = $State.FeatureLabels[[string]$check.Tag]
                 Assert-SelectionTextFits $featureStatus ($Context + ' 逐项状态')
-                Assert-Selection ($check.Right -le $featureStatus.Left) ($Context + ' 功能标题不覆盖逐项状态')
+                Assert-Selection ($row.Title.Right -le $featureStatus.Left) ($Context + ' 功能标题不覆盖逐项状态')
                 Assert-Selection ($check.Bottom -le $group.Box.ClientSize.Height -and $featureStatus.Bottom -le $group.Box.ClientSize.Height) ($Context + ' 换行后的整行仍位于分组内')
             }
         }
@@ -344,10 +631,13 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
             $State.Progress.Maximum = [Math]::Max(1, $State.Checks.Count)
             foreach ($operation in @('Install', 'Uninstall')) {
                 $State.Operation = $operation
-                foreach ($featureState in @('Pending', 'Running', 'Succeeded', 'Failed', 'Skipped')) {
+                $featureStates = @('Pending', 'Running', 'Succeeded', 'Failed', 'Skipped')
+                if ($operation -eq 'Uninstall') { $featureStates += 'NotInstalled' }
+                foreach ($featureState in $featureStates) {
                     Set-JobsManagementFeatureState -State $State -FeatureIds @($State.FeatureStates.Keys) -Status $featureState -Message '仅测文字尺寸，不执行后台操作'
                     foreach ($label in $State.FeatureLabels.Values) {
                         Assert-SelectionTextFits $label ($Context + ' ' + $operation + ' ' + $featureState + ' 逐项状态') -SingleLine
+                        if ($featureState -eq 'NotInstalled') { Assert-Selection ($label.Text -ceq '未安装，无需卸载' -and $label.LinkArea.Length -eq 0 -and $label.ForeColor.ToArgb() -ne [Drawing.Color]::ForestGreen.ToArgb()) ($Context + ' 无需卸载独立显示且不冒充绿色成功链接') }
                         if ($featureState -eq 'Succeeded') {
                             $expected = '✅ 安装成功'
                             if ($operation -eq 'Uninstall') { $expected = '已完成' }
@@ -367,6 +657,7 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
             ('全部处理完成；可选择复制日志，或关闭面板。退出码：0。已处理 {0} / {0} 项（100.0%，按完成项计数）；安装总用时 100:59:59' -f $State.Checks.Count),
             ('卸载中；已处理 {0} / {0} 项（100.0%，按完成项计数）；卸载用时 100:59:59' -f $State.Checks.Count),
             ('全部处理完成；可选择复制日志，或关闭面板。退出码：0。已处理 {0} / {0} 项（100.0%，按完成项计数）；卸载总用时 100:59:59' -f $State.Checks.Count),
+            ('全部处理完成；可选择复制日志，或关闭面板。 已处理 {0} / {0} 项（100.0%，按完成项计数）；卸载总用时 100:59:59；结果：成功 0；无需卸载 {0}；失败 0；未执行 0' -f $State.Checks.Count),
             '操作正在执行，请等待事务完成后关闭；下方日志可随时复制。',
             '安装 / 更新已完成：所有选中功能成功。日志和结果保留在本面板。',
             '执行失败：成功的功能已保留，未执行的功能未更改；请查看下方日志。'
@@ -436,10 +727,20 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         Assert-Selection (-not $state.Form.AutoScroll -and $state.ContentPanel.AutoScroll -and -not $state.Form.MaximizeBox) '只滚动分组内容，操作区固定可见'
         Assert-Selection ($state.Form.FormBorderStyle -in @([Windows.Forms.FormBorderStyle]::FixedDialog, [Windows.Forms.FormBorderStyle]::FixedSingle)) '窗口按内容定尺寸并保持固定边框'
         for ($i = 0; $i -lt $packages.Count; $i++) {
-            Assert-Selection ($state.Checks[$i].Text -eq $packages[$i].Label) ('功能标题不混入长说明：' + $packages[$i].Id)
+            $row = $state.FeatureRows[[string]$state.Checks[$i].Tag]
+            $parts = & $installer { param($Text) Split-JobsFeatureLabel $Text } $packages[$i].Label
+            Assert-Selection ($row.Title.Text -eq $parts.Title -and $row.Icon.Text -eq $parts.Icon -and $state.Checks[$i].Text -eq '') ('功能图标和标题独立显示：' + $packages[$i].Id)
             Assert-Selection ($state.ToolTip.GetToolTip($state.Checks[$i]).Contains($packages[$i].Description)) ('悬停保留功能说明：' + $packages[$i].Id)
             Assert-Selection ($state.Checks[$i].Bottom -le $state.Checks[$i].Parent.Height -and $state.Checks[$i].Right -le $state.Checks[$i].Parent.Width) ('每项功能均在可滚动分组内完整显示：' + $packages[$i].Id)
         }
+        $firstRow = $state.FeatureRows[[string]$state.Checks[0].Tag]
+        $wasChecked = $firstRow.Check.Checked
+        $firstRow.Check.Checked = $false
+        Invoke-SelectionTestClick $firstRow.Title
+        Assert-Selection $firstRow.Check.Checked '点击独立文字列切换同一复选框'
+        Invoke-SelectionTestClick $firstRow.Icon
+        Assert-Selection (-not $firstRow.Check.Checked) '点击独立图标列切换同一复选框'
+        $firstRow.Check.Checked = $wasChecked
         Assert-Selection ($state.ConfirmButton.Enabled -and [object]::ReferenceEquals($state.Form.AcceptButton, $state.ConfirmButton)) '已有选择时安装按钮和回车均可确认'
         Invoke-SelectionTestClick $state.SelectAllButton
         Assert-Selection (@($state.Checks | Where-Object { $_.Checked }).Count -eq $packages.Count) '全选勾选所有功能'
@@ -491,12 +792,13 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         Assert-Selection ($state.Operation -eq 'Install' -and -not $state.ConfirmButton.Enabled) '管理面板初始空选，不隐式安装'
         $state.Checks[2].Checked = $true
         $state.OperationBox.SelectedIndex = 1
-        Assert-Selection ($state.Operation -eq 'Uninstall' -and -not $state.ConfirmButton.Enabled) '切换卸载清除上一操作的勾选'
+        Assert-Selection ($state.Operation -eq 'Uninstall' -and -not $state.ConfirmButton.Enabled -and $state.Checks[2].Checked) '切换卸载保留上一操作勾选，未安装项不成为可执行目标'
         Assert-Selection ($state.Checks[0].Enabled -and -not $state.Checks[2].Enabled) '卸载时只有已安装功能可选'
         Invoke-SelectionTestClick $state.SelectAllButton
-        Assert-Selection (@($state.Checks | Where-Object { $_.Checked }).Count -eq 2) '卸载全选不会勾选未安装项'
+        Assert-Selection (@($state.Checks | Where-Object { $_.Checked -and $_.Enabled }).Count -eq 2 -and $state.Checks[2].Checked) '卸载全选只增加已安装项，保留禁用项原勾选'
         $state.OperationBox.SelectedIndex = 0
-        Assert-Selection (@($state.Checks | Where-Object { $_.Checked }).Count -eq 0 -and $state.Checks[2].Enabled) '切回安装清空选择并恢复全部可选功能'
+        Assert-Selection (@($state.Checks | Where-Object { $_.Checked }).Count -eq 3 -and $state.Checks[2].Enabled) '切回安装保留全部勾选并恢复可选状态'
+        Invoke-SelectionTestClick $state.ClearButton
         $state.Checks[2].Checked = $true
         Invoke-SelectionTestClick $state.ConfirmButton
         Assert-Selection ($state.Form.Tag.Mode -eq 'Install' -and @($state.Form.Tag.Features).Count -eq 1 -and $state.Form.Tag.Features[0] -eq 'gamma') '同一面板返回明确操作和实际勾选对象'
@@ -541,3 +843,8 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
 }
 
 Write-Host ('PASS: SelectionPanel.Tests.ps1 (' + $script:Assertions + ' assertions)')
+
+# END JOBS_TERMINAL_STYLE_ORIGINAL_BODY
+} finally {
+    Stop-JobsTerminalStyle $__jobsTerminalStyleState
+}

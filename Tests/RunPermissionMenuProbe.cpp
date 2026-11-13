@@ -8,7 +8,7 @@
 using DWORD = std::uint32_t;
 using HANDLE = void*;
 constexpr DWORD INVALID_FILE_ATTRIBUTES = 0xffffffff;
-constexpr DWORD FILE_ATTRIBUTE_DIRECTORY = 0x10, FILE_ATTRIBUTE_REPARSE_POINT = 0x400;
+constexpr DWORD FILE_ATTRIBUTE_DIRECTORY = 0x10, FILE_ATTRIBUTE_REPARSE_POINT = 0x400, FILE_ATTRIBUTE_DEVICE = 0x40;
 constexpr DWORD FILE_EXECUTE = 0x20, FILE_SHARE_READ = 1, FILE_SHARE_WRITE = 2, FILE_SHARE_DELETE = 4;
 constexpr DWORD OPEN_EXISTING = 3, FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000;
 constexpr DWORD ERROR_ACCESS_DENIED = 5;
@@ -37,8 +37,8 @@ int main() {
     using namespace JobsRunPermission;
     unsigned count = 0;
     auto check = [&count](bool value) { assert(value); ++count; };
-    for (const auto path : {L"C:\\测试 & !\\app.EXE", L"C:\\dir\\start.cmd", L"C:\\dir\\script.ps1", L"C:\\dir\\worker.py", L"C:\\dir\\script.sh"}) check(IsExecutableName(path));
-    for (const auto path : {L"C:\\dir\\README.md", L"C:\\dir\\notes.txt", L"C:\\dir\\app.exe.txt", L"C:\\dir.exe\\README", L"C:\\dir\\settings.psd1", L"C:\\dir\\archive.zip", L""}) check(!IsExecutableName(path));
+    for (const auto path : {L"C:\\dir\\README.md", L"C:\\dir\\notes.txt", L"C:\\dir\\app.exe.txt", L"C:\\dir\\README", L"C:\\dir\\archive.zip"}) check(IsEligibleFile(path));
+    check(!IsEligibleFile(L""));
     check(!IsActionEnabled(ExecutionState::Unknown, true));
     check(!IsActionEnabled(ExecutionState::Unknown, false));
     check(IsActionEnabled(ExecutionState::Denied, true));
@@ -49,11 +49,13 @@ int main() {
     check(desiredAccess == FILE_EXECUTE && sharing == 7 && disposition == OPEN_EXISTING && openFlags == FILE_FLAG_OPEN_REPARSE_POINT);
     check(opens == closes);
     const int before = opens;
-    check(ReadExecutionState(L"C:\\dir\\README.md") == ExecutionState::Unknown && opens == before);
+    check(ReadExecutionState(L"C:\\dir\\README.md") == ExecutionState::Allowed && opens == before + 1);
     attributes = FILE_ATTRIBUTE_DIRECTORY;
     check(!IsEligibleFile(L"C:\\dir\\folder.exe"));
     attributes = FILE_ATTRIBUTE_REPARSE_POINT;
     check(!IsEligibleFile(L"C:\\dir\\link.exe"));
+    attributes = FILE_ATTRIBUTE_DEVICE;
+    check(!IsEligibleFile(L"C:\\dir\\device"));
     attributes = INVALID_FILE_ATTRIBUTES;
     check(!IsEligibleFile(L"C:\\dir\\missing.exe"));
     attributes = 0; openSucceeds = false; lastError = ERROR_ACCESS_DENIED;

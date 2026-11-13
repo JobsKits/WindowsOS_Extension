@@ -1,0 +1,7 @@
+{
+  "Version": 1,
+  "Id": "flutter-run-harmony-prepare",
+  "Name": "JobsFlutterRunHarmonyPrepare",
+  "Label": "鸿蒙运行环境准备",
+  "Description": "当前Flutter运行流程的私有准备资源，不注册菜单。"
+}

@@ -44,6 +44,10 @@
     "Name": "JobsFileContentViewer"
   },
   {
+    "Id": "file-hash",
+    "Name": "JobsFileHasher"
+  },
+  {
     "Id": "file-volumes",
     "Name": "JobsFileVolumes"
   },

@@ -462,7 +462,7 @@ function Invoke-JobsPackageChange {
         $state = Get-JobsPackageState -PackagePath $PackagePath -DeploymentMode $DeploymentMode
         if ($Mode -eq 'Uninstall' -and -not $state.Enabled) {
             Write-Host '当前部署路线未启用；保留其它路线的菜单与运行文件。'
-            return [pscustomobject]@{ Id = $manifest.Id; Mode = $Mode; Root = $root; Backup = $null; ReleasePath = $state.ReleasePath; BuildPath = $null }
+            return [pscustomobject]@{ Id = $manifest.Id; Mode = $Mode; Outcome = 'NotInstalled'; Root = $root; Backup = $null; ReleasePath = $state.ReleasePath; BuildPath = $null }
         }
         $release = $state.ReleasePath
         if ($Mode -eq 'Install') {

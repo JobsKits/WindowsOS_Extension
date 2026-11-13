@@ -1,6 +1,6 @@
 # Flutter 菜单实现
 
-**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / English / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
 
 完整说明见 [README](../README.md)。
 
@@ -16,7 +16,7 @@
 
 `Actions/import-dependencies/Scripts/` 提供[依赖导入](./Actions/import-dependencies/Scripts/README.md)：CMD 输入或拖入完整导出目录，初筛后由同目录 Dart 核心完整校验，显示计划并要求精确 `YES` 才写入；原源码复制到项目独立 vendor 目录，先备份再增量配置 overrides。release 必须携带 `Action.psm1`、`Common.psm1`、`ImportFlutterDependencies.dart` 和其复用的 `ExtractFlutterDependencies.dart`，不依赖兄弟安装包或外部源码路径。
 
-本目录的 `Manage.ps1`、`SelectionPanel.psm1` 和 `ManagementWorker.ps1` 构成本包自包含管理面板；由上级 `Manage.vbs` 无控制台启动。安装 / 卸载在隐藏后台执行，逐项状态与可复制实时日志留在面板中。总进度按已处理项 / 本次所选项显示计数和百分比；成功与失败计入已处理，等待中、执行中和未执行项不计入，100% 表示全部处理完毕，结果以成功 / 失败汇总为准。安装 / 更新和卸载分别计时；点击时只清零并启动当前操作计时，后台全部结束或启动失败时只冻结当前耗时。每秒刷新 `HH:mm:ss`（小时可超过 24），执行时显示“安装用时 / 卸载用时”，结束显示“安装总用时 / 卸载总用时”。两份耗时只在当前面板会话内独立保留。安装成功显示绿色“✅ 安装成功”。不改变右键业务工具自己的交互方式。失败状态可点击，在独立 PowerShell 中只读显示本次完整会话日志；包失败不阻止其它所选包，日志不可用时在面板提示。
+本目录的 `Manage.ps1`、`SelectionPanel.psm1` 和 `ManagementWorker.ps1` 构成本包自包含管理面板；由上级 `Manage.vbs` 无控制台启动。安装 / 卸载在隐藏后台执行，逐项状态与可复制实时日志留在面板中。总进度按已处理项 / 本次所选项显示计数和百分比；成功、未安装无需卸载与失败计入已处理，等待中、执行中和未执行项不计入；“未安装，无需卸载”单独显示且不算成功，最终分别汇总成功、无需卸载、失败与未执行数量。100% 仅表示本轮全部处理完毕。安装 / 更新和卸载分别计时；点击时只清零并启动当前操作计时，后台全部结束或启动失败时只冻结当前耗时。每秒刷新 `HH:mm:ss`（小时可超过 24），执行时显示“安装用时 / 卸载用时”，结束显示“安装总用时 / 卸载总用时”。两份耗时只在当前面板会话内独立保留。安装成功显示绿色“✅ 安装成功”。不改变右键业务工具自己的交互方式。失败状态可点击，在独立 PowerShell 中只读显示本次完整会话日志；包失败不阻止其它所选包，日志不可用时在面板提示。
 
 `build-harmony` 是合法 Flutter 根目录始终可见的已选独立叶动作；`FlutterToolsMenu.h` 与 `FeatureActions.psm1` 同步标识和名称。菜单生成不以 `ohos/` 是否存在过滤入口，原生点击与 PowerShell worker 仍复核普通非链接的 `lib/`、`ohos/` 和两份工程配置；缺少时提示先适配并停止。`Action.psm1` 直接调用同包 `Actions/package` 内的 `Invoke-JobsFlutterHarmonyAction`，固定项目 FVM、release、HAP + APP，不弹二级产物选择。两种构建和产物验证通过才成功；完整依赖、确认、日志与部署步骤见[上级说明](../README.md#鸿蒙-hap--app-打包)。
 
@@ -42,7 +42,9 @@ Gradle 在 `modules-2` 与项目固定 Wrapper 分发间选择，OHPM / Hvigor �
 
 私库配对动作通过 `Action.psm1` 将 `-PrivateOnly` 转给现有 extract/import worker，再传递 Dart 的 `--private-only`。新动作追加在 catalog 末尾，保留旧原生命令 offset；实际菜单把私库项放在 Pub 项之后。
 
-[一键迁移模块](./FlutterDependencyMigration.psm1/README.md) 通过 `export-all-dependencies` / `import-all-dependencies` 接入相同菜单、安装白名单和 CMD 链路。迁移 Dart 引擎位于当前目录，携带同目录 `ExtractFlutterDependencies.dart` / `ImportFlutterDependencies.dart`，由 `PackageInstaller.psm1` 连同模块目录精确复制，独立 release 不依赖源码仓路径。提取默认私库并按用户输入决定全提取、ZIP 与原目录保留；普通 Pub 提取同样默认私库，普通 Pub 导入按 `snapshotKind` 自动采用私库校验。分层原生导出需非空确认完整提取，否则进入一键私库流程。
+[一键迁移模块](./FlutterDependencyMigration.psm1/README.md) 通过 `export-all-dependencies` / `import-all-dependencies` 接入相同菜单、安装白名单和 CMD 链路。迁移 Dart 引擎位于当前目录，携带同目录 `ExtractFlutterDependencies.dart` / `ImportFlutterDependencies.dart`，由 `PackageInstaller.psm1` 连同模块目录精确复制，独立 release 不依赖源码仓路径。提取默认私库并按用户输入决定全提取、ZIP 与原目录保留；普通 Pub 提取同样默认私库，普通 Pub 导入按 `snapshotKind` 自动采用私库校验。分层原生导出需非空确认完整提取，否则进入一键私库流程。 一键导入先只读计数冲突；有冲突时 fzf 默认推荐导入源覆盖，也可保留本机跳过，缺少 fzf 则回退编号。覆盖默认先备份，任意非空输入跳过备份；备份父目录可输入或拖入，空回车用系统桌面。选择后重新预检并保留最终精确 `YES`；最终确认处空回车继续询问，非空且非 `YES`、输入结束或 Ctrl+C 退出，源或目标在确认期间改变时由计划指纹阻断。备份仅在确认写入时创建本轮唯一子目录；取消不创建备份或改写缓存。
+
+迁移模块用短轮询等待引擎，扫描计划及确认后的校验、备份与导入显示阶段和 `HH:mm:ss` 耗时；交互控制台每秒原位刷新，纯文本或重定向每 10 秒完整心跳。阶段结束汇总总用时，随后再展示引擎结果并进入确认或选择，计时输出不进入计划指纹。超时或可捕获的取消会精确停止本轮引擎进程树。
 
 隔离验证另有[终端与 ZIP 回归](../../Tests/FlutterDependencyMigration.Tests.ps1/README.md)和[真实发布数据链回归](../../Tests/FlutterDependencyMigrationEndToEnd.Tests.ps1/README.md)。后者使用本机已有 Dart、真实发布副本及隔离缓存，只替代平台运行时发现和输入；不能由 MacOS 上的结果推定 Windows 原生菜单已通过。
 
@@ -57,3 +59,16 @@ Gradle 在 `modules-2` 与项目固定 Wrapper 分发间选择，OHPM / Hvigor �
 **下载前版本上下文：** 每次 SDK 初始化／平台缓存获取前，先显示项目声明的 Flutter、本地 SDK 的版本标识与实际路径、目标内置 Dart、engine 提交以及宿主系统／架构，并写入同一获取日志。这里只读取本地文件及本地 Git exact tag，不执行 Flutter／Dart 探测或联网查询版本。Dart 只采用明确的源码版本文件、engine 匹配的版本 JSON 或 engine stamp 匹配的当前缓存；旧缓存及 `dart-sdk.old` 不作为目标版本。缺少可信依据时明确显示“未解析”，下载完成后再确认。
 
 **Flutter SDK网络预检：** 下载／首次Dart自举／precache前，随包网络模块以真实小Range验证来源、TLS、字节和吞吐并择优；显式storage、Pub和代理（含空值）保留，AUTO仅核验官方／CFUG同对象及当前已配置代理，不猜端口、不改系统代理或Git。当前任务短期复用；真实获取失败会降权坏路线、轮换其它已验证候选并持续重试。FVM按实际api context来源处理，能力允许时Git与Dart制品分阶段；用户fork不改源。原生BITS按真实WinINET通道衡量，PAC未能有界解析时保留既有通道并明确未测速。详细边界见[随包选路模块](./SdkDownloadRoute.ps1/README.md)。
+
+
+<!-- JOBS_TERMINAL_STYLE_V1:BEGIN -->
+
+> Windows 终端配色保护：支持完整颜色查询的交互控制台会先保存当前会话默认前景、背景与16色色表，再临时使用黑底白字和统一强调色；正常结束、业务失败及可捕获中断后恢复。用户运行中自行改动的颜色保留并提示，不修改用户主题、共享 Profile、注册表或全局策略。快照不包含进入前任意叠加的临时文字样式。非控制台、重定向、`NO_COLOR`、Sourcetree 及无法可靠保存／恢复颜色的环境保持原状态或降级为纯文本。
+
+> 强制结束进程或终端崩溃无法保证自动恢复。恢复失败时保留并提示本轮 `%TEMP%\JobsTerminalStyle-<PID>-*.ps1` 恢复脚本，需在原控制台核对后运行；不要通过重置用户配置恢复。`-ExecutionPolicy Bypass` 如被入口使用，仅作用于本次子进程，不持久修改策略。
+
+> 验证范围：已完成 PowerShell 语法、参数／退出与隔离生命周期核验；Windows 原生控制台的显示、按键与 `Ctrl+C` 实机验证尚未完成。
+
+<!-- JOBS_TERMINAL_STYLE_V1:END -->
+
+**一键配置运行门禁：** 最终实际运行阶段在选择设备前检查基础环境，并在本人输入 `RUN` 后重新检查所选平台；复用独立运行器的[本地环境体检](./Actions/run/Scripts/RunPreflight.ps1/README.md)。其它平台缺项不阻断健康目标；失败不能进入应用启动器，只准备模式不启动应用。

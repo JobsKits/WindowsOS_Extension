@@ -2,6 +2,68 @@
 # JobsCodeGraphUpdater
 # Created by Jobs on 2026年10月18日，星期日.
 
+
+# Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
+function Test-JobsEnterChoiceColor {
+    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $false }
+    $consoleType = [Console]
+    if ($null -eq $consoleType.GetProperty('IsInputRedirected') -or $null -eq $consoleType.GetProperty('IsOutputRedirected')) { return $false }
+    return ($Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+}
+# Older hosts keep native colors without sending unsupported bold escape sequences.
+function Test-JobsEnterChoiceBold {
+    $property = $Host.UI.PSObject.Properties['SupportsVirtualTerminal']
+    return ($null -ne $property -and [bool]$property.Value)
+}
+# Separate ordinary question text from Enter and arbitrary-input options without changing words.
+function Get-JobsEnterChoiceParts {
+    param([string]$Text)
+    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)'
+    $green = '(?:(?:\u76f4\u63a5|\u53ea\u9700|\u4ec5(?:\u9700)?|\u6309(?:\u4e0b)?|\u7a7a)?\s*\u56de\u8f66|(?:press\s+)?\bEnter\b(?!\s+(?:YES|REPAIR|CLEAN|CONTINUE)\b))'
+    $pattern = '(?is)(?<red>(?:' + $red + ')[^;\uFF1B\r\n]*?(?=[;\uFF1B\r\n]|\z))|(?<green>(?:' + $green + ')[^;\uFF1B\r\n]*?(?=(?:' + $red + ')|[;\uFF1B\r\n]|\z))'
+    $offset = 0
+    foreach ($match in [regex]::Matches($Text, $pattern)) {
+        if ($match.Index -gt $offset) { [pscustomobject]@{ Text = $Text.Substring($offset, $match.Index - $offset); Color = '' } }
+        $prefix = [regex]::Split($Text.Substring(0, $match.Index), '[;\uFF1B\r\n]')[-1]
+        $typed = $prefix -match '(?i)(?:\u8f93\u5165|\u952e\u5165|type|enter)\s*(?:\u5927\u5199\s*)?(?:YES|REPAIR|CLEAN|CONTINUE)\b|\u7cbe\u786e\u8f93\u5165|\u8f93\u5165[^;\uFF1B\r\n]*[\u540e\u518d]\s*$'
+        $color = if ($match.Groups['red'].Success) { 'Red' } elseif ($typed) { '' } else { 'Green' }
+        [pscustomobject]@{ Text = $match.Value; Color = $color }
+        $offset = $match.Index + $match.Length
+    }
+    if ($offset -lt $Text.Length) { [pscustomobject]@{ Text = $Text.Substring($offset); Color = '' } }
+}
+# Native host text remains plain in information streams and logs; bold control is console-only.
+function Write-JobsEnterChoiceText {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ')
+    $text = if ($Object -is [array]) { $Object -join [string]$Separator } else { [string]$Object }
+    if (-not (Test-JobsEnterChoiceColor)) {
+        Write-Host $Object -NoNewline:$NoNewline -Separator $Separator
+        return
+    }
+    $normal = @{}
+    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $normal.ForegroundColor = $ForegroundColor }
+    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $normal.BackgroundColor = $BackgroundColor }
+    foreach ($part in @(Get-JobsEnterChoiceParts $text)) {
+        if (-not $part.Color) { Write-Host $part.Text -NoNewline @normal; continue }
+        $bold = Test-JobsEnterChoiceBold
+        if ($bold) { [Console]::Write(([string][char]27) + '[1m') }
+        try { Write-Host $part.Text -ForegroundColor $part.Color -NoNewline }
+        finally { if ($bold) { [Console]::Write(([string][char]27) + '[0m') } }
+    }
+    if (-not $NoNewline) { Write-Host }
+}
+# Delegate the original reader, including secure input and EOF behavior, after prompt display.
+function Read-JobsEnterChoiceHost {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][string]$Prompt, [switch]$AsSecureString, [switch]$MaskInput)
+    if ($AsSecureString -or $MaskInput -or -not (Test-JobsEnterChoiceColor) -or @((Get-JobsEnterChoiceParts $Prompt) | Where-Object { $_.Color }).Count -eq 0) {
+        return (Read-Host @PSBoundParameters)
+    }
+    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline
+    return (Read-Host)
+}
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
@@ -249,7 +311,7 @@ function Repair-JobsCodeGraphNodeTools {
     $version = $versions[0].ToString()
     [void](Invoke-JobsCheckedProcess $Winget @('show', '--id', 'OpenJS.NodeJS.LTS', '--exact', '--version', $version, '--source', 'winget', '--accept-source-agreements', '--disable-interactivity') $Directory 120)
     Write-JobsWorkerMessage "将强制重跑 Node.js $version 官方安装器，可能替换现有损坏或不兼容的 Node.js、登记其 PATH 并请求系统授权；本包不主动提权。"
-    if ((Read-Host '按回车安装/修复 Node.js/npm；输入任意字符取消') -ne '') { throw '已取消。' }
+    if ((Read-JobsEnterChoiceHost '按回车安装/修复 Node.js/npm；输入任意字符取消') -ne '') { throw '已取消。' }
     [void](Invoke-JobsCheckedProcess $Winget @('install', '--id', 'OpenJS.NodeJS.LTS', '--exact', '--version', $version, '--source', 'winget', '--force', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity') $Directory 900)
     Update-JobsCodeGraphSessionPath
     $tools = Get-JobsCodeGraphNodeTools $Directory
@@ -327,7 +389,7 @@ function Invoke-JobsCodeGraphAction {
         Write-JobsWorkerMessage '安装来源：https://www.npmjs.com/package/@colbymchenry/codegraph/v/1.6.2'
         Write-JobsWorkerMessage 'npm registry：https://registry.npmjs.org/'
         Write-JobsWorkerMessage "仅安装到用户目录：$prefix"
-        if ((Read-Host '按回车安装/修复 CodeGraph；输入任意字符取消') -ne '') { throw '已取消。' }
+        if ((Read-JobsEnterChoiceHost '按回车安装/修复 CodeGraph；输入任意字符取消') -ne '') { throw '已取消。' }
         # 安装范围和平台由本包控制，不继承会改变 optional 包布局的 npm 进程配置。
         $npmVariables = @{ npm_config_global = 'false'; npm_config_omit = ''; npm_config_include = 'optional';
             npm_config_platform = 'win32'; npm_config_arch = $script:CodeGraphPlatform.Substring('win32-'.Length) }

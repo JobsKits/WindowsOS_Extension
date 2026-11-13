@@ -3,6 +3,68 @@
 # Created by Jobs on 2026年10月19日，星期一.
 # 在精确 Flutter 项目根选择并绑定 SDK；不设置 FVM 全局版本。
 
+
+# Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
+function Test-JobsEnterChoiceColor {
+    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $false }
+    $consoleType = [Console]
+    if ($null -eq $consoleType.GetProperty('IsInputRedirected') -or $null -eq $consoleType.GetProperty('IsOutputRedirected')) { return $false }
+    return ($Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+}
+# Older hosts keep native colors without sending unsupported bold escape sequences.
+function Test-JobsEnterChoiceBold {
+    $property = $Host.UI.PSObject.Properties['SupportsVirtualTerminal']
+    return ($null -ne $property -and [bool]$property.Value)
+}
+# Separate ordinary question text from Enter and arbitrary-input options without changing words.
+function Get-JobsEnterChoiceParts {
+    param([string]$Text)
+    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)'
+    $green = '(?:(?:\u76f4\u63a5|\u53ea\u9700|\u4ec5(?:\u9700)?|\u6309(?:\u4e0b)?|\u7a7a)?\s*\u56de\u8f66|(?:press\s+)?\bEnter\b(?!\s+(?:YES|REPAIR|CLEAN|CONTINUE)\b))'
+    $pattern = '(?is)(?<red>(?:' + $red + ')[^;\uFF1B\r\n]*?(?=[;\uFF1B\r\n]|\z))|(?<green>(?:' + $green + ')[^;\uFF1B\r\n]*?(?=(?:' + $red + ')|[;\uFF1B\r\n]|\z))'
+    $offset = 0
+    foreach ($match in [regex]::Matches($Text, $pattern)) {
+        if ($match.Index -gt $offset) { [pscustomobject]@{ Text = $Text.Substring($offset, $match.Index - $offset); Color = '' } }
+        $prefix = [regex]::Split($Text.Substring(0, $match.Index), '[;\uFF1B\r\n]')[-1]
+        $typed = $prefix -match '(?i)(?:\u8f93\u5165|\u952e\u5165|type|enter)\s*(?:\u5927\u5199\s*)?(?:YES|REPAIR|CLEAN|CONTINUE)\b|\u7cbe\u786e\u8f93\u5165|\u8f93\u5165[^;\uFF1B\r\n]*[\u540e\u518d]\s*$'
+        $color = if ($match.Groups['red'].Success) { 'Red' } elseif ($typed) { '' } else { 'Green' }
+        [pscustomobject]@{ Text = $match.Value; Color = $color }
+        $offset = $match.Index + $match.Length
+    }
+    if ($offset -lt $Text.Length) { [pscustomobject]@{ Text = $Text.Substring($offset); Color = '' } }
+}
+# Native host text remains plain in information streams and logs; bold control is console-only.
+function Write-JobsEnterChoiceText {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ')
+    $text = if ($Object -is [array]) { $Object -join [string]$Separator } else { [string]$Object }
+    if (-not (Test-JobsEnterChoiceColor)) {
+        Write-Host $Object -NoNewline:$NoNewline -Separator $Separator
+        return
+    }
+    $normal = @{}
+    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $normal.ForegroundColor = $ForegroundColor }
+    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $normal.BackgroundColor = $BackgroundColor }
+    foreach ($part in @(Get-JobsEnterChoiceParts $text)) {
+        if (-not $part.Color) { Write-Host $part.Text -NoNewline @normal; continue }
+        $bold = Test-JobsEnterChoiceBold
+        if ($bold) { [Console]::Write(([string][char]27) + '[1m') }
+        try { Write-Host $part.Text -ForegroundColor $part.Color -NoNewline }
+        finally { if ($bold) { [Console]::Write(([string][char]27) + '[0m') } }
+    }
+    if (-not $NoNewline) { Write-Host }
+}
+# Delegate the original reader, including secure input and EOF behavior, after prompt display.
+function Read-JobsEnterChoiceHost {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][string]$Prompt, [switch]$AsSecureString, [switch]$MaskInput)
+    if ($AsSecureString -or $MaskInput -or -not (Test-JobsEnterChoiceColor) -or @((Get-JobsEnterChoiceParts $Prompt) | Where-Object { $_.Color }).Count -eq 0) {
+        return (Read-Host @PSBoundParameters)
+    }
+    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline
+    return (Read-Host)
+}
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
@@ -303,7 +365,7 @@ function Install-JobsWingetTool {
         throw '工具链阻塞在 WinGet/App Installer。'
     }
     Write-JobsFvmMessage "安装来源：WinGet 官方 winget 源；包：$Id；范围：当前用户。安装器可能联网。"
-    if ((Read-Host "缺少必需组件 $Id；回车安装，任意字符取消整个流程") -ne '') { throw '已取消必需组件安装。' }
+    if ((Read-JobsEnterChoiceHost "缺少必需组件 $Id；回车安装，任意字符取消整个流程") -ne '') { throw '已取消必需组件安装。' }
     $result = Invoke-JobsFvmTool $winget @('install', '--id', $Id, '--exact', '--source', 'winget', '--scope', 'user', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity') $Directory -Visible -TimeoutSeconds 1800
     if ($result.ExitCode -ne 0) { throw "WinGet 安装失败：$Id（$($result.ExitCode)）。请修复此层后重试。" }
     Update-JobsFvmSessionPath
@@ -679,7 +741,7 @@ function Invoke-JobsFlutterVersionAction {
         if ($null -eq $choice) { Write-JobsFvmMessage '已取消选择，项目未修改。'; return }
         Write-JobsFvmMessage ("计划：{0} → {1}；{2}" -f $current, $choice.Version, $choice.Label)
         Write-JobsFvmMessage '写入范围：当前根 .fvmrc（保留其它字段、关闭向父 Melos 同步）、.fvm/、可能的 .gitignore、.vscode/settings.json 和根 *.code-workspace；不获取项目 pub 依赖。未缓存版本将下载 SDK。'
-        if ((Read-Host '直接回车执行当前项目的安装/切换；输入任意字符后回车取消') -ne '') { Write-JobsFvmMessage '已取消，项目未修改。'; return }
+        if ((Read-JobsEnterChoiceHost '直接回车执行当前项目的安装/切换；输入任意字符后回车取消') -ne '') { Write-JobsFvmMessage '已取消，项目未修改。'; return }
         Assert-JobsFlutterProject $Directory
         Assert-JobsFvmWritePaths $Directory
         if ((Get-JobsFvmPreviewStamp $Directory) -cne $previewStamp) { throw '选版期间 pubspec.yaml 或 .fvmrc 已被修改，请重新打开菜单确认新状态；本次未写项目。' }

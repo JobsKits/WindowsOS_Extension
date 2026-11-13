@@ -294,7 +294,7 @@ function New-JobsPackageRelease {
     $actionsPath = Join-Path $scripts 'Actions'
     foreach ($entry in Get-ChildItem -LiteralPath $actionsPath -Recurse -Force) {
         if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Actions 中不允许链接。' }
-        if (-not $entry.PSIsContainer -and ($entry.Extension -in @('.json', '.ps1', '.psm1', '.dart', '.cs') -or ($entry.Name -ceq 'README.md' -and $entry.Directory.Name -ceq 'SdkDownloadRoute.ps1'))) { $files += $entry.FullName.Substring($package.Length + 1) }
+        if (-not $entry.PSIsContainer -and ($entry.Extension -in @('.json', '.ps1', '.psm1', '.dart', '.cs') -or ($entry.Name -ceq 'README.md' -and ($entry.Directory.Name -ceq 'SdkDownloadRoute.ps1' -or $entry.FullName -match '[\\/]RunPreflight\.ps1[\\/]' -or $entry.FullName -match '[\\/]SimulatorCreators[\\/]')))) { $files += $entry.FullName.Substring($package.Length + 1) }
     }
     foreach ($name in @('Manage.cmd', 'Manage.vbs', 'README.md')) {
         if (Test-Path -LiteralPath (Join-Path $package $name) -PathType Leaf) { $files += $name }
@@ -486,7 +486,7 @@ function Invoke-JobsPackageChange {
         $state = Get-JobsPackageState -PackagePath $PackagePath -DeploymentMode $DeploymentMode
         if ($Mode -eq 'Uninstall' -and -not $state.Enabled) {
             Write-Host '当前部署路线未启用；保留其它路线的菜单与运行文件。'
-            return [pscustomobject]@{ Id = $manifest.Id; Mode = $Mode; Root = $root; Backup = $null; ReleasePath = $state.ReleasePath; BuildPath = $null }
+            return [pscustomobject]@{ Id = $manifest.Id; Mode = $Mode; Outcome = 'NotInstalled'; Root = $root; Backup = $null; ReleasePath = $state.ReleasePath; BuildPath = $null }
         }
         $release = $state.ReleasePath
         if ($Mode -eq 'Install') {

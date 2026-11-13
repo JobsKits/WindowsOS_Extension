@@ -30,7 +30,7 @@
 
 | 操作 | 结果 |
 | --- | --- |
-| 右键 Flutter 根目录 → 从终端运行 Flutter 项目 | 打开 CMD，显示工具来源，选择实际设备或启动已有 Android AVD。 |
+| 右键 Flutter 根目录 → 从终端运行 Flutter 项目 | 打开 CMD，显示工具来源，选择实际设备，或在“启动虚拟设备”中启动已有 Android / 鸿蒙实例。 |
 | 选定设备 | 独立后台执行 `flutter run --machine`，CMD 持续显示日志。 |
 | 按 `r` / `R` | 热重载 / 热重启。 |
 | 按 `s` | 请求停止当前应用；10 秒后仍未退出则终止本次 Flutter 专属进程树。 |
@@ -42,7 +42,7 @@
 **当前入口与依赖：** `Manage.cmd` 转交同级 `JobsFlutterTools` 的统一菜单安装；只复制这个旧目录不能完成新安装，需保留同级完整 `JobsFlutterTools`，或直接复制统一包。`Manage.cmd` 仍用于移除本旧功能。统一包安装需要已有 C++ 桌面工作负载、MSVC / Windows SDK 与系统 .NET Framework C# 编译器；各 SDK / IDE / 生成器的实际系统要求另行满足，旧系统上菜单能显示不能证明业务可运行。
 
 
-**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / English / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
 
 **两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
 
@@ -60,11 +60,11 @@
 
 ## 二、<span id="running">设备与运行行为</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-优先使用项目 `.fvm/flutter_sdk/bin/flutter.bat`。存在 `.fvmrc`、`.fvm/fvm_config.json` 或 SDK 链接却缺少项目 SDK 时停止并提示先修复 FVM；只有未绑定 FVM 的工程才使用 PATH 中的 Flutter。先执行 `flutter --version --machine` 检查实际 SDK，先补齐 `flutter precache --universal` 通用缓存，再读取 `flutter devices --machine`。设备列表按工程已有 `android` / `.android`、`windows`、`web` 平台目录过滤；Windows 不提供 iOS 运行设备。设备用 fzf 上下键与输入筛选，Enter 确认、Esc 取消；无设备时仍提供“Android 模拟器（启动已有 / 缺失时初始化）”及重新加载入口，不会替项目生成平台文件。缺少或损坏 fzf 时停止并给出修复命令。
+优先使用项目 `.fvm/flutter_sdk/bin/flutter.bat`。存在 `.fvmrc`、`.fvm/fvm_config.json` 或 SDK 链接却缺少项目 SDK 时停止并提示先修复 FVM；只有未绑定 FVM 的工程才使用 PATH 中的 Flutter。先执行 `flutter --version --machine` 检查实际 SDK，先补齐 `flutter precache --universal` 通用缓存，再读取 `flutter devices --machine`。可运行设备按工程已有 `android` / `.android`、`windows`、`web`、`ohos` 平台目录过滤；Windows 不提供 iOS 运行设备。根 fzf 先选择“目前已有的设备 / 启动虚拟设备 / 新建设备”，另有刷新及取消；上下键与输入筛选，Enter 确认、子层 ← 返回、Esc 取消。无设备时仍保留刷新和新建入口；仅明确选择鸿蒙准备流程时可补齐缺失的 `ohos/`。仅显式设置 `JOBS_FLUTTER_RUNNER_FZF=0` 或非交互 / 输入重定向时使用可返回和取消的文本菜单；正常交互缺失 fzf 或体检失败时明确停止，修复后重试。
 
-Android AVD 通过官方 [**Android Emulator**](https://developer.android.com/studio/run/emulator-commandline) 查询；已有设备可直接选择并启动，也可选择新建。没有 AVD 时进入内置初始化：回车确认后复用或补齐 Java 21、Command-Line Tools、Emulator / ADB，再选择设备型号与本机 ABI 对应的稳定系统镜像；已有镜像直接复用，缺失镜像显示 Google 官方来源和目标目录，最终回车确认后才下载并创建，SDK 许可证由本人确认。型号 / 镜像子层支持 `←` 返回，Esc、非空确认或输入结束不创建 AVD；已完成的工具准备保留。创建不使用 `--force`，不覆盖既有设备。工具补齐后再次枚举 AVD，发现原有设备可直接复用。
+Android AVD 通过官方 [**Android Emulator**](https://developer.android.com/studio/run/emulator-commandline) 查询；已有分组只启动现有 AVD，缺失时提示返回新建设备，不自动创建。新建分组始终提供 Android / Harmony（鸿蒙），与当前工程是否已有对应平台目录无关；调用随包桌面原创建入口，沿用 SDK 准备、机型与镜像选择、官方许可、确认、唯一命名及日志。创建且启动成功后返回精确设备 ID，等待 Flutter 支持且当前工程能运行的本次目标后自动续行；取消、跳过启动或失败不运行。不替工程自动生成平台文件。
 
-SDK 优先使用 `ANDROID_HOME` / `ANDROID_SDK_ROOT`，再复用当前用户默认位置或 PATH 中 Emulator 所属 SDK。Java、SDK 环境只在当前进程临时调整并恢复，不写全局 PATH、不改代理、不自动启用虚拟化；AVD 目录继承 `ANDROID_AVD_HOME`、`ANDROID_USER_HOME` 和 `ANDROID_EMULATOR_HOME`。新建模拟器目前要求官方支持的 Windows x64 宿主。启动等待最长约 180 秒，并按 AVD 名核对实际 serial；Flutter 再限次读取设备列表，自动选择该 serial 继续运行，不会误取另一台模拟器。超时或失败保留设备与日志，不重复创建。
+SDK 优先使用 `ANDROID_HOME` / `ANDROID_SDK_ROOT`，再复用当前用户默认位置或 PATH 中 Emulator 所属 SDK。Java、SDK 环境只在当前进程临时调整并恢复，不写全局 PATH、不改代理、不自动启用虚拟化；AVD 目录继承 `ANDROID_AVD_HOME`、`ANDROID_USER_HOME` 和 `ANDROID_EMULATOR_HOME`。新建模拟器目前要求官方支持的 Windows x64 宿主。桌面 Android 创建核心保留最长约 180 秒启动检测；已有 AVD 启动仅发送请求，待设备就绪后在列表选择实际目标。创建目标就绪后自动续行 Flutter；超时或失败保留设备与日志，不重复创建、不改跑其它设备。
 
 `flutter run` 使用项目默认入口和 Debug 模式；Flutter 自己仍可能执行 Pub、Gradle、编译及联网下载。需要 flavor、额外 dart-define 或自定义 target 的工程，请使用项目已有命令。日志快捷键通过 Flutter machine 协议发送 `app.restart` / `app.stop`，构建尚未返回 appId 时提示等待。
 
@@ -106,5 +106,15 @@ JobsFlutterRunner/
 **SDK 环境准备：** 已选择的 SDK／版本所需下载、安装及首次 Flutter／Dart 缓存补齐自动执行；网络失败或无进度超时后持续重试，间隔逐步增加并封顶 30 秒，没有次数和总时长上限，直到成功或本人 Ctrl+C／停止。仍在输出下载进度的传输不按总时长截断；成功后才进入后续业务。目标／版本选择、官方许可证与系统权限仍由本人处理；路径、权限、磁盘或明确不存在的版本会报告具体原因。每次尝试和真实进度追加到终端所示日志；同一 URL 有 ETag／Last-Modified 时安全续传，跨来源保留独立临时文件，不拼接不同来源。失败／取消保留下载现场；业务构建和配置写入不因网络重试而整体重放。
 
 **下载前版本上下文：** 每次 SDK 初始化／平台缓存获取前，先显示项目声明的 Flutter、本地 SDK 的版本标识与实际路径、目标内置 Dart、engine 提交以及宿主系统／架构，并写入同一获取日志。这里只读取本地文件及本地 Git exact tag，不执行 Flutter／Dart 探测或联网查询版本。Dart 只采用明确的源码版本文件、engine 匹配的版本 JSON 或 engine stamp 匹配的当前缓存；旧缓存及 `dart-sdk.old` 不作为目标版本。缺少可信依据时明确显示“未解析”，下载完成后再确认。
+
+**运行设备分组：** 根 fzf 提供“目前已有的设备 / 启动虚拟设备 / 新建设备 / 重新加载设备列表 / 取消本轮”。已有分组列当前 Flutter 支持且工程具备对应目录的设备，启动已有实例统一放在“启动虚拟设备”；新建分组始终提供 Android / Harmony（鸿蒙）创建，不要求工程已有相应平台目录，不隐式将启动变为新建。子层 ← 或返回行回到真正上一层，Esc 取消。无设备或设备查询失败时仍保留重新加载和新建入口。创建直接运行本包 `SimulatorCreators` 中的桌面原入口，不要求另装模拟器菜单；原 SDK 下载、许可证、确认、唯一命名和日志沿用。创建且启动成功后自动等待 Flutter 识别本次精确目标，再运行当前工程；启动已有实例后自动等待原设备身份并承接当前运行。Windows 不提供 iOS 本地模拟器。
+
+**运行前环境体检：** SDK 公共组件准备后，先展示 iOS / Android / 鸿蒙状态（Windows 的 iOS 不适用），并保留桌面 / Web 检查。设备选定或新建就绪后复查，基础 SDK、工程依赖和本次运行平台全部通过才继续目标缓存准备与应用启动；其它平台失败只显示原因。检查不下载、不切换 SDK、不生成平台文件；原有 SDK 自动获取流程保持独立。普通 Flutter 缺少 HAP、HDC / 工具链未就绪、缺少 `ohos/`、插件未声明鸿蒙适配、doctor 警告、超时或无法解析均明确显示，不能当作健康。详细检查与验证边界见[体检说明](./Scripts/RunPreflight.ps1/README.md)。
+
+**已连接设备的诊断展示：** HDC 目标和当前 Windows 原生 USB 调试接口也会独立检查；即使 SDK 尚不支持、工程没有 `ohos/` 或 HDC 工具缺失，已确认连接的设备仍显示“鸿蒙USB设备—已连接，环境未就绪”。选中该行会在当前运行流程自动准备兼容正式鸿蒙 SDK、项目 FVM 绑定、CLT 工具、缺失的 `ohos/` 及依赖；不需要另找配置入口。官方许可由本人确认，不下载模拟器镜像，不切换全局 SDK，不覆盖已有业务源码。准备后必须通过原有平台体检，并精确确认最初选中的设备才运行；插件缺实现、取消或失败会停止本轮。仅凭华为厂商名、普通 ADB、存储或键盘记录不会判为鸿蒙设备。
+
+**启动虚拟设备：** 顶层选择“启动虚拟设备”，二级仅“启动Android模拟器 / 启动鸿蒙模拟器”，Windows 不提供 iOS。先自动体检、补齐启动工具与必要配置，复检后才列已有实例；仅启动阶段不切业务工程 FVM、不生成 `ohos/` 或检查项目插件，只启动本人选中的一项，不创建替代设备。Android 仅更新当前 SDK 的正式 Emulator / ADB 组件，缺镜像只补原 AVD 的确切包；鸿蒙仅补原实例的确切 Release 镜像，SDK 配置需修复时先保留原字节备份。已运行实例直接复用，不自动停止、重置或清数据。之后按原 AVD serial / 原实例 UUID、路径与 HDC 端口等待 Flutter，项目平台或插件门禁不通过时保留实例，不运行 App，也不改选其它设备。
+
+所有菜单 fzf 明确绑定 ↑ / ↓ 选择，子层 ← 返回，Esc 取消；仅显式设置 `JOBS_FLUTTER_RUNNER_FZF=0` 或非交互 / 输入重定向时使用文本序号菜单，`b` / `←` 返回、`q` 取消，空输入与无效输入不会默认启动；正常交互缺失 fzf 或体检失败时明确停止，修复后重试。官方更新目录或下载授权无法核验时停止启动，可在当前流程打开官方页面并返回本层重试，不读取浏览器 Cookie 或绕过认证。官方许可仍由本人接受，工具 / 镜像获取可取消，只有选定原虚拟设备且真实 HDC 已就绪、准备继续运行 Flutter 时，才按本工程约束核验兼容正式 SDK 并复用既有业务准备和门禁；项目绑定沿用精确备份，不切换全局 Flutter / Java。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

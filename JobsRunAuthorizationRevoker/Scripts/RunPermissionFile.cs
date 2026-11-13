@@ -36,13 +36,7 @@ namespace Jobs {
         public string Path { get; private set; }
         public string Identity { get; private set; }
         public string Hash { get; private set; }
-        public static bool IsExecutablePath(string path) {
-            string extension = System.IO.Path.GetExtension(path).ToLowerInvariant();
-            string[] extensions = { ".exe", ".com", ".scr", ".cpl", ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".hta", ".py", ".pyw", ".pl", ".rb", ".sh", ".bash", ".zsh", ".fish", ".ksh", ".csh", ".tcsh", ".php", ".lua", ".command" };
-            return Array.IndexOf(extensions, extension) >= 0;
-        }
         public RunPermissionFile(string path) {
-            if (!IsExecutablePath(path)) throw new IOException("Only executable and script file formats support execution permissions");
             Path = System.IO.Path.GetFullPath(path);
             handle = CreateFile(Path, 0x80000000 | ReadControl | WriteDac | ReadAttributes, 1, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero);
             if (handle.IsInvalid) { int error = Marshal.GetLastWin32Error(); handle.Dispose(); throw new Win32Exception(error, "Cannot open ordinary file with read/DACL rights"); }
@@ -55,7 +49,7 @@ namespace Jobs {
                 if (!String.Equals(finalPath, Path, StringComparison.OrdinalIgnoreCase)) throw new IOException("Resolved path changed or passes through an alias");
                 FileInfoNative info;
                 if (!GetFileInformationByHandle(handle, out info)) throw new Win32Exception();
-                if ((info.Attributes & (0x10u | 0x400u)) != 0 || info.Links != 1) throw new IOException("Directories, reparse points and hard-linked files are excluded");
+                if ((info.Attributes & (0x10u | 0x400u | 0x40u)) != 0 || info.Links != 1) throw new IOException("Directories, reparse points and hard-linked files are excluded");
                 Identity = info.Volume.ToString("X8") + "-" + info.IndexHigh.ToString("X8") + info.IndexLow.ToString("X8");
                 using (SafeFileHandle alias = new SafeFileHandle(handle.DangerousGetHandle(), false))
                 using (FileStream stream = new FileStream(alias, FileAccess.Read))

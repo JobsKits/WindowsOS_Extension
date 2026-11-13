@@ -5,6 +5,14 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
 . (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
+. (Join-Path $PSScriptRoot 'AndroidRuntime.ps1')
+. (Join-Path $PSScriptRoot 'RunPreflight.ps1/RunPreflight.ps1')
+. (Join-Path $PSScriptRoot 'RunPreflight.ps1/StartVirtualDevice.ps1/StartVirtualDevice.ps1')
+. (Join-Path $PSScriptRoot 'RunPreflight.ps1/StartVirtualDevice.ps1/OfficialHarmonyTools.ps1/OfficialHarmonyTools.ps1')
+$script:RunnerSelectedSdk = $null
+$script:RunnerSelectedPlatform = $null
+$script:RunnerPreflight = $null
+$script:RunnerPreparedHarmony = $null
 
 function Assert-JobsRunnerDirectory {
     param([string]$Path)
@@ -353,6 +361,7 @@ function Get-JobsRunnerSupportedDevices {
         if ($null -ne $device.PSObject.Properties['isSupported'] -and -not $device.isSupported) { continue }
         $platform = [string]$device.targetPlatform
         if ($platform -eq 'android' -and ((Test-Path -LiteralPath (Join-Path $Project 'android') -PathType Container) -or (Test-Path -LiteralPath (Join-Path $Project '.android') -PathType Container))) { $device }
+        elseif ($platform -match '^(?:ohos|openharmony)(?:-|$)' -and (Test-Path -LiteralPath (Join-Path $Project 'ohos') -PathType Container)) { $device }
         elseif ($platform -like 'windows-*' -and (Test-Path -LiteralPath (Join-Path $Project 'windows') -PathType Container)) { $device }
         elseif ($platform -eq 'web-javascript' -and (Test-Path -LiteralPath (Join-Path $Project 'web') -PathType Container)) { $device }
     }
@@ -369,46 +378,194 @@ function Get-JobsRunnerAndroidEmulator {
     return Find-JobsExecutable 'emulator.exe'
 }
 
+# fzf 单选共享返回与取消语义。
+function Test-JobsRunnerInteractiveMenu {
+    return ([Environment]::UserInteractive -and $Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+}
+
+function Select-JobsRunnerChoice {
+    param([string]$Title, [string[]]$Items, [switch]$Back)
+    if ($Items.Count -eq 0) { throw ('没有可选择的项目：' + $Title) }
+    if ($env:JOBS_FLUTTER_RUNNER_FZF -ceq '0' -or -not (Test-JobsRunnerInteractiveMenu)) { return Select-JobsRunnerTextChoice $Title $Items -Back:$Back }
+    $fzf = Find-JobsExecutable 'fzf.exe' @('fzf')
+    if (-not $fzf) { throw '交互设备选择需要 fzf，但未找到可执行文件；本轮未启动。请修复 fzf 后重试；需要文本模式时须显式设置 JOBS_FLUTTER_RUNNER_FZF=0。' }
+    $version = Invoke-JobsProcess $fzf @('--version') -TimeoutSeconds 10
+    $help = Invoke-JobsProcess $fzf @('--help') -TimeoutSeconds 10
+    if ($version.ExitCode -ne 0 -or $help.ExitCode -ne 0 -or ($help.StdOut -notmatch '--bind' -or $help.StdOut -notmatch '--expect')) { throw 'fzf 交互能力体检未通过，本轮未启动。请修复 fzf 后重试；需要文本模式时须显式设置 JOBS_FLUTTER_RUNNER_FZF=0。' }
+    $labels = @()
+    for ($index = 0; $index -lt $Items.Count; $index++) { $labels += ('{0}  {1}' -f ($index + 1), $Items[$index]) }
+    $header = '↑/↓ 选择；输入筛选；Enter 确认；Esc 取消'
+    $arguments = @('--no-multi', '--height=80%', '--layout=reverse', '--border', ('--prompt=' + $Title + '> '))
+    $bindings = 'up:up,down:down'
+    if ($Back) { $header += '；← 返回上一层'; $bindings += ',left:accept'; $arguments += '--expect=left' }
+    $arguments += '--bind=' + $bindings
+    $arguments += '--header=' + $header
+    $previousEncoding = $OutputEncoding
+    try {
+        $OutputEncoding = New-Object Text.UTF8Encoding($false)
+        $result = @($labels | & $fzf @arguments)
+        $code = $LASTEXITCODE
+    } finally { $OutputEncoding = $previousEncoding }
+    # 即使过滤结果为空（退出码 1），也先处理显式返回键。
+    if ($Back -and $result.Count -gt 0 -and $result[0] -ceq 'left') { return [pscustomobject]@{ Kind = 'Back'; Index = -1 } }
+    if ($code -in @(1, 130)) { return $null }
+    if ($code -ne 0) { throw ('fzf 选择失败，退出码 ' + $code) }
+    $selected = @($result | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($selected.Count -ne 1 -or $selected[0] -notin $labels) { throw '选择器返回未知或空选择，未执行业务。' }
+    return [pscustomobject]@{ Kind = 'Selected'; Index = [Array]::IndexOf($labels, $selected[0]) }
+}
+
+
+# 固定使用系统 Windows PowerShell，避免复用 ISE 等不能承接 -File 的宿主。
+function Get-JobsRunnerCreatorPowerShell {
+    $powershell = Join-Path ([Environment]::GetFolderPath('System')) 'WindowsPowerShell/v1.0/powershell.exe'
+    if (-not (Test-Path -LiteralPath $powershell -PathType Leaf)) { throw '缺少 Windows PowerShell，无法调用模拟器创建入口。' }
+    return $powershell
+}
+# 等待创建器返回的精确设备进入 Flutter；其它设备不能替代本次目标。
+function Wait-JobsRunnerSelectedDevice {
+    param([string]$Flutter, [string]$Project, $Target, [int]$TimeoutSeconds = 180)
+    $supported = if ($Target.Platform -ceq 'Android') {
+        (Test-Path -LiteralPath (Join-Path $Project 'android') -PathType Container) -or (Test-Path -LiteralPath (Join-Path $Project '.android') -PathType Container)
+    } else { Test-Path -LiteralPath (Join-Path $Project 'ohos') -PathType Container }
+    if (-not $supported) {
+        Write-Host ('模拟器已保留；当前工程没有 ' + $Target.Platform + ' 平台目录，未运行应用。') -ForegroundColor Yellow
+        return $null
+    }
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    do {
+        $devices = @()
+        try { $devices = @(Get-JobsRunnerSupportedDevices @(ConvertFrom-JobsRunnerList (Invoke-JobsRunnerTool $Flutter @('devices', '--machine') $Project 15)) $Project) }
+        catch [Management.Automation.PipelineStoppedException] { throw }
+        catch { Write-Host ('设备发现尚未就绪：' + $_.Exception.Message) -ForegroundColor Yellow }
+        $matches = @($devices | Where-Object { $_.id -ceq $Target.Id -and (($Target.Platform -ceq 'Android' -and $_.targetPlatform -ceq 'android') -or ($Target.Platform -ceq 'Harmony' -and $_.targetPlatform -match '^(?:ohos|openharmony)(?:-|$)')) })
+        if ($matches.Count -gt 1) { throw 'Flutter 返回重复目标 ID；保留模拟器，未运行应用。' }
+        if ($matches.Count -eq 1) {
+            $script:RunnerSelectedPlatform = [string]$matches[0].targetPlatform
+            Write-Host ('设备已就绪，继续运行当前工程：' + $Target.Id) -ForegroundColor Green
+            return [string]$matches[0].id
+        }
+        if ([DateTime]::UtcNow -ge $deadline) { break }
+        Write-Host ('等待 Flutter 识别本次模拟器：' + $Target.Id + '；Ctrl+C 取消等待。')
+        Start-Sleep -Seconds 2
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw ('等待 Flutter 识别目标超时：' + $Target.Id + '；模拟器已保留，未运行其它设备。请检查 flutter doctor 后重试。')
+}
+# 调用随包创建器；结果文件仅由成功创建并启动的子进程写入。
+function New-JobsRunnerSimulator {
+    param([ValidateSet('Android', 'Harmony')][string]$Platform)
+    $creator = Join-Path $PSScriptRoot ('SimulatorCreators/' + $Platform + '/Scripts/Create' + $Platform + 'Simulator.ps1')
+    if (-not (Test-Path -LiteralPath $creator -PathType Leaf)) { throw ('随包模拟器创建入口缺失，请更新本功能：' + $creator) }
+    $powershell = Get-JobsRunnerCreatorPowerShell
+    $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $creator)
+    if ($Platform -ceq 'Android') { $arguments += '-Create' }
+    $directory = Join-Path ([IO.Path]::GetTempPath()) ('JobsCreatedDevice-' + [guid]::NewGuid().ToString('N'))
+    [void][IO.Directory]::CreateDirectory($directory)
+    $receipt = Join-Path $directory 'device.tsv'
+    $hadReceipt = Test-Path Env:JOBS_FLUTTER_CREATED_DEVICE_FILE
+    $savedReceipt = $env:JOBS_FLUTTER_CREATED_DEVICE_FILE
+    try {
+        $env:JOBS_FLUTTER_CREATED_DEVICE_FILE = $receipt
+        & $powershell @arguments | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host ('创建流程已取消或失败（退出码 ' + $LASTEXITCODE + '）；保留设备与日志，未运行应用。') -ForegroundColor Yellow
+            return $null
+        }
+        if (-not [IO.File]::Exists($receipt)) {
+            Write-Host '创建流程未返回已启动目标（可能取消或跳过启动）；未运行应用。' -ForegroundColor Yellow
+            return $null
+        }
+        $text = [IO.File]::ReadAllText($receipt)
+        if ($text -cnotmatch '^(Android|Harmony)\t([^\x00-\x20]+)\r?\n?$' -or $Matches[1] -cne $Platform) { throw '创建器结果无效或平台不匹配；未运行应用。' }
+        $id = $Matches[2]
+        if (($Platform -ceq 'Android' -and $id -cnotmatch '^emulator-[0-9]+$') -or ($Platform -ceq 'Harmony' -and $id -cnotmatch '^127\.0\.0\.1:[0-9]+$')) { throw '创建器未返回可靠设备 ID；未运行应用。' }
+        return [pscustomobject]@{ Platform = $Platform; Id = $id }
+    } finally {
+        if ($hadReceipt) { $env:JOBS_FLUTTER_CREATED_DEVICE_FILE = $savedReceipt }
+        else { Remove-Item Env:JOBS_FLUTTER_CREATED_DEVICE_FILE -ErrorAction SilentlyContinue }
+        if ([IO.File]::Exists($receipt)) { [IO.File]::Delete($receipt) }
+        [IO.Directory]::Delete($directory)
+    }
+}
+# 根层按已有 / 启动虚拟设备 / 新建分组；创建成功后精确等待目标并承接本次运行。
 function Select-JobsRunnerDevice {
     param([string]$Flutter, [string]$Project)
+    $script:RunnerSelectedSdk = $null
+    $script:RunnerSelectedPlatform = $null
+    $script:RunnerPreparedHarmony = $null
+    $layer = 'Root'
     while ($true) {
-        Write-Host '正在读取 Flutter 设备和 Android 模拟器……'
-        $allDevices = @(ConvertFrom-JobsRunnerList (Invoke-JobsRunnerTool $Flutter @('devices', '--machine') $Project))
-        $devices = @(Get-JobsRunnerSupportedDevices $allDevices $Project)
-        $emulators = @()
-        $androidEmulator = Get-JobsRunnerAndroidEmulator
-        if ($androidEmulator -and ((Test-Path -LiteralPath (Join-Path $Project 'android') -PathType Container) -or (Test-Path -LiteralPath (Join-Path $Project '.android') -PathType Container))) {
-            try { $emulators = @((Invoke-JobsRunnerTool $androidEmulator @('-list-avds') $Project) -split '\r?\n' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) }
-            catch { Write-Host ('模拟器列表暂不可用：' + $_.Exception.Message) -ForegroundColor Yellow }
+        Write-Host '正在读取 Flutter 运行设备……'
+        $devices = @()
+        try { $devices = @(Get-JobsRunnerSupportedDevices @(ConvertFrom-JobsRunnerList (Invoke-JobsRunnerTool $Flutter @('devices', '--machine') $Project)) $Project) }
+        catch [Management.Automation.PipelineStoppedException] { throw }
+        catch [OperationCanceledException] { throw }
+        catch { Write-Host ('设备查询暂不可用，可重新加载或新建设备：' + $_.Exception.Message) -ForegroundColor Yellow }
+        $android = (Test-Path -LiteralPath (Join-Path $Project 'android') -PathType Container) -or (Test-Path -LiteralPath (Join-Path $Project '.android') -PathType Container)
+        if ($layer -ceq 'Root') {
+            $selection = Select-JobsRunnerChoice '选择 Flutter 运行设备' @('目前已有的设备', '启动虚拟设备', '新建设备', '重新加载设备列表', '取消本轮')
+            if ($null -eq $selection -or $selection.Index -eq 4) { return $null }
+            if ($selection.Index -eq 0) { $layer = 'Existing' }
+            elseif ($selection.Index -eq 1) { $layer = 'Start' }
+            elseif ($selection.Index -eq 2) { $layer = 'Create' }
+            else { continue }
         }
         $choices = @()
-        foreach ($device in $devices) {
-            $choices += [pscustomobject]@{ Kind = 'Device'; Id = [string]$device.id; Platform = [string]$device.targetPlatform; Name = [string]$device.name }
+        if ($layer -ceq 'Existing') {
+            foreach ($device in $devices) { $choices += [pscustomobject]@{ Kind = 'Device'; Id = [string]$device.id; Platform = [string]$device.targetPlatform; Name = ([string]$device.name + ' · ' + [string]$device.targetPlatform + ' · ' + [string]$device.id) } }
+            $choices += @(Get-JobsRunnerHarmonyDiagnostics $devices $Project $script:RunnerPreflight)
+            if ($devices.Count -eq 0) { Write-Host '暂无可运行设备。可连接手机、启动已有模拟器，或返回“新建设备”，然后重新加载。' -ForegroundColor Yellow }
+            $choices += [pscustomobject]@{ Kind = 'Reload'; Name = '重新加载设备列表' }
+            $title = '目前已有的设备'
+        } elseif ($layer -ceq 'Start') {
+            $choices += [pscustomobject]@{ Kind='Start'; Platform='Android'; Name='启动Android模拟器' }
+            $choices += [pscustomobject]@{ Kind='Start'; Platform='Harmony'; Name='启动鸿蒙模拟器' }
+            $title = '启动虚拟设备'
+        } else {
+            $choices += [pscustomobject]@{ Kind = 'Create'; Platform = 'Android'; Name = '新建 Android 模拟器' }
+            $choices += [pscustomobject]@{ Kind = 'Create'; Platform = 'Harmony'; Name = '新建 Harmony 模拟器（鸿蒙）' }
+            Write-Host '创建本机模拟器不要求工程已有对应平台；Windows 不提供 iOS 本地模拟器。创建后仅列当前工程能运行的真实设备。'
+            $title = '新建设备'
         }
-        foreach ($emulator in $emulators) {
-            $choices += [pscustomobject]@{ Kind = 'Emulator'; Id = [string]$emulator; Name = ('启动 Android 模拟器 · ' + $emulator) }
+        $choices += [pscustomobject]@{ Kind = 'Back'; Name = '返回上一层' }
+        $selection = Select-JobsRunnerChoice $title @($choices | ForEach-Object { $_.Name }) -Back
+        if ($null -eq $selection) { return $null }
+        if ($selection.Kind -eq 'Back') { $layer = 'Root'; continue }
+        $selected = $choices[$selection.Index]
+        switch ($selected.Kind) {
+            'Device' {
+                if($selected.Platform-match'^(ohos|openharmony)(?:-|$)'-and($null-eq$script:RunnerPreflight-or-not$script:RunnerPreflight.ContainsKey('ohos')-or$script:RunnerPreflight.ohos.State-cne'ready')){
+                    return Start-JobsRunnerHarmonyPreparation $Flutter $Project $selected.Id
+                }
+                $script:RunnerSelectedPlatform = $selected.Platform
+                return $selected.Id
+            }
+            'HarmonyDiagnostic' {
+                Write-Host ('所选鸿蒙设备：'+$selected.Name)
+                return Start-JobsRunnerHarmonyPreparation $Flutter $Project $selected.Id
+            }
+            'Back' { $layer = 'Root' }
+            'Reload' { continue }
+            'Start' {
+                $target = if ($selected.Platform -ceq 'Android') { Start-JobsRunnerExistingAndroid $Flutter $Project } else { Start-JobsRunnerExistingHarmony $Flutter $Project }
+                if ($null -eq $target) { return $null }
+                if ($target.Kind -ceq 'Ready') {
+                    Set-JobsRunnerTaskEnvironment $target.Environment
+                    if ($selected.Platform -ceq 'Android') { $script:RunnerSelectedSdk=$target.Sdk }
+                    $script:RunnerSelectedPlatform=$target.Platform
+                    return $target.Id
+                }
+                $layer = 'Start'
+            }
+            'Create' {
+                $target = New-JobsRunnerSimulator $selected.Platform
+                if ($null -ne $target) {
+                    $ready = Wait-JobsRunnerSelectedDevice $Flutter $Project $target
+                    if ($null -ne $ready) { return $ready }
+                }
+                $layer = 'Root'
+            }
         }
-        if ($choices.Count -eq 0) {
-            Write-Host '暂无可用设备。连接手机、启动 Android 模拟器或安装对应桌面 / 浏览器工具链后重新加载。' -ForegroundColor Yellow
-        }
-        for ($index = 0; $index -lt $choices.Count; $index++) { Write-Host ('[' + ($index + 1) + '] ' + $choices[$index].Name + ' (' + $choices[$index].Id + ')') }
-        $answer = Read-Host '[r] 重新加载  [q] 取消；输入设备序号'
-        if ($null -eq $answer -or $answer -ceq 'q') { return $null }
-        if ($answer -ceq 'r') { continue }
-        $number = 0
-        if (-not [int]::TryParse($answer, [ref]$number) -or $number -lt 1 -or $number -gt $choices.Count) { continue }
-        $choice = $choices[$number - 1]
-        if ($choice.Kind -eq 'Device') { $script:RunnerSelectedPlatform = $choice.Platform; return $choice.Id }
-        Write-Host ('启动：' + $choice.Name)
-        $start = New-Object Diagnostics.ProcessStartInfo
-        $start.FileName = $androidEmulator
-        $start.Arguments = '-avd ' + (Quote-JobsArgument $choice.Id)
-        $start.UseShellExecute = $false
-        $start.CreateNoWindow = $true
-        $start.WorkingDirectory = $Project
-        [void][Diagnostics.Process]::Start($start)
-        Write-Host '模拟器已收到启动请求。等待启动完成后按回车重新加载，再选择实际运行设备。'
-        if ($null -eq (Read-Host)) { return $null }
     }
 }
 
@@ -513,7 +670,11 @@ function Initialize-JobsRunnerDiscoverySdk {
 # 在启动业务前补齐当前目标的引擎制品，不通过重放 flutter run 补环境。
 function Initialize-JobsRunnerPlatformSdk {
     param([string]$Flutter,[string]$Project,[string]$Platform)
-    $target = if ($Platform -ceq 'android') { 'android' } elseif ($Platform -like 'windows-*') { 'windows' } elseif ($Platform -ceq 'web-javascript') { 'web' } else { throw ('无法确定所选设备的平台缓存：' + $Platform) }
+    $target = if ($Platform -ceq 'android') { 'android' } elseif ($Platform -like 'windows-*') { 'windows' } elseif ($Platform -ceq 'web-javascript') { 'web' } elseif ($Platform -match '^(?:ohos|openharmony)(?:-|$)') { 'ohos' } else { throw ('无法确定所选设备的平台缓存：' + $Platform) }
+    if ($target -ceq 'ohos') {
+        $help = Invoke-JobsRunnerTool $Flutter @('precache', '--help') $Project 30
+        if ($help -notmatch '--(?:\[no-\])?ohos\b') { throw '当前 Flutter SDK 不支持 precache --ohos，请先绑定鸿蒙适配 SDK。' }
+    }
     [void](Invoke-JobsRunnerTool $Flutter @('precache',('--'+$target)) $Project 120)
 }
 
@@ -524,7 +685,8 @@ function Invoke-JobsFlutterRunAction {
     Write-Host 'Jobs · 从终端运行 Flutter 项目（CMD）' -ForegroundColor Red
     Write-Host ('来源：' + $PSScriptRoot) -ForegroundColor Cyan
     Write-Host ('项目：' + $Target)
-    Write-Host '设备选择后启动 flutter run --machine；运行日志进入 CMD 和本功能日志目录。'
+    Write-Host '先展示 iOS / Android / 鸿蒙环境体检，仅所选平台全部通过才启动 flutter run --machine。'
+    Write-Host '设备按“目前已有的设备 / 启动虚拟设备 / 新建设备”分组；子层 ← 返回，Esc 取消。新建 Android / Harmony 复用桌面创建入口，目标就绪后自动运行当前工程，取消或失败不运行。'
     Write-Host '关闭 CMD 不停止项目；重新右键可重连日志，r / R 热重载 / 热重启，s 停止。'
     $projectRoot = Get-JobsRunnerProjectRoot $Target
     $existing = Get-JobsRunnerSession $projectRoot
@@ -534,10 +696,22 @@ function Invoke-JobsFlutterRunAction {
     Write-Host ('Flutter：' + $flutter)
     try { $version = ConvertFrom-JobsSdkMachineOutput $health; Write-Host ('版本：' + $version.frameworkVersion) } catch { throw 'Flutter SDK 体检失败，请先运行 flutter doctor。' }
     Initialize-JobsRunnerDiscoverySdk $flutter $Target
-    $device = Select-JobsRunnerDevice $flutter $Target
-    if ($null -eq $device) { return }
-    $session = Start-JobsRunnerSession $Target $flutter $device $projectRoot
-    Show-JobsRunnerLog $session
+    $preflight = Get-JobsRunnerPreflight $flutter $Target
+    $script:RunnerPreflight = $preflight
+    Write-JobsRunnerPreflight $preflight
+    Assert-JobsRunnerPreflight $preflight
+    $taskEnvironment=Get-JobsRunnerTaskEnvironment
+    try {
+        $device = Select-JobsRunnerDevice $flutter $Target
+        if ($null -eq $device) { return }
+        if($script:RunnerPreparedHarmony){$flutter=$script:RunnerPreparedHarmony.Flutter}
+        $preflight = Get-JobsRunnerPreflight $flutter $Target
+        Write-JobsRunnerPreflight $preflight
+        Assert-JobsRunnerPreflight $preflight $script:RunnerSelectedPlatform
+        Initialize-JobsRunnerPlatformSdk $flutter $Target $script:RunnerSelectedPlatform
+        $session = Start-JobsRunnerSession $Target $flutter $device $projectRoot
+        Show-JobsRunnerLog $session
+    } finally { Restore-JobsRunnerTaskEnvironment $taskEnvironment }
 }
 
 function Invoke-JobsFeature {

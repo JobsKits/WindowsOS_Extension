@@ -1,4 +1,4 @@
-# JobsRunAuthorizationRevoker · 解除运行授权
+# JobsRunAuthorizationRevoker · 移除执行权限
 
 ![Jobs出品，必属精品](https://picsum.photos/1500/400)
 
@@ -23,10 +23,10 @@
 
 > **最低支持系统：Windows 10 x64。** Windows 5.1 / MSVC / Explorer 与实际 NTFS ACL 行为仍须目标机验收；不声明已验证最低 build。
 
-对一个可执行文件或脚本显示“**🔓 解除运行授权**”，在独立终端核对路径并输入精确 `YES` 才修改。通过 [**Windows 文件 ACL**](https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights) 管理当前用户 `ExecuteFile`（执行文件）权限；不执行所选文件。
+对任意一个普通文件显示“**➖ 移除执行权限**”，在独立终端核对路径并输入精确 `YES` 才修改。通过 [**Windows 文件 ACL**](https://learn.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights) 管理当前用户 `ExecuteFile`（执行文件）权限；不执行所选文件。
 
 
-**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / English / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
 
 **两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
 
@@ -43,9 +43,9 @@
 | 重复同向操作 | 核对记录、身份与有效权限，匹配时不重复写入。 |
 | 外部 DACL 或文件身份变化 | 停止并保留现场，不用旧快照覆盖新规则。 |
 
-只支持本机 NTFS 的可执行或脚本格式普通单文件；目录、多选、背景、符号链接、联接、硬链接、UNC、设备路径及备用数据流均排除。原生菜单先按可执行或脚本扩展名过滤，README.md、txt、图片、压缩包等普通数据文件不显示两项权限菜单；业务再次核验格式、卷、父路径和硬链接数。其它用户、其它权限、继承设置、所有者、来源标记、PowerShell 执行策略和全局安全设置不变。保留读取权限的解释器仍可读取脚本并执行内容；`ExecuteFile` 撤权不是全面防执行隔离。文件扩展名和系统关联也不会因授权改变。
+只支持本机 NTFS 的任意普通单文件；目录、多选、背景、符号链接、联接、硬链接、UNC、设备路径及备用数据流均排除。不再按扩展名过滤，README.md、txt、图片、压缩包和无扩展名文件同样适用；业务再次核验卷、父路径和硬链接数。其它用户、其它权限、继承设置、所有者、来源标记、PowerShell 执行策略和全局安全设置不变。保留读取权限的解释器仍可读取脚本并执行内容；`ExecuteFile` 撤权不是全面防执行隔离。文件扩展名和系统关联也不会因授权改变。
 
-支持的格式为 `exe / com / scr / cpl / bat / cmd / ps1 / vbs / vbe / js / jse / wsf / wsh / hta / py / pyw / pl / rb / sh / bash / zsh / fish / ksh / csh / tcsh / php / lua / command`，扩展名不区分大小写；系统是否已安装对应解释器需另行满足。两个包均安装后，适用文件始终显示“🔒 运行授权”和“🔓 解除运行授权”：已有当前用户有效 ExecuteFile 时前者置灰、后者可点；没有时相反；权限无法可靠读取时两项都置灰。打开菜单和点击时重新检查状态，已达目标状态不重复写入。
+授予 / 移除执行权限只改变当前用户 Windows `ExecuteFile` ACL；Windows 没有 POSIX `chmod +x / -x` 执行位，普通数据文件获授执行权限也不会转为可运行程序；文件格式与解释器仍需满足系统要求。两个包均安装后，适用文件始终显示“➕ 授予执行权限”和“➖ 移除执行权限”：已有当前用户有效 ExecuteFile 时前者置灰、后者可点；没有时相反；权限无法可靠读取时两项都置灰。打开菜单和点击时重新检查状态，已达目标状态不重复写入。
 
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、安装与独立运行 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 

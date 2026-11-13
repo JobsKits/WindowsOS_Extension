@@ -1,0 +1,11 @@
+{
+  "Id": "file-hash",
+  "Name": "JobsFileHasher",
+  "Label": "🔎 查看文件指纹 Hash（SHA-256）",
+  "Description": "单个普通文件在新终端显示 SHA-256，并自动复制纯摘要；不修改或执行文件。",
+  "DirectoryOnly": false,
+  "Console": true,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

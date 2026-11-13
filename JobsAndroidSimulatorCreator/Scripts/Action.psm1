@@ -1,5 +1,67 @@
 ﻿# Action.psm1 | JobsAndroidSimulatorCreator
 # Created by Jobs on 2026年10月22日，星期四.
+
+# Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
+function Test-JobsEnterChoiceColor {
+    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $false }
+    $consoleType = [Console]
+    if ($null -eq $consoleType.GetProperty('IsInputRedirected') -or $null -eq $consoleType.GetProperty('IsOutputRedirected')) { return $false }
+    return ($Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+}
+# Older hosts keep native colors without sending unsupported bold escape sequences.
+function Test-JobsEnterChoiceBold {
+    $property = $Host.UI.PSObject.Properties['SupportsVirtualTerminal']
+    return ($null -ne $property -and [bool]$property.Value)
+}
+# Separate ordinary question text from Enter and arbitrary-input options without changing words.
+function Get-JobsEnterChoiceParts {
+    param([string]$Text)
+    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)'
+    $green = '(?:(?:\u76f4\u63a5|\u53ea\u9700|\u4ec5(?:\u9700)?|\u6309(?:\u4e0b)?|\u7a7a)?\s*\u56de\u8f66|(?:press\s+)?\bEnter\b(?!\s+(?:YES|REPAIR|CLEAN|CONTINUE)\b))'
+    $pattern = '(?is)(?<red>(?:' + $red + ')[^;\uFF1B\r\n]*?(?=[;\uFF1B\r\n]|\z))|(?<green>(?:' + $green + ')[^;\uFF1B\r\n]*?(?=(?:' + $red + ')|[;\uFF1B\r\n]|\z))'
+    $offset = 0
+    foreach ($match in [regex]::Matches($Text, $pattern)) {
+        if ($match.Index -gt $offset) { [pscustomobject]@{ Text = $Text.Substring($offset, $match.Index - $offset); Color = '' } }
+        $prefix = [regex]::Split($Text.Substring(0, $match.Index), '[;\uFF1B\r\n]')[-1]
+        $typed = $prefix -match '(?i)(?:\u8f93\u5165|\u952e\u5165|type|enter)\s*(?:\u5927\u5199\s*)?(?:YES|REPAIR|CLEAN|CONTINUE)\b|\u7cbe\u786e\u8f93\u5165|\u8f93\u5165[^;\uFF1B\r\n]*[\u540e\u518d]\s*$'
+        $color = if ($match.Groups['red'].Success) { 'Red' } elseif ($typed) { '' } else { 'Green' }
+        [pscustomobject]@{ Text = $match.Value; Color = $color }
+        $offset = $match.Index + $match.Length
+    }
+    if ($offset -lt $Text.Length) { [pscustomobject]@{ Text = $Text.Substring($offset); Color = '' } }
+}
+# Native host text remains plain in information streams and logs; bold control is console-only.
+function Write-JobsEnterChoiceText {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ')
+    $text = if ($Object -is [array]) { $Object -join [string]$Separator } else { [string]$Object }
+    if (-not (Test-JobsEnterChoiceColor)) {
+        Write-Host $Object -NoNewline:$NoNewline -Separator $Separator
+        return
+    }
+    $normal = @{}
+    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $normal.ForegroundColor = $ForegroundColor }
+    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $normal.BackgroundColor = $BackgroundColor }
+    foreach ($part in @(Get-JobsEnterChoiceParts $text)) {
+        if (-not $part.Color) { Write-Host $part.Text -NoNewline @normal; continue }
+        $bold = Test-JobsEnterChoiceBold
+        if ($bold) { [Console]::Write(([string][char]27) + '[1m') }
+        try { Write-Host $part.Text -ForegroundColor $part.Color -NoNewline }
+        finally { if ($bold) { [Console]::Write(([string][char]27) + '[0m') } }
+    }
+    if (-not $NoNewline) { Write-Host }
+}
+# Delegate the original reader, including secure input and EOF behavior, after prompt display.
+function Read-JobsEnterChoiceHost {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][string]$Prompt, [switch]$AsSecureString, [switch]$MaskInput)
+    if ($AsSecureString -or $MaskInput -or -not (Test-JobsEnterChoiceColor) -or @((Get-JobsEnterChoiceParts $Prompt) | Where-Object { $_.Color }).Count -eq 0) {
+        return (Read-Host @PSBoundParameters)
+    }
+    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline
+    return (Read-Host)
+}
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
@@ -21,7 +83,7 @@ function Read-JobsAndroidChoice {
 function Read-JobsAndroidInput {
     param([string]$Prompt)
     # Console.ReadLine 能区分 EOF 与真正回车，重定向 / 无交互时不执行默认动作。
-    Write-Host ($Prompt + '：') -NoNewline
+    Write-JobsEnterChoiceText ($Prompt + '：') -NoNewline
     $answer = [Console]::ReadLine()
     if ($null -eq $answer) { throw '输入已结束，停止操作。' }
     return $answer
@@ -405,7 +467,7 @@ function Start-JobsAndroidAvd {
             $serial = $Matches[1]
             $avd = Invoke-JobsProcess -FilePath $adb -Arguments @('-s', $serial, 'emu', 'avd', 'name') -TimeoutSeconds 15
             if ($avd.ExitCode -eq 0 -and @($avd.StdOut -split '\r?\n')[0].Trim() -ceq $Name) {
-                if (Test-JobsAndroidBoot $adb $serial $Name) { Write-Host ('模拟器已运行：' + $Name); return }
+                if (Test-JobsAndroidBoot $adb $serial $Name) { Write-Host ('模拟器已运行：' + $Name); return $serial }
                 throw ('该 AVD 已在启动中，请稍后检查：' + $Name)
             }
         }
@@ -429,7 +491,7 @@ function Start-JobsAndroidAvd {
     try {
         while ([DateTime]::UtcNow -lt $deadline) {
             if ($process.HasExited) { throw ('模拟器退出，退出码 ' + $process.ExitCode + '；日志：' + $prefix + '.stderr.log') }
-            if (Test-JobsAndroidBoot $adb ('emulator-' + $port) $Name) { Write-Host ('Android 模拟器已就绪：' + $Name) -ForegroundColor Green; return }
+            if (Test-JobsAndroidBoot $adb ('emulator-' + $port) $Name) { Write-Host ('Android 模拟器已就绪：' + $Name) -ForegroundColor Green; return ('emulator-' + $port) }
             Start-Sleep -Seconds 2
         }
         throw ('等待启动超时；保留 AVD / 进程，请查看日志：' + $prefix + '.stderr.log')
@@ -495,7 +557,11 @@ function Invoke-JobsAndroidSimulatorAction {
             if ($created.ExitCode -ne 0 -or $name -notin @($created.StdOut -split '\r?\n')) { throw ('创建后未在 AVD 清单找到 ' + $name + '，停止。') }
             Write-JobsLog ('Created Android AVD ' + $name)
         }
-        Start-JobsAndroidAvd $sdk $name
+        $serial = Start-JobsAndroidAvd $sdk $name
+        if ($env:JOBS_FLUTTER_CREATED_DEVICE_FILE -and $Create) {
+            if ($serial -cnotmatch '^emulator-[0-9]+$') { throw '模拟器已创建，但未确认可靠 Android serial；未返回运行目标。' }
+            [IO.File]::WriteAllText($env:JOBS_FLUTTER_CREATED_DEVICE_FILE, "Android`t$serial`n", (New-Object Text.UTF8Encoding($false)))
+        }
     } finally { $env:ANDROID_HOME = $oldAndroidHome; $env:JAVA_HOME = $oldJavaHome; $env:ANDROID_SDK_ROOT = $oldSdkRoot }
 }
 function Invoke-JobsFeature {

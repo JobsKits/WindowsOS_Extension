@@ -1,6 +1,68 @@
 ﻿# HarmonySdk.psm1 | JobsFlutterTools
 # Created by Jobs on 2026年10月23日，星期五.
 # 项目级 OpenHarmony Flutter 缓存与 FVM 绑定；不改全局 SDK 或环境。
+
+# Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
+function Test-JobsEnterChoiceColor {
+    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $false }
+    $consoleType = [Console]
+    if ($null -eq $consoleType.GetProperty('IsInputRedirected') -or $null -eq $consoleType.GetProperty('IsOutputRedirected')) { return $false }
+    return ($Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+}
+# Older hosts keep native colors without sending unsupported bold escape sequences.
+function Test-JobsEnterChoiceBold {
+    $property = $Host.UI.PSObject.Properties['SupportsVirtualTerminal']
+    return ($null -ne $property -and [bool]$property.Value)
+}
+# Separate ordinary question text from Enter and arbitrary-input options without changing words.
+function Get-JobsEnterChoiceParts {
+    param([string]$Text)
+    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)'
+    $green = '(?:(?:\u76f4\u63a5|\u53ea\u9700|\u4ec5(?:\u9700)?|\u6309(?:\u4e0b)?|\u7a7a)?\s*\u56de\u8f66|(?:press\s+)?\bEnter\b(?!\s+(?:YES|REPAIR|CLEAN|CONTINUE)\b))'
+    $pattern = '(?is)(?<red>(?:' + $red + ')[^;\uFF1B\r\n]*?(?=[;\uFF1B\r\n]|\z))|(?<green>(?:' + $green + ')[^;\uFF1B\r\n]*?(?=(?:' + $red + ')|[;\uFF1B\r\n]|\z))'
+    $offset = 0
+    foreach ($match in [regex]::Matches($Text, $pattern)) {
+        if ($match.Index -gt $offset) { [pscustomobject]@{ Text = $Text.Substring($offset, $match.Index - $offset); Color = '' } }
+        $prefix = [regex]::Split($Text.Substring(0, $match.Index), '[;\uFF1B\r\n]')[-1]
+        $typed = $prefix -match '(?i)(?:\u8f93\u5165|\u952e\u5165|type|enter)\s*(?:\u5927\u5199\s*)?(?:YES|REPAIR|CLEAN|CONTINUE)\b|\u7cbe\u786e\u8f93\u5165|\u8f93\u5165[^;\uFF1B\r\n]*[\u540e\u518d]\s*$'
+        $color = if ($match.Groups['red'].Success) { 'Red' } elseif ($typed) { '' } else { 'Green' }
+        [pscustomobject]@{ Text = $match.Value; Color = $color }
+        $offset = $match.Index + $match.Length
+    }
+    if ($offset -lt $Text.Length) { [pscustomobject]@{ Text = $Text.Substring($offset); Color = '' } }
+}
+# Native host text remains plain in information streams and logs; bold control is console-only.
+function Write-JobsEnterChoiceText {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ')
+    $text = if ($Object -is [array]) { $Object -join [string]$Separator } else { [string]$Object }
+    if (-not (Test-JobsEnterChoiceColor)) {
+        Write-Host $Object -NoNewline:$NoNewline -Separator $Separator
+        return
+    }
+    $normal = @{}
+    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $normal.ForegroundColor = $ForegroundColor }
+    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $normal.BackgroundColor = $BackgroundColor }
+    foreach ($part in @(Get-JobsEnterChoiceParts $text)) {
+        if (-not $part.Color) { Write-Host $part.Text -NoNewline @normal; continue }
+        $bold = Test-JobsEnterChoiceBold
+        if ($bold) { [Console]::Write(([string][char]27) + '[1m') }
+        try { Write-Host $part.Text -ForegroundColor $part.Color -NoNewline }
+        finally { if ($bold) { [Console]::Write(([string][char]27) + '[0m') } }
+    }
+    if (-not $NoNewline) { Write-Host }
+}
+# Delegate the original reader, including secure input and EOF behavior, after prompt display.
+function Read-JobsEnterChoiceHost {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][string]$Prompt, [switch]$AsSecureString, [switch]$MaskInput)
+    if ($AsSecureString -or $MaskInput -or -not (Test-JobsEnterChoiceColor) -or @((Get-JobsEnterChoiceParts $Prompt) | Where-Object { $_.Color }).Count -eq 0) {
+        return (Read-Host @PSBoundParameters)
+    }
+    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline
+    return (Read-Host)
+}
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
@@ -314,7 +376,7 @@ function Invoke-JobsHarmonySdkAction {
         if ((Resolve-JobsHarmonyCommit $refs $choice.Ref) -cne $choice.Commit) { throw '所选 tag 在选择期间改变，请重新选择。' }
         Write-Host ('计划：' + $choice.Ref + ' → ' + $choice.Commit + '；缓存：' + $cache)
         Write-Host 'FVM 先在影子项目初始化并核验；真实项目仅更新 .fvmrc 和 .fvm/flutter_sdk。IDE、ignore、业务源码及其它元数据保持原样。'
-        if ((Read-Host '回车安装/切换；任意非空输入取消') -ne '') { if ($RequireCompletion) { throw '已取消鸿蒙 SDK 准备，未继续依赖操作。' }; Write-Host '已取消，项目未修改。'; return }
+        if ((Read-JobsEnterChoiceHost '回车安装/切换；任意非空输入取消') -ne '') { if ($RequireCompletion) { throw '已取消鸿蒙 SDK 准备，未继续依赖操作。' }; Write-Host '已取消，项目未修改。'; return }
         Assert-JobsHarmonyBindingPaths $project
         if ((Get-JobsHarmonyBindingStamp $project) -cne $stamp) { throw '选版期间项目配置已改变，请重新打开。' }
         $sdk = Install-JobsHarmonySdk $chain.Git $choice $cache $project
@@ -400,7 +462,7 @@ function Invoke-JobsNativeSdkFromHarmony {
         $choice = & $script:HarmonyManager { param($Fzf,$Choices,$Path) Select-JobsFlutterVersion $Fzf $Choices $Path } $chain.Fzf $choices $inspection
         if ($null -eq $choice) { Write-Host '已取消，OpenHarmony 绑定保持原样。'; return }
         Write-Host ('计划：OpenHarmony → 官方 Flutter ' + $choice.Version + '；来源：' + $official + '；缓存：' + $cache)
-        if ((Read-Host '回车安装/切回原生 Flutter；任意非空输入取消') -ne '') { Write-Host '已取消，OpenHarmony 绑定保持原样。'; return }
+        if ((Read-JobsEnterChoiceHost '回车安装/切回原生 Flutter；任意非空输入取消') -ne '') { Write-Host '已取消，OpenHarmony 绑定保持原样。'; return }
         Assert-JobsHarmonyBindingPaths $project
         if ((Get-JobsHarmonyBindingStamp $project) -cne $stamp) { throw '选版期间真实项目绑定已改变，未发布。' }
         & $script:HarmonyManager { param($Path,$Version) Set-JobsProjectFvmVersion $Path $Version } $inspection $choice.Version

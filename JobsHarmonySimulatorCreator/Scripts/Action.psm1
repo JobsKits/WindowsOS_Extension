@@ -1,6 +1,68 @@
 ﻿# Action.psm1 | JobsHarmonySimulatorCreator
 # Created by Jobs on 2026年10月23日，星期五.
 # 通过 SDL 补齐工具，再由官方 Emulator 下载镜像；展示许可原文后由用户回车同意。
+
+# Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
+function Test-JobsEnterChoiceColor {
+    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $false }
+    $consoleType = [Console]
+    if ($null -eq $consoleType.GetProperty('IsInputRedirected') -or $null -eq $consoleType.GetProperty('IsOutputRedirected')) { return $false }
+    return ($Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+}
+# Older hosts keep native colors without sending unsupported bold escape sequences.
+function Test-JobsEnterChoiceBold {
+    $property = $Host.UI.PSObject.Properties['SupportsVirtualTerminal']
+    return ($null -ne $property -and [bool]$property.Value)
+}
+# Separate ordinary question text from Enter and arbitrary-input options without changing words.
+function Get-JobsEnterChoiceParts {
+    param([string]$Text)
+    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)'
+    $green = '(?:(?:\u76f4\u63a5|\u53ea\u9700|\u4ec5(?:\u9700)?|\u6309(?:\u4e0b)?|\u7a7a)?\s*\u56de\u8f66|(?:press\s+)?\bEnter\b(?!\s+(?:YES|REPAIR|CLEAN|CONTINUE)\b))'
+    $pattern = '(?is)(?<red>(?:' + $red + ')[^;\uFF1B\r\n]*?(?=[;\uFF1B\r\n]|\z))|(?<green>(?:' + $green + ')[^;\uFF1B\r\n]*?(?=(?:' + $red + ')|[;\uFF1B\r\n]|\z))'
+    $offset = 0
+    foreach ($match in [regex]::Matches($Text, $pattern)) {
+        if ($match.Index -gt $offset) { [pscustomobject]@{ Text = $Text.Substring($offset, $match.Index - $offset); Color = '' } }
+        $prefix = [regex]::Split($Text.Substring(0, $match.Index), '[;\uFF1B\r\n]')[-1]
+        $typed = $prefix -match '(?i)(?:\u8f93\u5165|\u952e\u5165|type|enter)\s*(?:\u5927\u5199\s*)?(?:YES|REPAIR|CLEAN|CONTINUE)\b|\u7cbe\u786e\u8f93\u5165|\u8f93\u5165[^;\uFF1B\r\n]*[\u540e\u518d]\s*$'
+        $color = if ($match.Groups['red'].Success) { 'Red' } elseif ($typed) { '' } else { 'Green' }
+        [pscustomobject]@{ Text = $match.Value; Color = $color }
+        $offset = $match.Index + $match.Length
+    }
+    if ($offset -lt $Text.Length) { [pscustomobject]@{ Text = $Text.Substring($offset); Color = '' } }
+}
+# Native host text remains plain in information streams and logs; bold control is console-only.
+function Write-JobsEnterChoiceText {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ')
+    $text = if ($Object -is [array]) { $Object -join [string]$Separator } else { [string]$Object }
+    if (-not (Test-JobsEnterChoiceColor)) {
+        Write-Host $Object -NoNewline:$NoNewline -Separator $Separator
+        return
+    }
+    $normal = @{}
+    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $normal.ForegroundColor = $ForegroundColor }
+    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $normal.BackgroundColor = $BackgroundColor }
+    foreach ($part in @(Get-JobsEnterChoiceParts $text)) {
+        if (-not $part.Color) { Write-Host $part.Text -NoNewline @normal; continue }
+        $bold = Test-JobsEnterChoiceBold
+        if ($bold) { [Console]::Write(([string][char]27) + '[1m') }
+        try { Write-Host $part.Text -ForegroundColor $part.Color -NoNewline }
+        finally { if ($bold) { [Console]::Write(([string][char]27) + '[0m') } }
+    }
+    if (-not $NoNewline) { Write-Host }
+}
+# Delegate the original reader, including secure input and EOF behavior, after prompt display.
+function Read-JobsEnterChoiceHost {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][string]$Prompt, [switch]$AsSecureString, [switch]$MaskInput)
+    if ($AsSecureString -or $MaskInput -or -not (Test-JobsEnterChoiceColor) -or @((Get-JobsEnterChoiceParts $Prompt) | Where-Object { $_.Color }).Count -eq 0) {
+        return (Read-Host @PSBoundParameters)
+    }
+    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline
+    return (Read-Host)
+}
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
@@ -23,7 +85,7 @@ function Write-JobsHarmonyMessage {
 }
 function Read-JobsHarmonyInput {
     param([string]$Prompt)
-    Write-Host ($Prompt + '：') -NoNewline
+    Write-JobsEnterChoiceText ($Prompt + '：') -NoNewline
     $answer = [Console]::ReadLine()
     if ($null -eq $answer) { throw '输入已结束，停止操作。' }
     return $answer
@@ -310,6 +372,81 @@ function Set-JobsHarmonyCreatedSdk {
     }
     Write-JobsHarmonyMessage ('已为新实例配置 CLT SDK：' + $sdk)
 }
+# 兼容官方平铺或嵌套端口；冲突字段不能用于自动运行。
+function Get-JobsHarmonyFlutterPort {
+    param($Record)
+    $port = ''
+    if ($null -ne $Record.PSObject.Properties['hw.hdc.port']) { $port = [string]$Record.'hw.hdc.port' }
+    if ($null -ne $Record.PSObject.Properties['hw'] -and $null -ne $Record.hw -and $null -ne $Record.hw.PSObject.Properties['hdc'] -and $null -ne $Record.hw.hdc -and $null -ne $Record.hw.hdc.PSObject.Properties['port']) {
+        $nested = [string]$Record.hw.hdc.port
+        if ($port -and $port -cne $nested) { throw '新实例 HDC 端口字段冲突；未返回 Flutter 目标。' }
+        $port = $nested
+    }
+    if ($port -and ($port -cnotmatch '^[0-9]{1,5}$' -or [int]$port -lt 1 -or [int]$port -gt 65535)) { throw '新实例 HDC 端口无效；未返回 Flutter 目标。' }
+    return $port
+}
+# SDK 身份只取实例详情或其自身配置，不能用其它安装的 HDC 猜测目标。
+function Get-JobsHarmonyFlutterSdk {
+    param($Record)
+    $paths = @()
+    if ($null -ne $Record.PSObject.Properties['sdkPath'] -and -not [string]::IsNullOrWhiteSpace([string]$Record.sdkPath)) { $paths += [string]$Record.sdkPath }
+    if ($null -ne $Record.PSObject.Properties['instancePath'] -and [IO.Path]::IsPathRooted([string]$Record.instancePath)) {
+        $config = Join-Path $Record.instancePath 'config.ini'
+        if ([IO.File]::Exists($config)) {
+            if (((Get-Item -LiteralPath $Record.instancePath).Attributes -band [IO.FileAttributes]::ReparsePoint) -or ((Get-Item -LiteralPath $config).Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw '新实例 SDK 配置是链接；未返回 Flutter 目标。' }
+            $text = [IO.File]::ReadAllText($config)
+            $names = @([regex]::Matches($text, '(?m)^name=([^\r\n]*)\r?$'))
+            if ($names.Count -ne 1 -or $names[0].Groups[1].Value -cne $Record.name) { throw '新实例 SDK 配置名称不一致；未返回 Flutter 目标。' }
+            foreach ($match in [regex]::Matches($text, '(?m)^(?:sdkPath|harmonyos\.sdk\.path)=([^\r\n]+)\r?$')) { $paths += $match.Groups[1].Value }
+        }
+    }
+    $normalized = @()
+    foreach ($path in $paths) {
+        if (-not [IO.Path]::IsPathRooted($path) -or $path -match '[\x00-\x1f]') { throw '新实例 SDK 路径无效；未返回 Flutter 目标。' }
+        $normalized += [IO.Path]::GetFullPath($path).TrimEnd('\', '/')
+    }
+    $unique = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($path in $normalized) { [void]$unique.Add($path) }
+    if ($unique.Count -ne 1) { throw '新实例 SDK 路径缺失或冲突；未返回 Flutter 目标。' }
+    return $normalized[0]
+}
+# 只向 Flutter 调用方返回本次实例经 HDC 实际发现的精确目标。
+function Write-JobsHarmonyFlutterTarget {
+    param([string]$Emulator, $Instance, [int]$TimeoutSeconds = 180)
+    if (-not $env:JOBS_FLUTTER_CREATED_DEVICE_FILE) { return }
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    do {
+        $instances = @(Get-JobsHarmonyInstances $Emulator)
+        $current = @($instances | Where-Object { $_.name -ceq $Instance.name })
+        if ($current.Count -ne 1) { throw '新实例身份不唯一；保留模拟器，未返回 Flutter 目标。' }
+        $record = $current[0]
+        foreach ($field in @('instancePath', 'uuid')) {
+            if ($null -ne $Instance.PSObject.Properties[$field] -and ($null -eq $record.PSObject.Properties[$field] -or $record.$field -cne $Instance.$field)) { throw '新实例身份已变化；未返回 Flutter 目标。' }
+        }
+        $port = Get-JobsHarmonyFlutterPort $record
+        if ($port -and $null -ne $record.PSObject.Properties['isRunning'] -and ($record.isRunning -ceq $true -or $record.isRunning -ceq 'true')) {
+            foreach ($peer in $instances) {
+                if ($peer.name -cne $record.name -and $null -ne $peer.PSObject.Properties['isRunning'] -and ($peer.isRunning -ceq $true -or $peer.isRunning -ceq 'true') -and (Get-JobsHarmonyFlutterPort $peer) -ceq $port) { throw '多个运行实例使用同一 HDC 端口；未返回 Flutter 目标。' }
+            }
+            $sdk = Get-JobsHarmonyFlutterSdk $record
+            foreach ($relative in @('default/openharmony/toolchains/hdc.exe', 'openharmony/toolchains/hdc.exe', 'toolchains/hdc.exe')) {
+                $hdc = Join-Path $sdk $relative
+                if (-not [IO.File]::Exists($hdc)) { continue }
+                $result = Invoke-JobsProcess -FilePath $hdc -Arguments @('list', 'targets') -TimeoutSeconds 10
+                $id = '127.0.0.1:' + $port
+                if ($result.ExitCode -eq 0 -and $id -cin @($result.StdOut -split '\r?\n' | ForEach-Object { $_.Trim() })) {
+                    [IO.File]::WriteAllText($env:JOBS_FLUTTER_CREATED_DEVICE_FILE, "Harmony`t$id`n", (New-Object Text.UTF8Encoding($false)))
+                    Write-JobsHarmonyMessage ('已确认本次实例 HDC 目标：' + $id + '；继续等待 Flutter 识别。')
+                    return
+                }
+            }
+        }
+        if ([DateTime]::UtcNow -ge $deadline) { break }
+        Write-JobsHarmonyMessage ('等待新实例 HDC 就绪：' + $Instance.name + '；Ctrl+C 取消。')
+        Start-Sleep -Seconds 2
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw '新实例已保留，但未确认唯一 HDC 目标；未自动运行 Flutter，请在 DevEco Device Manager 检查。'
+}
 function Invoke-JobsHarmonySimulatorAction {
     param([string]$Target, [string]$EmulatorBin = $env:HARMONY_EMULATOR_BIN, [string]$Name, [switch]$NoStart)
     if (-not (Test-JobsHarmonyDesktop $Target)) { throw '此入口仅适用于系统桌面空白。' }
@@ -317,8 +454,8 @@ function Invoke-JobsHarmonySimulatorAction {
     $script:HarmonyLicensesConfirmed = $false
     Write-Host ('Jobs 新建 Harmony 模拟器 · 来源：' + $PSScriptRoot) -ForegroundColor Cyan
     Write-Host '仅支持 x64 Windows 10 / 11 物理机；缺少兼容工具时从 SDL 镜像免登录下载 CLT 6.1.1.280（约 2.60 GB）。'
-    Write-Host '回车授权校验并安装缺失工具依赖到独立目录；健康工具不升级。缺镜像时读取官方清单，回车下载最新稳定版手机镜像，再创建唯一实例并启动。'
-    Write-Host '华为官网下载工具需登录；SDL 是工具包的替代下载源，不含系统镜像。下载或启动前展示随附许可原文，回车表示本人同意；非空输入取消。不覆盖旧实例、不改代理或 PATH。'
+    Write-JobsEnterChoiceText '回车授权校验并安装缺失工具依赖到独立目录；健康工具不升级。缺镜像时读取官方清单，回车下载最新稳定版手机镜像，再创建唯一实例并启动。'
+    Write-JobsEnterChoiceText '华为官网下载工具需登录；SDL 是工具包的替代下载源，不含系统镜像。下载或启动前展示随附许可原文，回车表示本人同意；非空输入取消。不覆盖旧实例、不改代理或 PATH。'
     Write-Host '手机等模拟器受官方中国大陆使用区域限制；需要账号授权的镜像请在 DevEco Studio 操作，不绕过限制。'
     if ((Read-JobsHarmonyInput '直接回车检查并选择，任意非空输入取消').Length -gt 0) { throw '已取消。' }
     $logDirectory = Join-Path (Get-JobsInstallRoot) 'logs'
@@ -352,6 +489,7 @@ function Invoke-JobsHarmonySimulatorAction {
         $startArguments = @('-start', $nameValue)
         Invoke-JobsHarmonyInteractive $check.Emulator $startArguments
         Write-JobsHarmonyMessage '启动命令已成功执行；设备启动就绪情况请查看模拟器窗口。'
+        Write-JobsHarmonyFlutterTarget $check.Emulator $created[0]
     }
 }
 function Invoke-JobsFeature {

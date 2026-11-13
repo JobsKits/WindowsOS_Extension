@@ -12,3 +12,14 @@
 FVM 使用只读 `api context` 的生效 Git URL 和缓存位置，原始 JSON 不落盘／不写日志；支持时使用 `install --no-setup`，Git 与 Dart 自举分阶段。请求 channel 或 upgrade 时先用发布清单 `current_release` 解析所请求的新版本归档，并在相同子进程环境中预检原 Git 来源；不把已安装旧 SDK 的版本当升级目标。所有选择仅写入请求或子进程环境，取消后不会留下全局代理设置。
 
 文本FVM启动器若通过PATH调用Flutter的`dart.bat`，会在FVM版本/API context/help首次元数据前单独准备该管理器实际SDK的Dart缓存；待安装项目SDK与管理器运行时分开。原生AOT FVM、固定独立Dart及健康缓存不强制调用PATH Flutter；取消时不会继续元数据查询。
+
+
+<!-- JOBS_TERMINAL_STYLE_V1:BEGIN -->
+
+> Windows 终端配色保护：支持完整颜色查询的交互控制台会先保存当前会话默认前景、背景与16色色表，再临时使用黑底白字和统一强调色；正常结束、业务失败及可捕获中断后恢复。用户运行中自行改动的颜色保留并提示，不修改用户主题、共享 Profile、注册表或全局策略。快照不包含进入前任意叠加的临时文字样式。非控制台、重定向、`NO_COLOR`、Sourcetree 及无法可靠保存／恢复颜色的环境保持原状态或降级为纯文本。
+
+> 强制结束进程或终端崩溃无法保证自动恢复。恢复失败时保留并提示本轮 `%TEMP%\JobsTerminalStyle-<PID>-*.ps1` 恢复脚本，需在原控制台核对后运行；不要通过重置用户配置恢复。`-ExecutionPolicy Bypass` 如被入口使用，仅作用于本次子进程，不持久修改策略。
+
+> 验证范围：已完成 PowerShell 语法、参数／退出与隔离生命周期核验；Windows 原生控制台的显示、按键与 `Ctrl+C` 实机验证尚未完成。
+
+<!-- JOBS_TERMINAL_STYLE_V1:END -->

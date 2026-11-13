@@ -1,6 +1,68 @@
 ﻿# Action.psm1 | JobsFlutterDependencyExtractor
 # Created by Jobs on 2026年10月19日，星期一.
 # 仅读取精确 Flutter 项目的已解析依赖；不下载、不修改项目或工具链。
+
+# Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
+function Test-JobsEnterChoiceColor {
+    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $false }
+    $consoleType = [Console]
+    if ($null -eq $consoleType.GetProperty('IsInputRedirected') -or $null -eq $consoleType.GetProperty('IsOutputRedirected')) { return $false }
+    return ($Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+}
+# Older hosts keep native colors without sending unsupported bold escape sequences.
+function Test-JobsEnterChoiceBold {
+    $property = $Host.UI.PSObject.Properties['SupportsVirtualTerminal']
+    return ($null -ne $property -and [bool]$property.Value)
+}
+# Separate ordinary question text from Enter and arbitrary-input options without changing words.
+function Get-JobsEnterChoiceParts {
+    param([string]$Text)
+    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)'
+    $green = '(?:(?:\u76f4\u63a5|\u53ea\u9700|\u4ec5(?:\u9700)?|\u6309(?:\u4e0b)?|\u7a7a)?\s*\u56de\u8f66|(?:press\s+)?\bEnter\b(?!\s+(?:YES|REPAIR|CLEAN|CONTINUE)\b))'
+    $pattern = '(?is)(?<red>(?:' + $red + ')[^;\uFF1B\r\n]*?(?=[;\uFF1B\r\n]|\z))|(?<green>(?:' + $green + ')[^;\uFF1B\r\n]*?(?=(?:' + $red + ')|[;\uFF1B\r\n]|\z))'
+    $offset = 0
+    foreach ($match in [regex]::Matches($Text, $pattern)) {
+        if ($match.Index -gt $offset) { [pscustomobject]@{ Text = $Text.Substring($offset, $match.Index - $offset); Color = '' } }
+        $prefix = [regex]::Split($Text.Substring(0, $match.Index), '[;\uFF1B\r\n]')[-1]
+        $typed = $prefix -match '(?i)(?:\u8f93\u5165|\u952e\u5165|type|enter)\s*(?:\u5927\u5199\s*)?(?:YES|REPAIR|CLEAN|CONTINUE)\b|\u7cbe\u786e\u8f93\u5165|\u8f93\u5165[^;\uFF1B\r\n]*[\u540e\u518d]\s*$'
+        $color = if ($match.Groups['red'].Success) { 'Red' } elseif ($typed) { '' } else { 'Green' }
+        [pscustomobject]@{ Text = $match.Value; Color = $color }
+        $offset = $match.Index + $match.Length
+    }
+    if ($offset -lt $Text.Length) { [pscustomobject]@{ Text = $Text.Substring($offset); Color = '' } }
+}
+# Native host text remains plain in information streams and logs; bold control is console-only.
+function Write-JobsEnterChoiceText {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ')
+    $text = if ($Object -is [array]) { $Object -join [string]$Separator } else { [string]$Object }
+    if (-not (Test-JobsEnterChoiceColor)) {
+        Write-Host $Object -NoNewline:$NoNewline -Separator $Separator
+        return
+    }
+    $normal = @{}
+    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $normal.ForegroundColor = $ForegroundColor }
+    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $normal.BackgroundColor = $BackgroundColor }
+    foreach ($part in @(Get-JobsEnterChoiceParts $text)) {
+        if (-not $part.Color) { Write-Host $part.Text -NoNewline @normal; continue }
+        $bold = Test-JobsEnterChoiceBold
+        if ($bold) { [Console]::Write(([string][char]27) + '[1m') }
+        try { Write-Host $part.Text -ForegroundColor $part.Color -NoNewline }
+        finally { if ($bold) { [Console]::Write(([string][char]27) + '[0m') } }
+    }
+    if (-not $NoNewline) { Write-Host }
+}
+# Delegate the original reader, including secure input and EOF behavior, after prompt display.
+function Read-JobsEnterChoiceHost {
+    [CmdletBinding()]
+    param([Parameter(Position=0)][string]$Prompt, [switch]$AsSecureString, [switch]$MaskInput)
+    if ($AsSecureString -or $MaskInput -or -not (Test-JobsEnterChoiceColor) -or @((Get-JobsEnterChoiceParts $Prompt) | Where-Object { $_.Color }).Count -eq 0) {
+        return (Read-Host @PSBoundParameters)
+    }
+    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline
+    return (Read-Host)
+}
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
@@ -177,11 +239,11 @@ function Write-JobsExtractorMessage {
 function Show-JobsExtractorIntro {
     Write-Host 'Jobs · 提取 Flutter 第三方依赖' -ForegroundColor Red
     Write-Host '1、读取所选项目的 pubspec.lock 与 .dart_tool/package_config.json，复制直接、间接和开发用第三方 Pub 源码及许可证。' -ForegroundColor Blue
-    Write-Host '2、输入或拖入输出父目录，直接回车采用系统桌面；每次生成新的独立目录，不覆盖已有结果。' -ForegroundColor Blue
+    Write-JobsEnterChoiceText '2、输入或拖入输出父目录，直接回车采用系统桌面；每次生成新的独立目录，不覆盖已有结果。' -ForegroundColor Blue
     Write-Host '3、只读取项目及已下载依赖；不联网、不自动 pub get、不改代理或 Flutter SDK。缺少解析记录或缓存时停止。' -ForegroundColor Blue
     Write-Host '4、不包含 Flutter/Dart SDK、原生 CocoaPods/Gradle 依赖；复制不是离线构建配置。日志在本功能安装目录的 logs 中。' -ForegroundColor Blue
     Write-Host '按 Ctrl+C 取消。'
-    $answer = Read-Host '已了解用途与影响，按回车继续；任意非空输入取消'
+    $answer = Read-JobsEnterChoiceHost '已了解用途与影响，按回车继续；任意非空输入取消'
     if ($null -eq $answer) { throw '输入已关闭，操作取消。' }
     return $answer.Length -eq 0
 }
@@ -255,7 +317,7 @@ function Invoke-JobsFlutterDependencyAction {
     Assert-JobsFlutterProject $Directory
     Write-Host '🔐 私库优先：Git、path、自建 Pub 源按私库候选处理；公共 hosted 包默认不复制。' -ForegroundColor Yellow
     if (-not $PrivateOnly) {
-        $scopeAnswer = Read-Host '直接回车 = 只提取私库；输入任意字符（含空格）再回车 = 全提取'
+        $scopeAnswer = Read-JobsEnterChoiceHost '直接回车 = 只提取私库；输入任意字符（含空格）再回车 = 全提取'
         if ($null -eq $scopeAnswer) { return }
         $PrivateOnly = $scopeAnswer.Length -eq 0
     }
@@ -269,7 +331,7 @@ function Invoke-JobsFlutterDependencyAction {
     $script:ExtractorLog = Join-Path $logs ('extract-' + (Get-Date -Format 'yyyy-MM-dd-HH-mm-ss') + '-' + [guid]::NewGuid().ToString('N') + '.log')
     Write-JobsExtractorMessage ('日志：' + $script:ExtractorLog)
     $desktop = Get-JobsExtractorDesktop
-    $inputPath = Read-Host ('输入或拖入输出父目录（直接回车：' + $desktop + '）')
+    $inputPath = Read-JobsEnterChoiceHost ('输入或拖入输出父目录（直接回车：' + $desktop + '）')
     if ($null -eq $inputPath) { throw '输入已关闭，操作取消。' }
     $destination = ConvertFrom-JobsExtractorPathInput -Text $inputPath -DefaultPath $desktop
     $dart = Find-JobsExtractorDart $Directory

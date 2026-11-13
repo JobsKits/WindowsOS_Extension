@@ -1,0 +1,88 @@
+{
+  "files": [
+    {
+      "source": "JobsFlutterTools/Scripts/HarmonySdk.psm1",
+      "target": "Core/HarmonySdk.psm1",
+      "sha256": "82169ae524453de5727b068f54745f3a43fcc861660553ff06d1ae7a943bdd11"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/SdkDownloadOutput.ps1",
+      "target": "Core/SdkDownloadOutput.ps1",
+      "sha256": "853eb30acee5a5f0776424795e669a5e721b688388e23d83c67ba5de0af0df42"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1",
+      "target": "Core/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1",
+      "sha256": "2120f7388bc61192547c818ac22b1d4634b801f4eab369830c6320abc15d8156"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/SdkDownloadRoute.ps1/README.md",
+      "target": "Core/SdkDownloadRoute.ps1/README.md",
+      "sha256": "40e9a1cb727434978184543bf14fe80692a64ecda961589186904c26d04292bf"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Extension.json",
+      "target": "Core/Actions/sdk-manage/Extension.json",
+      "sha256": "7fd3b639f88ea657104a5cdfbb178bac34183a1e3f2962b16967dadd5926be25"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/Action.psm1",
+      "target": "Core/Actions/sdk-manage/Scripts/Action.psm1",
+      "sha256": "59beca09fa3fbec18c1569afb91da46f20f24844179421ff2a18b7716cb7c2d5"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/Common.psm1",
+      "target": "Core/Actions/sdk-manage/Scripts/Common.psm1",
+      "sha256": "76f994dfd89e7333005d3ae74ac2c4f447a96897c38ca0fcea5881e121ef73e7"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/SdkDownloadOutput.ps1",
+      "target": "Core/Actions/sdk-manage/Scripts/SdkDownloadOutput.ps1",
+      "sha256": "853eb30acee5a5f0776424795e669a5e721b688388e23d83c67ba5de0af0df42"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1",
+      "target": "Core/Actions/sdk-manage/Scripts/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1",
+      "sha256": "2120f7388bc61192547c818ac22b1d4634b801f4eab369830c6320abc15d8156"
+    },
+    {
+      "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/SdkDownloadRoute.ps1/README.md",
+      "target": "Core/Actions/sdk-manage/Scripts/SdkDownloadRoute.ps1/README.md",
+      "sha256": "40e9a1cb727434978184543bf14fe80692a64ecda961589186904c26d04292bf"
+    },
+    {
+      "source": "JobsHarmonySimulatorCreator/Scripts/Common.psm1",
+      "target": "Core/Common.psm1",
+      "sha256": "76f994dfd89e7333005d3ae74ac2c4f447a96897c38ca0fcea5881e121ef73e7"
+    },
+    {
+      "source": "JobsHarmonySimulatorCreator/Scripts/HarmonyTools.ps1",
+      "target": "Core/HarmonyTools.ps1",
+      "sha256": "354983a3a4d85011ce422d1390c31677977ba748bcb3045a57e77e0a15e5c8fa"
+    }
+  ],
+  "extracted": {
+    "JobsHarmonySimulatorCreator/Scripts/Action.psm1": [
+      "Test-JobsEnterChoiceColor",
+      "Test-JobsEnterChoiceBold",
+      "Get-JobsEnterChoiceParts",
+      "Write-JobsEnterChoiceText",
+      "Read-JobsEnterChoiceHost",
+      "ConvertTo-JobsHarmonyPlainText",
+      "Write-JobsHarmonyMessage",
+      "Read-JobsHarmonyInput",
+      "Get-JobsHarmonyArchitecture",
+      "Get-JobsHarmonyEmulator",
+      "Invoke-JobsHarmonyQuery",
+      "Assert-JobsHarmonyCapabilities",
+      "Invoke-JobsHarmonyInteractive",
+      "Confirm-JobsHarmonyLicenses"
+    ],
+    "JobsFlutterTools/Scripts/ProjectSetup.psm1": [
+      "New-JobsSetupBatchStart",
+      "Assert-JobsSetupDirectory",
+      "Expand-JobsSetupZip"
+    ]
+  },
+  "adaptation": "Core/HarmonySdk.psm1 仅增加就近 Common.psm1 导入；HarmonyTools.ps1 仅将镜像下载说明改为当前流程 tools-only；其余完整快照字节不变。"
+}

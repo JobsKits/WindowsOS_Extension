@@ -129,7 +129,7 @@ jobs:
           . .\JobsGitRollback\Scripts\Build.ps1 `
             -SourceRoot (Join-Path $PWD 'JobsGitRollback') `
             -OutputRoot $nativeOutput
-          foreach ($probeName in @('GitRollbackMetadataProbe', 'GitRollbackFzfProbe', 'RunPermissionMenuProbe', 'HiddenFilesMenuProbe', 'IDEProjectMenuProbe', 'SourcetreeInstallationProbe', 'FileViewerMenuProbe', 'FileVolumesMenuProbe')) {
+          foreach ($probeName in @('GitRollbackMetadataProbe', 'GitRollbackFzfProbe', 'RunPermissionMenuProbe', 'HiddenFilesMenuProbe', 'IDEProjectMenuProbe', 'SourcetreeInstallationProbe', 'FileViewerMenuProbe', 'FileHashMenuProbe', 'FileVolumesMenuProbe')) {
             $probeSource = Join-Path $PWD ('Tests/' + $probeName + '.cpp')
             $probeExecutable = Join-Path $nativeOutput ($probeName + '.exe')
             $probeObject = Join-Path $nativeOutput ($probeName + '.obj')
@@ -159,6 +159,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'FileVolumesMenuProbe failed' }
           & (Join-Path $nativeOutput 'FileViewerMenuProbe.exe')
           if ($LASTEXITCODE -ne 0) { throw 'File viewer menu probe failed.' }
+          & (Join-Path $nativeOutput 'FileHashMenuProbe.exe')
+          if ($LASTEXITCODE -ne 0) { throw 'File hash menu probe failed.' }
           .\Tests\GitRollback.Tests.ps1 -FzfProbeExecutable (Join-Path $nativeOutput 'GitRollbackFzfProbe.exe')
       - name: Flutter dependency import validation and confirmation guards
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
@@ -171,7 +173,9 @@ jobs:
       - name: Flutter runner project, lifecycle, and native build guards
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
-        run: .\Tests\FlutterRunner.Tests.ps1
+        run: |
+          .\Tests\FlutterRunner.Tests.ps1
+          .\Tests\FlutterRunnerVirtualStart.Tests.ps1\FlutterRunnerVirtualStart.Tests.ps1
       - name: Flutter packaging selection, SDK, failure, and artifact guards
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
@@ -233,7 +237,7 @@ jobs:
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: |
-          foreach ($name in @('JobsHarmonySimulatorRepairer', 'JobsRunAuthorizer', 'JobsRunAuthorizationRevoker', 'JobsHiddenFilesToggler', 'JobsAndroidStudioOpener', 'JobsVSCodeOpener', 'JobsSourcetreeOpener', 'JobsFileContentViewer', 'JobsFileVolumes')) {
+          foreach ($name in @('JobsHarmonySimulatorRepairer', 'JobsRunAuthorizer', 'JobsRunAuthorizationRevoker', 'JobsHiddenFilesToggler', 'JobsAndroidStudioOpener', 'JobsVSCodeOpener', 'JobsSourcetreeOpener', 'JobsFileContentViewer', 'JobsFileHasher', 'JobsFileVolumes')) {
             & (Join-Path $PWD ($name + '/Scripts/Build.ps1')) -SourceRoot (Join-Path $PWD $name) -OutputRoot (Join-Path $env:RUNNER_TEMP ($name + '-native'))
           }
       - name: Sourcetree installation visibility and nearest Git repository
@@ -245,6 +249,11 @@ jobs:
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FileContentViewer.Tests.ps1
+
+      - name: File SHA-256 fingerprints and clipboard failure guards
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
+        shell: powershell
+        run: .\Tests\FileHash.Tests.ps1
 
       - name: Exact-selection file volumes and safe streaming roundtrip
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}

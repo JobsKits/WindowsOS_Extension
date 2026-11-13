@@ -1,0 +1,4 @@
+﻿LIBRARY JobsFileHasherContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE

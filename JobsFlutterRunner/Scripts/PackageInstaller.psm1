@@ -277,6 +277,16 @@ function New-JobsPackageRelease {
             $files += 'Scripts/' + $item.Name
         }
     }
+    foreach ($entry in Get-ChildItem -LiteralPath (Join-Path $scripts 'RunPreflight.ps1') -Recurse -Force -ErrorAction Stop) {
+        if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw '运行准备资源中不允许符号链接。' }
+        if (-not $entry.PSIsContainer -and ($entry.Extension -in @('.json','.ps1','.psm1','.dart') -or $entry.Name -ceq 'README.md')) { $files += $entry.FullName.Substring($package.Length + 1) }
+    }
+    # 模拟器创建闭包属于本包，保留原桌面入口及运行依赖；不收集相邻工程。
+    $creators = Join-Path $scripts 'SimulatorCreators'
+    foreach ($entry in Get-ChildItem -LiteralPath $creators -Recurse -Force -ErrorAction Stop) {
+        if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'SimulatorCreators 中不允许链接。' }
+        if (-not $entry.PSIsContainer -and ($entry.Extension -in @('.json', '.ps1', '.psm1') -or $entry.Name -ceq 'README.md')) { $files += $entry.FullName.Substring($package.Length + 1) }
+    }
     foreach ($name in @('Manage.cmd', 'Manage.vbs', 'README.md')) {
         if (Test-Path -LiteralPath (Join-Path $package $name) -PathType Leaf) { $files += $name }
     }
@@ -463,7 +473,7 @@ function Invoke-JobsPackageChange {
         $state = Get-JobsPackageState -PackagePath $PackagePath -DeploymentMode $DeploymentMode
         if ($Mode -eq 'Uninstall' -and -not $state.Enabled) {
             Write-Host '当前部署路线未启用；保留其它路线的菜单与运行文件。'
-            return [pscustomobject]@{ Id = $manifest.Id; Mode = $Mode; Root = $root; Backup = $null; ReleasePath = $state.ReleasePath; BuildPath = $null }
+            return [pscustomobject]@{ Id = $manifest.Id; Mode = $Mode; Outcome = 'NotInstalled'; Root = $root; Backup = $null; ReleasePath = $state.ReleasePath; BuildPath = $null }
         }
         $release = $state.ReleasePath
         if ($Mode -eq 'Install') {
