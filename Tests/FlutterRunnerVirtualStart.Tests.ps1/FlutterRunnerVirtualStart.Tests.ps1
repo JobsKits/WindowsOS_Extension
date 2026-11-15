@@ -478,10 +478,12 @@ try {
                 function script:Get-JobsRunnerHarmonyTarget {$script:TargetReads++;if($script:Scenario-ceq'post-port'-and$script:Prepared){return '127.0.0.1:15557'};return '127.0.0.1:15555'}
                 function script:Start-JobsRunnerHarmonyPreparation {param($Flutter,$Project,$Key)if($Flutter-cne'prepared-flutter'-or$Key-cne'127.0.0.1:15555'){throw 'wrong identity'};if($script:Scenario-ceq'app-gate'){throw 'unsupported vendor plugin'};$script:Prepared=$true;if($script:Scenario-ceq'post-config'){[IO.File]::AppendAllText((Join-Path $script:Instance 'config.ini'),"custom=changed`n")};$script:RunnerSelectedPlatform='ohos-arm64';return $Key}
             } $scenario $FixtureRoot $instance
-            $savedTools=$env:TOOL_HOME;$failed=$false;$result=$null
-            try{$result=&$module {Start-JobsRunnerExistingHarmony 'flutter' '/fixture/project'}}catch{$failed=$true;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
+            $savedTools=$env:TOOL_HOME;$failed=$false;$result=$null;$failureDetail=''
+            try{$result=&$module {Start-JobsRunnerExistingHarmony 'flutter' '/fixture/project'}}catch{$failed=$true;$failureDetail=$_.Exception.Message+'; exception='+$_.Exception.GetType().FullName+'; base='+$_.Exception.GetBaseException().GetType().FullName+'; id='+$_.FullyQualifiedErrorId+' @ '+$_.ScriptStackTrace;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
             Assert-Virtual ($env:TOOL_HOME-ceq$savedTools) '鸿蒙所有返回路径恢复父进程环境'
             $starts=&$module {$script:Starts};$actions=@(&$module {$script:Actions.ToArray()})
+            $state=&$module {return ('prepared='+$script:Prepared+'; queries='+$script:Queries+'; targetReads='+$script:TargetReads)}
+            $failureDetail+='; module='+$relative+'; scenario='+$scenario+'; failed='+$failed+'; starts='+$starts+'; '+$state+'; actions='+($actions-join'|')
             Assert-Virtual (($actions-join'|')-notmatch'create|delete|reset|stop') '启动入口不新建、删除、重置或重启已有实例'
             if($scenario-in@('success','running','boot-dynamic')){
                 Assert-Virtual (-not$failed-and$result.Id-ceq'127.0.0.1:15555'-and$result.Environment.TOOL_HOME-ceq'temporary-tools') '鸿蒙原实例HDC目标与当前SDK承接运行'
@@ -491,7 +493,10 @@ try {
                 if($scenario-ceq'success'){$backups=@(Get-ChildItem $instance -Filter '*.jobs-backup-*');Assert-Virtual ($backups.Count-eq1-and[IO.File]::ReadAllText($backups[0].FullName)-ceq$original) '缺失SDK配置原子发布前保留原字节备份'}
             }elseif($scenario-in@('license','identity')){Assert-Virtual ($failed-and$starts-eq0-and[IO.File]::ReadAllText($config)-ceq$original) '许可取消或身份改变不写配置、不启动'}
             elseif($scenario-ceq'selection-config'){Assert-Virtual ($failed-and$starts-eq0) '鸿蒙菜单期间配置改变不能沿用选前实例身份'}
-            elseif($scenario-in@('app-gate','post-identity','post-config','post-port','post-missing')){Assert-Virtual ($failed-and$starts-eq1) '项目门禁失败保留已启动实例，不重复启动或运行App'}
+            elseif($scenario-in@('app-gate','post-identity','post-config','post-port','post-missing')){
+                Assert-Virtual ($failed-and$starts-eq1) ('项目门禁失败保留已启动实例，不重复启动或运行App：'+$failureDetail)
+                if($scenario-ceq'app-gate'){Assert-Virtual ($failureDetail.Contains('unsupported vendor plugin')) ('项目门禁必须来自预期插件限制：'+$failureDetail)}
+            }
             else{Assert-Virtual (-not$failed-and$starts-eq0-and($scenario-ceq'cancel'-or$result.Kind-ceq'Back')) '鸿蒙空列表/返回/取消无启动或新建'}
             Remove-Module $module
         }

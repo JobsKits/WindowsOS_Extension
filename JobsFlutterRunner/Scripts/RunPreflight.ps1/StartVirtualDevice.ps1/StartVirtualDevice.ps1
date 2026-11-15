@@ -432,10 +432,23 @@ function Start-JobsRunnerExistingHarmony {
         $identities=@{}; $identityErrors=@{}
         foreach ($listed in $instances) {
             if ($identities.ContainsKey($listed.name) -or $identityErrors.ContainsKey($listed.name)) { throw '鸿蒙实例清单名称不唯一，未启动。' }
-            try { $identities[$listed.name]=Get-JobsRunnerHarmonyInstanceIdentity $module $listed }
-            catch [Management.Automation.PipelineStoppedException] { throw }
-            catch [OperationCanceledException] { throw }
-            catch { $identityErrors[$listed.name]=$_.Exception.Message }
+            try {
+                $candidateIdentity=Get-JobsRunnerHarmonyInstanceIdentity $module $listed
+                $identities[$listed.name]=$candidateIdentity
+            } catch {
+                # 坏候选不阻断其余实例；取消穿透管道包装后仍须立即结束。
+                $pendingFailures=[Collections.Generic.Stack[Exception]]::new()
+                $seenFailures=[Collections.Generic.HashSet[Exception]]::new()
+                $pendingFailures.Push($_.Exception)
+                while($pendingFailures.Count-gt0){
+                    $identityFailure=$pendingFailures.Pop()
+                    if(-not$seenFailures.Add($identityFailure)){continue}
+                    if($identityFailure-is[Management.Automation.PipelineStoppedException]-or$identityFailure-is[OperationCanceledException]){throw}
+                    if($null-ne$identityFailure.InnerException){$pendingFailures.Push($identityFailure.InnerException)}
+                    if($identityFailure-is[Management.Automation.RuntimeException]-and$null-ne$identityFailure.ErrorRecord-and$null-ne$identityFailure.ErrorRecord.Exception){$pendingFailures.Push($identityFailure.ErrorRecord.Exception)}
+                }
+                $identityErrors[$listed.name]=$_.Exception.Message
+            }
         }
         $selection=Select-JobsRunnerChoice '启动鸿蒙模拟器' (@($instances | ForEach-Object {$_.name})+@('返回上一层')) -Back
         if ($null -eq $selection) { return $null }
