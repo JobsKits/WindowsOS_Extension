@@ -261,7 +261,20 @@ try {
                 function script:Wait-JobsRunnerSelectedDevice {
                     param($Flutter,$Project,$Target)
                     if($script:Scenario-ceq'wait-failed'){throw 'not visible'}
-                    if($script:Scenario-ceq'wait-identity'){$script:ObjectGeneration=2}
+                    if($script:Scenario-ceq'wait-identity'){
+                        $avdPath=Join-Path $script:FixtureRoot 'Original.avd'
+                        $configPath=Join-Path $avdPath 'config.ini'
+                        $iniPath=Join-Path $script:FixtureRoot 'Original.ini'
+                        $configBytes=[IO.File]::ReadAllBytes($configPath)
+                        $iniBytes=[IO.File]::ReadAllBytes($iniPath)
+                        # 保留旧对象，避免NTFS立即复用File ID；新对象保留同路径和相同内容。
+                        [IO.Directory]::Move($avdPath,($avdPath+'.previous'))
+                        [IO.File]::Move($iniPath,($iniPath+'.previous'))
+                        [void][IO.Directory]::CreateDirectory($avdPath)
+                        [IO.File]::WriteAllBytes($configPath,$configBytes)
+                        [IO.File]::WriteAllBytes($iniPath,$iniBytes)
+                        $script:ObjectGeneration=2
+                    }
                     if($script:Scenario-ceq'wait-id'){return 'emulator-replacement'}
                     if($script:Scenario-ceq'boot-dynamic'){[IO.File]::AppendAllText((Join-Path $script:FixtureRoot 'Original.avd/config.ini'),"fastboot.chosenSnapshotFile=runtime`n")}
                     return $Target.Id
@@ -271,12 +284,15 @@ try {
                     function script:Get-JobsRunnerAndroidAvdIdentity {param($Name)$result=&$script:RealIdentity $Name;$script:IdentityReads++;if($script:IdentityReads-gt1){$result.ConfigHash='changed'};return $result}
                 }
             } $scenario $FixtureRoot $sdk
-            $savedJava=$env:JAVA_HOME;$failed=$false;$result=$null
-            try{$result=&$module {Start-JobsRunnerExistingAndroid 'flutter' '/fixture/project'}}catch{$failed=$true;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
+            $savedJava=$env:JAVA_HOME;$failed=$false;$result=$null;$failureDetail=''
+            try{$result=&$module {Start-JobsRunnerExistingAndroid 'flutter' '/fixture/project'}}catch{$failed=$true;$failureDetail=$_.Exception.Message;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
             Assert-Virtual ($env:JAVA_HOME-ceq$savedJava) 'Android成功、失败、返回与取消均恢复父进程环境'
             Assert-Virtual ((&$module {$script:Created})-eq0) '启动已有AVD不转入创建入口'
             if($scenario-in@('success','boot-dynamic')){Assert-Virtual (-not$failed-and$result.Kind-ceq'Ready'-and$result.Id-ceq'emulator-5568'-and$result.Environment.JAVA_HOME-ceq'temporary-java'-and(&$module {$script:Starts})-eq1) '原AVD精确serial承接本次运行并仅启动一次'}
-            elseif($scenario-in@('wait-failed','wait-identity','wait-id','wait-portreuse')){Assert-Virtual ($failed-and(&$module {$script:Starts})-eq1) '启动后发现失败不重放启动或误选其它设备'}
+            elseif($scenario-in@('wait-failed','wait-identity','wait-id','wait-portreuse')){
+                $starts=&$module {$script:Starts}
+                Assert-Virtual ($failed-and$starts-eq1) ('启动后发现失败不重放启动或误选其它设备：scenario='+$scenario+'; starts='+$starts+'; failed='+$failed+'; '+$failureDetail)
+            }
             elseif($scenario-in@('identity','selection-identity','selection-object')){Assert-Virtual ($failed-and(&$module {$script:Starts})-eq0) '选择期间同名AVD被替换或原配置改变时阻止启动'}
             else{Assert-Virtual (-not$failed-and(&$module {$script:Starts})-eq0-and($scenario-ceq'cancel'-or$result.Kind-ceq'Back')) '空列表返回、左键返回与取消均无启动'}
             Remove-Module $module

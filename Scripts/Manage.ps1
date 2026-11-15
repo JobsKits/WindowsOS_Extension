@@ -10,6 +10,7 @@ MAINTENANCE_INDEX（菜单与安装的唯一维护入口）
 - 隐藏文件：JobsHiddenFilesToggler 的 HiddenFilesMenu.h 管全局状态/动态标题，Action.psm1 只写当前用户 Hidden；Show/Hide 明确传入，安装不切状态。
 - Sourcetree：open-sourcetree 已从总清单移除；旧 JobsSourcetreeOpener 只保留卸载兼容，原生 COM 不再插入菜单。
 - 查看文件：file-content-viewer -> JobsFileContentViewer；ContextMenu.cpp + FileViewerTarget.h 仅单个普通文件，Invoke.ps1 的可见控制台 -> Action.psm1 -> FileViewer.ps1 的阈值/编码确认与固定块只读输出。
+- 脚本快捷入口：command-shortcut-create -> JobsCommandShortcutCreator；目录 handler 复核同名 .cmd/.bat/.ps1 包，原生窗口确认名称后同级排他创建相对入口。
 - 文件指纹：file-hash -> JobsFileHasher；单个普通文件、新 PowerShell 控制台，SHA-256 流式计算并复制纯摘要。
 - 分卷：file-volumes -> JobsFileVolumes；VolumeSelection.h 严格验证单文件/完整同组多选，ContextMenu.cpp 的一次性JSON选择清单 -> Invoke.ps1 -> FileVolumes.ps1；原件始终保留。
 - IDE 门禁：AndroidStudio/VSCode 两包的 IDEProject.h + FlutterProject.h 管菜单，IDEProject.cs + ProjectEligibility.ps1 管后台；同字节副本须配对同步并跑 IDEProject.Tests.ps1。

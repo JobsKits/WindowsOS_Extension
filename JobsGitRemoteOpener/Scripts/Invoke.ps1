@@ -1,7 +1,7 @@
 ﻿# Invoke.ps1 | WindowsOS@Extension 单功能运行入口
 # Created by Jobs on 2026年10月18日，星期日.
 [CmdletBinding()]
-param([Parameter(Mandatory = $true)][string]$Target)
+param([Parameter(Mandatory = $true)][string]$Target, [switch]$SelectRemote)
 # Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
 # BEGIN JOBS_TERMINAL_STYLE_V1 - session-only colors; no profile or registry changes.
 function New-JobsTerminalStyleState {
@@ -333,7 +333,7 @@ try {
     Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '本扩展只支持 Windows。' }
     $manifest = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    $console = [bool]$manifest.Console
+    $console = [bool]$manifest.Console -or $SelectRemote
     $settings = Get-Content -LiteralPath (Join-Path (Get-JobsInstallRoot) 'settings.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($settings.Version -ne 2 -or $settings.Id -cne $manifest.Id -or $settings.Enabled -ne $true) {
         throw '此功能尚未安装或已经卸载，请重新打开右键菜单。'
@@ -344,7 +344,11 @@ try {
     }
     # 只载入本包业务；没有 Action 分发开关，也没有其它功能的运行依赖。
     $actionModule = Import-Module (Join-Path $PSScriptRoot 'Action.psm1') -DisableNameChecking -PassThru
-    & $actionModule { param($Path) Invoke-JobsFeature -Target $Path } $path
+    if ($SelectRemote) {
+        Write-Host '打开 Git 远程地址：只读取当前工作树配置，选择一个远端后通过默认浏览器打开。'
+        Write-Host '↑/↓ 或 Tab 选择，回车确认；取消本轮 / ← / Esc / Ctrl+C 退出，不修改 Git 配置。'
+    }
+    & $actionModule { param($Path, $Interactive) Invoke-JobsFeature -Target $Path -Interactive:$Interactive } $path $SelectRemote
 } catch {
     $exitCode = 1
     $message = $_.Exception.Message
@@ -357,7 +361,7 @@ try {
         [void][System.Windows.Forms.MessageBox]::Show($safe, 'Jobs Windows 右键扩展')
     } else { Write-Error $safe -ErrorAction Continue }
 } finally {
-    if ($console) { [void](Read-JobsEnterChoiceHost '按回车关闭此窗口') }
+    if ($console -and (-not $SelectRemote -or $exitCode -ne 0)) { [void](Read-JobsEnterChoiceHost '按回车关闭此窗口') }
 }
 exit $exitCode
 

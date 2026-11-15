@@ -39,31 +39,141 @@ function Assert-JobsBuildDirectory {
         $current = $parent
     }
 }
+# 读取真实目录文件 ID，识别检查与搬移之间发生的目录替换。
+function Get-JobsBuildDirectoryIdentity {
+    param([string]$Path)
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '无法核对 Windows 目录身份，保留构建产物。' }
+    if (-not ('Jobs.BuildArtifactIdentityV1' -as [type])) {
+        Add-Type -ErrorAction Stop -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+namespace Jobs {
+    public static class BuildArtifactIdentityV1 {
+        [StructLayout(LayoutKind.Sequential)]
+        struct Information {
+            public uint Attributes;
+            public System.Runtime.InteropServices.ComTypes.FILETIME Creation, Access, Write;
+            public uint Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
+        }
+        [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+        static extern SafeFileHandle CreateFile(string path, uint access, uint share, IntPtr security, uint disposition, uint flags, IntPtr template);
+        [DllImport("kernel32.dll", SetLastError=true)]
+        static extern bool GetFileInformationByHandle(SafeFileHandle handle, out Information info);
+        public static string Read(string path) {
+            using (SafeFileHandle handle = CreateFile(path, 0x80, 7, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero)) {
+                if (handle.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+                Information info;
+                if (!GetFileInformationByHandle(handle, out info)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                if ((info.Attributes & 0x10) == 0 || (info.Attributes & 0x400) != 0) throw new InvalidOperationException("Not a real directory.");
+                return info.Volume.ToString("X8") + ":" + info.IndexHigh.ToString("X8") + info.IndexLow.ToString("X8");
+            }
+        }
+    }
+}
+'@
+    }
+    return [Jobs.BuildArtifactIdentityV1]::Read($Path)
+}
+# 逐层检查后才下钻，不遍历链接，也不把版本元数据作为编译垃圾。
+function Assert-JobsBuildArtifactTree {
+    param([string]$Path)
+    Assert-JobsBuildDirectory $Path
+    $pending = New-Object 'System.Collections.Generic.Queue[string]'
+    $pending.Enqueue($Path)
+    while ($pending.Count -gt 0) {
+        foreach ($item in @(Get-ChildItem -LiteralPath $pending.Dequeue() -Force -ErrorAction Stop)) {
+            if ($item.Name -in @('.git', '.hg', '.svn')) { throw ('工作区包含版本元数据，保留构建产物：' + $item.FullName) }
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('工作区含链接，已停止清理：' + $item.FullName) }
+            if ($item.PSIsContainer) { $pending.Enqueue($item.FullName) }
+        }
+    }
+}
+# 只读枚举本包注册计划对应键值，兼容命令入口与原生 DLL 登记。
+function Get-JobsBuildArtifactRegistryValues {
+    param($Manifest, [string]$BuildRoot)
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '无法查询 Windows 注册表，保留构建产物。' }
+    $plan = @(Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $BuildRoot -PowerShellPath (Join-Path $PSHOME 'powershell.exe'))
+    foreach ($view in @([Microsoft.Win32.RegistryView]::Registry64, [Microsoft.Win32.RegistryView]::Registry32)) {
+        foreach ($hive in @([Microsoft.Win32.RegistryHive]::CurrentUser, [Microsoft.Win32.RegistryHive]::LocalMachine)) {
+            $base = [Microsoft.Win32.RegistryKey]::OpenBaseKey($hive, $view)
+            try {
+                $pending = New-Object 'System.Collections.Generic.Queue[string]'
+                foreach ($entry in $plan) { $pending.Enqueue([string]$entry.Key) }
+                while ($pending.Count -gt 0) {
+                    $path = $pending.Dequeue()
+                    $key = $base.OpenSubKey($path, $false)
+                    if ($null -eq $key) { continue }
+                    try {
+                        foreach ($name in $key.GetValueNames()) {
+                            $value = $key.GetValue($name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                            if ($value -is [string]) { [Environment]::ExpandEnvironmentVariables($value) }
+                            elseif ($value -is [string[]]) { foreach ($part in $value) { [Environment]::ExpandEnvironmentVariables($part) } }
+                        }
+                        foreach ($child in $key.GetSubKeyNames()) { $pending.Enqueue($path + '\' + $child) }
+                    } finally { $key.Dispose() }
+                }
+            } finally { $base.Dispose() }
+        }
+    }
+}
+# 查询失败向上传播，不把不可取得的进程列表当作无人使用。
+function Get-JobsBuildArtifactProcessValues {
+    $processes = @(Get-CimInstance -ClassName Win32_Process -Property ExecutablePath, CommandLine -ErrorAction Stop)
+    if ($processes.Count -eq 0) { throw '进程查询返回空结果，保留构建产物。' }
+    foreach ($process in $processes) {
+        if ($null -ne $process.ExecutablePath) { [string]$process.ExecutablePath }
+        if ($null -ne $process.CommandLine) { [string]$process.CommandLine }
+    }
+}
+# 已卸载残留只在两条路线均禁用且没有登记或进程引用时可清理。
+function Assert-JobsOrphanBuildUnused {
+    param([string]$PackagePath, $Manifest, [string[]]$SourceRoots)
+    foreach ($mode in @('installed', 'build')) {
+        $state = Get-JobsPackageState -PackagePath $PackagePath -DeploymentMode $mode
+        if ($state.Enabled) { throw '本功能仍有启用的运行路线，保留卸载残留。' }
+    }
+    $values = @(Get-JobsBuildArtifactRegistryValues -Manifest $Manifest -BuildRoot $SourceRoots[0])
+    $values += @(Get-JobsBuildArtifactProcessValues)
+    foreach ($root in $SourceRoots) {
+        $pattern = [regex]::Escape($root.TrimEnd('\', '/').Replace('/', '\')) + '(?:[\\/]|["''\s]|$)'
+        foreach ($value in $values) {
+            if ([regex]::IsMatch(([string]$value).Replace('/', '\'), $pattern, [Text.RegularExpressions.RegexOptions]::IgnoreCase)) { throw ('构建工作区仍有登记或进程引用，保留产物：' + $root) }
+        }
+    }
+}
 # 仅清除身份匹配且不承载当前 release 的专用编译工作区。
 function Clear-JobsPackageBuildArtifactsCore {
     param([Parameter(Mandatory = $true)][string]$PackagePath, [string]$BuildPath)
     $manifest = Get-JobsPackageManifest -PackagePath $PackagePath
     $state = Get-JobsPackageState -PackagePath $PackagePath -DeploymentMode installed
-    if (-not $state.Enabled -or [string]::IsNullOrWhiteSpace($state.ReleasePath) -or
-        -not (Test-Path -LiteralPath (Join-Path $state.ReleasePath 'Scripts/Invoke.ps1') -PathType Leaf)) { throw '本功能在默认程序位置尚无正常安装，保留构建产物。' }
-    $runtimeManifest = Get-JobsPackageManifest -PackagePath $state.ReleasePath
-    if ($runtimeManifest.Id -cne $manifest.Id) { throw '已安装运行版本身份不一致，保留构建产物。' }
-    foreach ($name in @('Common.psm1', 'Action.psm1', 'Invoke.ps1')) {
-        if (-not (Test-Path -LiteralPath (Join-Path $state.ReleasePath ('Scripts/' + $name)) -PathType Leaf)) { throw ('已安装运行文件不完整：' + $name) }
-    }
-    $registryPlan = @(Get-JobsPackageRegistryPlan -Manifest $manifest -ReleasePath $state.ReleasePath -PowerShellPath (Join-Path $PSHOME 'powershell.exe'))
-    foreach ($entry in $registryPlan) {
-        if ($null -ne $entry.PSObject.Properties['InProcServer'] -and -not (Test-Path -LiteralPath $entry.InProcServer -PathType Leaf)) { throw '已安装 DLL 缺失，保留构建产物。' }
-    }
-    $requiredRuntime = @()
-    if ($manifest.Id -in @('flutter-run', 'flutter-tools')) { $requiredRuntime += 'bin/JobsFlutterRunnerHost.exe' }
-    if ($manifest.Id -eq 'flutter-tools') { $requiredRuntime += 'Scripts/Actions/run/bin/JobsFlutterRunnerHost.exe' }
-    foreach ($relative in $requiredRuntime) {
-        if (-not (Test-Path -LiteralPath (Join-Path $state.ReleasePath $relative) -PathType Leaf)) { throw ('已安装运行宿主缺失，保留构建产物：' + $relative) }
+    $orphan = -not $state.Enabled
+    if ($orphan -and -not [string]::IsNullOrWhiteSpace($BuildPath)) { throw '自动清理仍要求本轮正常安装，保留构建产物。' }
+    if (-not $orphan) {
+        if ([string]::IsNullOrWhiteSpace($state.ReleasePath) -or
+            -not (Test-Path -LiteralPath (Join-Path $state.ReleasePath 'Scripts/Invoke.ps1') -PathType Leaf)) { throw '本功能在默认程序位置尚无正常安装，保留构建产物。' }
+        $runtimeManifest = Get-JobsPackageManifest -PackagePath $state.ReleasePath
+        if ($runtimeManifest.Id -cne $manifest.Id) { throw '已安装运行版本身份不一致，保留构建产物。' }
+        foreach ($name in @('Common.psm1', 'Action.psm1', 'Invoke.ps1')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $state.ReleasePath ('Scripts/' + $name)) -PathType Leaf)) { throw ('已安装运行文件不完整：' + $name) }
+        }
+        $registryPlan = @(Get-JobsPackageRegistryPlan -Manifest $manifest -ReleasePath $state.ReleasePath -PowerShellPath (Join-Path $PSHOME 'powershell.exe'))
+        foreach ($entry in $registryPlan) {
+            if ($null -ne $entry.PSObject.Properties['InProcServer'] -and -not (Test-Path -LiteralPath $entry.InProcServer -PathType Leaf)) { throw '已安装 DLL 缺失，保留构建产物。' }
+        }
+        $requiredRuntime = @()
+        if ($manifest.Id -in @('flutter-run', 'flutter-tools')) { $requiredRuntime += 'bin/JobsFlutterRunnerHost.exe' }
+        if ($manifest.Id -eq 'flutter-tools') { $requiredRuntime += 'Scripts/Actions/run/bin/JobsFlutterRunnerHost.exe' }
+        foreach ($relative in $requiredRuntime) {
+            if (-not (Test-Path -LiteralPath (Join-Path $state.ReleasePath $relative) -PathType Leaf)) { throw ('已安装运行宿主缺失，保留构建产物：' + $relative) }
+        }
     }
     $buildRoot = Get-JobsPackageBuildRoot $PackagePath
     if (-not (Test-Path -LiteralPath $buildRoot)) { Write-Host ('没有可清除的专用构建产物：' + $buildRoot); return }
     Assert-JobsBuildDirectory $buildRoot
+    $sourceIdentity = $null
+    if ($orphan) { $sourceIdentity = Get-JobsBuildDirectoryIdentity $buildRoot }
     $marker = Get-Content -LiteralPath (Join-Path $buildRoot 'build-owner.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($marker.Id -cne $manifest.Id -or -not [string]::Equals([IO.Path]::GetFullPath([string]$marker.PackagePath), [IO.Path]::GetFullPath($PackagePath), [StringComparison]::OrdinalIgnoreCase)) { throw '构建工作区归属不匹配，已停止清理。' }
     foreach ($mode in @('installed', 'build')) {
@@ -78,16 +188,35 @@ function Clear-JobsPackageBuildArtifactsCore {
         $target = [IO.Path]::GetFullPath($BuildPath)
         if (-not $target.StartsWith($buildRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or (Split-Path -Parent $target) -ne $buildRoot -or (Split-Path -Leaf $target) -cnotmatch '^[a-f0-9]{32}$') { throw '本轮构建目录不属于专用工作区。' }
     }
-    $pending = New-Object 'System.Collections.Generic.Queue[string]'
-    $pending.Enqueue($target)
-    while ($pending.Count -gt 0) {
-        $directory = $pending.Dequeue()
-        foreach ($item in @(Get-ChildItem -LiteralPath $directory -Force)) {
-            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('工作区含链接，已停止清理：' + $item.FullName) }
-            if ($item.PSIsContainer) { $pending.Enqueue($item.FullName) }
+    Assert-JobsBuildArtifactTree $target
+    if ($orphan) {
+        Assert-JobsOrphanBuildUnused -PackagePath $PackagePath -Manifest $manifest -SourceRoots @($buildRoot)
+        $quarantine = Join-Path (Split-Path -Parent $target) ('.JobsExtensionCleanup-' + [guid]::NewGuid().ToString('N'))
+        $moved = Join-Path $quarantine (Split-Path -Leaf $target)
+        [void][IO.Directory]::CreateDirectory($quarantine)
+        try {
+            Move-Item -LiteralPath $target -Destination $moved -ErrorAction Stop
+            Assert-JobsBuildDirectory $moved
+            if ((Get-JobsBuildDirectoryIdentity $moved) -cne $sourceIdentity) { throw '构建目录身份变化，保留暂存产物。' }
+            $movedMarker = Get-Content -LiteralPath (Join-Path $moved 'build-owner.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ($movedMarker.Id -cne $manifest.Id -or -not [string]::Equals([IO.Path]::GetFullPath([string]$movedMarker.PackagePath), [IO.Path]::GetFullPath($PackagePath), [StringComparison]::OrdinalIgnoreCase)) { throw '暂存工作区归属变化，保留构建产物。' }
+            Assert-JobsBuildArtifactTree $moved
+            Assert-JobsOrphanBuildUnused -PackagePath $PackagePath -Manifest $manifest -SourceRoots @($buildRoot, $moved)
+            Assert-JobsBuildArtifactTree $moved
+            if ((Get-JobsBuildDirectoryIdentity $moved) -cne $sourceIdentity) { throw '构建目录身份变化，保留暂存产物。' }
+            Remove-Item -LiteralPath $moved -Recurse -Force -ErrorAction Stop
+            Write-Host ('已清除卸载后的构建残留：' + $target + '；运行文件、配置与注册表保留。')
+        } catch {
+            if ((Test-Path -LiteralPath $moved) -and -not (Test-Path -LiteralPath $target)) {
+                if ((Get-JobsBuildDirectoryIdentity $moved) -ceq $sourceIdentity) { Move-Item -LiteralPath $moved -Destination $target -ErrorAction Stop }
+                else { Write-Warning ('未恢复身份变化的目录；原位置：' + $target + '；暂存位置：' + $moved) }
+            }
+            throw
+        } finally {
+            if ((Test-Path -LiteralPath $quarantine) -and @(Get-ChildItem -LiteralPath $quarantine -Force).Count -eq 0) { [IO.Directory]::Delete($quarantine) }
         }
+        return
     }
-    Assert-JobsBuildDirectory $target
     Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop
     Write-Host ('已清除构建产物：' + $target + '；已安装运行文件、配置与注册表保留。')
 }

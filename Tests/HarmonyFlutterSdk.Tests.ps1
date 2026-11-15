@@ -376,7 +376,7 @@ try {
                     [void](New-Item -ItemType $kind -Path (Join-Path $Directory '.fvm/flutter_sdk') -Target $linkTarget)
                     return [pscustomobject]@{ExitCode=0;StdOut='';StdErr=''}
                 }
-                if ($Arguments[1] -ceq '--version') { return [pscustomobject]@{ExitCode=0;StdOut=('{"frameworkRevision":"' + $script:TestCommit + '"}');StdErr=''} }
+                if ($Arguments[1] -ceq '--version') { return [pscustomobject]@{ExitCode=0;StdOut=('{"frameworkVersion":"3.35.7","frameworkRevision":"' + $script:TestCommit + '"}');StdErr=''} }
                 if ($script:FailHap) { return [pscustomobject]@{ExitCode=1;StdOut='';StdErr='unsupported hap'} }
                 return [pscustomobject]@{ExitCode=0;StdOut='Build hap';StdErr=''}
             }
@@ -448,7 +448,7 @@ try {
     $menu = [IO.File]::ReadAllText((Join-Path $root 'JobsFlutterTools/Scripts/FlutterToolsMenu.h'))
     $entryBlock = [regex]::Match($menu, '(?s)static const Entry Entries\[\]\s*=\s*\{(.*?)\n\};').Groups[1].Value
     $actions = @([regex]::Matches($entryBlock, '\{L"([^"]+)",') | ForEach-Object { $_.Groups[1].Value })
-    Assert-HarmonySdk ($actions.Count -eq 36 -and $actions[20] -ceq 'sdk-manage' -and $actions[21] -ceq 'ohos-sdk-manage' -and $actions[22] -ceq 'java-manage') 'regrouping keeps stable native/OH/Java SDK command offsets'
+    Assert-HarmonySdk ($actions.Count -eq 38 -and $actions[20] -ceq 'sdk-manage' -and $actions[21] -ceq 'ohos-sdk-manage' -and $actions[22] -ceq 'java-manage') 'regrouping keeps stable native/OH/Java SDK command offsets'
     foreach ($name in @('Action.psm1','Invoke.ps1','OpenCmd.ps1')) {
         Assert-HarmonySdk ([IO.File]::ReadAllText((Join-Path $root ('JobsFlutterTools/Scripts/' + $name))).Contains("'ohos-sdk-manage'")) ('dispatch whitelist includes OH: ' + $name)
     }

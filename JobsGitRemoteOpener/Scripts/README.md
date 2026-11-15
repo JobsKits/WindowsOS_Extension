@@ -27,8 +27,8 @@
 
 | 文件 | 实际职责 |
 | --- | --- |
-| [Action.psm1](./Action.psm1) | 解析目标 Git 远程地址并通过默认浏览器打开；非 Git 目标不执行仓库写操作。 |
-| [Invoke.ps1](./Invoke.ps1) | 菜单动作调度，读取本包目标并调用 Action，保存错误和结果。 |
+| [Action.psm1](./Action.psm1) | 一个 remote 直接打开，多个 remote 转交可见 PowerShell 后用 fzf 选择；候选地址脱敏，取消和失败不打开浏览器。 |
+| [Invoke.ps1](./Invoke.ps1) | 菜单动作调度，读取本包目标并调用 Action；`-SelectRemote` 仅供本包多远端交互承接，重新校验安装状态及工作树。 |
 | [Manage.ps1](./Manage.ps1) | 默认 `-Mode Manage` 打开本包安装 / 更新与卸载面板；默认空选，点击操作按钮后在 GUI 隐藏后台执行，不需要终端二次确认。 |
 | [PackageInstaller.psm1](./PackageInstaller.psm1) | 声明校验、独立版本复制 / 哈希、菜单快照、状态提交与失败回滚。 |
 | [Common.psm1](./Common.psm1) | 本包路径、目标、外部进程、日志与公共辅助；导入不运行业务。 |
@@ -36,6 +36,8 @@
 ## <span id="jobs-toc-heading-3" data-jobs-toc="v2">二、调用与边界 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 业务调度入口为 `Invoke-JobsFeature -Target <目标>`，由本包 Invoke.ps1 调用；本目录不是另一份总安装器。Action 中实现的具名功能包括：`Get-JobsGitRemote`、`Invoke-JobsFeature`。
+
+单远端不检查 fzf、不增加终端确认；多远端在本包可见控制台中检查 fzf 路径、版本和选项，再显示“取消本轮”及远端名／网页地址。↑/↓ 或 Tab 选择、回车确认，← / Esc / Ctrl+C 取消；用户的 fzf 默认选项与编码在结束后恢复。取消、空选、无匹配及失败不打开浏览器，错误窗口保留到回车关闭。每个 remote 使用第一条原始配置 URL，不修改 `insteadOf` 或复制远端功能的解析规则。
 
 安装管理要求系统 Windows PowerShell Desktop 5.1、STA 与图形桌面。脚本自定位本包路径；安装写当前用户本功能菜单与状态，卸载保留运行版本、日志、备份、工具及停用记录，不自动卸载其它包。
 

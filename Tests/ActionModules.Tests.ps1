@@ -297,6 +297,11 @@ try {
         foreach ($name in @('Common.psm1', 'Action.psm1')) {
             Copy-Item -LiteralPath (Join-Path $package.FullName ('Scripts/' + $name)) -Destination $scripts
         }
+        if ($package.Name -in @('JobsAndroidSimulatorCreator', 'JobsHarmonySimulatorCreator')) {
+            foreach ($name in @('SdkDownloadOutput.ps1', 'SdkDownloadRoute.ps1')) {
+                Copy-Item -LiteralPath (Join-Path $package.FullName ('Scripts/' + $name)) -Destination $scripts -Recurse
+            }
+        }
         if ($package.Name -eq 'JobsFileVolumes') {
             Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/FileVolumes.ps1') -Destination $scripts
         }

@@ -337,7 +337,7 @@ try {
     Assert-Panel ($resources.Names[2]-ceq'བོད་ཡིག'-and$resources.Names[5]-ceq'Français'-and$resources.Names[8]-ceq'Русский') '语言名称使用自称，不随当前语言翻译'
     foreach($locale in @('bo','ja','fr','es','de','ru','ko')) {
         $table=$resources.Catalog[$locale]
-        Assert-Panel ($table.Count-eq352) '共享词库每语含352项完整正文和动态模板'
+        Assert-Panel ($table.Count-eq355) '共享词库每语含355项完整正文和动态模板'
         foreach($english in $resources.English){Assert-Panel ($table.ContainsKey([string]$english)-and-not[string]::IsNullOrWhiteSpace($table[[string]$english])) ('Windows当前全部文案有译文：'+$locale+': '+$english)}
         foreach($key in $table.Keys){
             $expected=@([regex]::Matches($key,'\{\d+\}')|ForEach-Object Value|Sort-Object)-join'|'

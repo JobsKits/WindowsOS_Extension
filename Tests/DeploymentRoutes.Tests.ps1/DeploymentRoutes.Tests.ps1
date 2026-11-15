@@ -298,6 +298,15 @@ param($SourceRoot, $OutputRoot)
         function script:Restore-JobsPackageRegistrySnapshot { param($Snapshot, $RegistryRoot) }
         function script:Set-JobsPackageUninstallShortcut { param($Manifest, $ReleasePath, $Mode) }
         function script:Send-JobsPackageShellChange { }
+        $script:OrphanScenario = ''
+        $script:OrphanIdentityChecks = 0
+        function script:Get-JobsBuildDirectoryIdentity {
+            param($Path)
+            $script:OrphanIdentityChecks++
+            $identity = [string](Get-Item -LiteralPath $Path -Force -ErrorAction Stop).CreationTimeUtc.Ticks
+            if ($script:OrphanScenario -eq 'identity-change' -and $script:OrphanIdentityChecks -gt 1) { return ($identity + ':changed') }
+            return $identity
+        }
     }
     $installed = & $module { param($Path) Invoke-JobsPackageChange -PackagePath $Path -Mode Install -DeploymentMode installed } $package
     Assert-Route ($installed.ReleasePath.StartsWith($env:LOCALAPPDATA)) '默认安装沿用当前用户 LocalAppData'
@@ -346,7 +355,7 @@ param($SourceRoot, $OutputRoot)
     Assert-Route ((Get-JobsPackageState -PackagePath $package -DeploymentMode build).Enabled) '提交失败完整恢复原 build 路线启用状态'
     Assert-Route ([Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $installed.Root 'settings.json'))) -ceq [Convert]::ToBase64String($beforeDefault)) '提交失败逐字恢复 installed 原状态'
 
-    Assert-Rejected { Clear-JobsPackageBuildArtifacts -PackagePath $package } '没有默认位置正常安装时禁止独立清理'
+    Assert-Rejected { Clear-JobsPackageBuildArtifacts -PackagePath $package } 'build 路线仍启用时禁止按卸载残留清理'
     $uninstall = & $module { param($Path) Invoke-JobsPackageChange -PackagePath $Path -Mode Uninstall -DeploymentMode installed } $package
     Assert-Route ($uninstall.Outcome -ceq 'NotInstalled' -and $uninstall.Mode -ceq 'Uninstall' -and $uninstall.Backup -eq $null) '当前路线未安装返回独立无需卸载结果，不伪造成功或备份'
     Assert-Route ([Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $installed.Root 'settings.json'))) -ceq [Convert]::ToBase64String($beforeDefault)) '无需卸载逐字保留当前禁用状态及另一条路线'
@@ -375,6 +384,126 @@ param($SourceRoot, $OutputRoot)
     Assert-Route (Test-Path (Join-Path $build.ReleasePath 'Scripts/Invoke.ps1')) '独立清理保留临时路线既有 release 与脚本'
     Assert-Route (Test-Path (Join-Path $installed.Root 'settings.json')) '清理保留已安装状态配置'
     Assert-Route (Test-Path (Join-Path $package 'Scripts/Build.ps1')) '清理保留源码与安装管理入口'
+
+    # 两条路线均卸载后的残留使用真实清理函数，登记和进程查询仅由夹具提供。
+    & $module { param($Path, $Release) Build-JobsPackageNativeRelease -PackagePath $Path -ReleasePath $Release -DeploymentMode installed } $package $installed.ReleasePath
+    $orphanBuild = & $module { $script:LastBuildPath }
+    & $module { param($Path) Invoke-JobsPackageChange -PackagePath $Path -Mode Uninstall -DeploymentMode installed } $package | Out-Null
+    & $module { param($Path) Invoke-JobsPackageChange -PackagePath $Path -Mode Uninstall -DeploymentMode build } $package | Out-Null
+    Assert-Route (-not (Get-JobsPackageState -PackagePath $package -DeploymentMode installed).Enabled -and -not (Get-JobsPackageState -PackagePath $package -DeploymentMode build).Enabled) '卸载后两条路线均禁用，编译残留仍存在'
+    Assert-Route (Test-Path -LiteralPath (Join-Path $orphanBuild 'fixture.obj')) '卸载保留可由独立按钮清理的中间文件'
+    $installedSettingsPath = Join-Path $installed.Root 'settings.json'
+    $uninstalledSettingsBytes = [IO.File]::ReadAllBytes($installedSettingsPath)
+    $orphanOwnerBytes = [IO.File]::ReadAllBytes($ownerPath)
+    $siblingSentinel = Join-Path $package 'work/JobsExtensionBuildSibling/sentinel'
+    Write-Fixture $siblingSentinel 'other-build'
+    & $module {
+        param($SettingsPath)
+        $script:OrphanSettingsPath = $SettingsPath
+        $script:OrphanScenario = ''
+        $script:OrphanRegistryChecks = 0
+        $script:OrphanProcessChecks = 0
+        $script:OrphanSourceRoot = ''
+        function script:Get-JobsBuildArtifactRegistryValues {
+            param($Manifest, $BuildRoot)
+            $script:OrphanRegistryChecks++
+            $script:OrphanSourceRoot = $BuildRoot
+            if ($script:OrphanScenario -eq 'registry-error') { throw 'isolated-registry-query-failed' }
+            if ($script:OrphanScenario -eq 'late-registry-error' -and $script:OrphanRegistryChecks -gt 1) { throw 'isolated-late-registry-query-failed' }
+            if ($script:OrphanScenario -eq 'registry-reference') { return (Join-Path $BuildRoot 'compiled.dll').ToUpperInvariant() }
+        }
+        function script:Get-JobsBuildArtifactProcessValues {
+            $script:OrphanProcessChecks++
+            if ($script:OrphanScenario -eq 'process-error') { throw 'isolated-process-query-failed' }
+            if ($script:OrphanScenario -eq 'process-reference') { return ('powershell.exe -File "' + (Join-Path $script:OrphanSourceRoot 'compile.ps1') + '"') }
+            if ($script:OrphanScenario -eq 'late-moved-reference' -and $script:OrphanProcessChecks -gt 1) {
+                $quarantine = @(Get-ChildItem -LiteralPath (Split-Path -Parent $script:OrphanSourceRoot) -Force -Directory -Filter '.JobsExtensionCleanup-*')
+                if ($quarantine.Count -ne 1) { throw 'isolated-missing-quarantine' }
+                return Join-Path (Join-Path $quarantine[0].FullName 'JobsExtensionBuild') 'compile.exe'
+            }
+            if ($script:OrphanScenario -eq 'late-enable' -and $script:OrphanProcessChecks -eq 1) {
+                $settings = Get-Content -LiteralPath $script:OrphanSettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
+                $settings.Enabled = $true
+                [IO.File]::WriteAllText($script:OrphanSettingsPath, ($settings | ConvertTo-Json), (New-Object Text.UTF8Encoding($true)))
+            }
+        }
+    } $installedSettingsPath
+    $orphanCases = @(
+        @{ Scenario = 'registry-reference'; Error = '仍有登记或进程引用'; Label = '构建目录仍被登记时保留残留' },
+        @{ Scenario = 'process-reference'; Error = '仍有登记或进程引用'; Label = '进程命令行引用构建目录时保留残留' },
+        @{ Scenario = 'registry-error'; Error = 'isolated-registry-query-failed'; Label = '注册表查询失败不作为无登记' },
+        @{ Scenario = 'process-error'; Error = 'isolated-process-query-failed'; Label = '进程查询失败不作为无人使用' },
+        @{ Scenario = 'late-registry-error'; Error = 'isolated-late-registry-query-failed'; Label = '暂存后登记查询失败恢复原目录' },
+        @{ Scenario = 'late-moved-reference'; Error = '仍有登记或进程引用'; Label = '暂存后的实际新路径被使用时恢复原目录' },
+        @{ Scenario = 'late-enable'; Error = '仍有启用的运行路线'; Label = '暂存后重新启用运行路线时恢复原目录' }
+    )
+    foreach ($case in $orphanCases) {
+        & $module {
+            param($Scenario)
+            $script:OrphanScenario = $Scenario
+            $script:OrphanRegistryChecks = 0
+            $script:OrphanProcessChecks = 0
+        } $case.Scenario
+        $failure = ''
+        try { Clear-JobsPackageBuildArtifacts -PackagePath $package } catch { $failure = $_.Exception.Message }
+        Assert-Route ($failure.Contains($case.Error)) ($case.Label + '；实际错误：' + $failure)
+        Assert-Route ((Test-Path -LiteralPath (Join-Path $orphanBuild 'fixture.obj')) -and (Test-Path -LiteralPath $ownerPath)) ($case.Label + '，原产物保留')
+        Assert-Route (@(Get-ChildItem -LiteralPath (Join-Path $package 'work') -Force -Directory -Filter '.JobsExtensionCleanup-*').Count -eq 0) ($case.Label + '，无空暂存目录遗留')
+        [IO.File]::WriteAllBytes($installedSettingsPath, $uninstalledSettingsBytes)
+    }
+    & $module { $script:OrphanScenario = '' }
+    & $module {
+        $script:OrphanScenario = 'identity-change'
+        $script:OrphanIdentityChecks = 0
+    }
+    $identityFailure = ''
+    try { Clear-JobsPackageBuildArtifacts -PackagePath $package } catch { $identityFailure = $_.Exception.Message }
+    Assert-Route ($identityFailure.Contains('身份变化')) ('搬移后目录身份变化时停止清理；实际错误：' + $identityFailure)
+    Assert-Route ((& $module { $script:OrphanIdentityChecks }) -ge 2) '目录身份至少在搬移前后分别复核'
+    $identityQuarantine = @(Get-ChildItem -LiteralPath (Join-Path $package 'work') -Force -Directory -Filter '.JobsExtensionCleanup-*')
+    $preservedBuildRoot = $buildRoot
+    if (-not (Test-Path -LiteralPath $preservedBuildRoot)) {
+        Assert-Route ($identityQuarantine.Count -eq 1) '身份无法确认时残留保留在唯一暂存目录'
+        $preservedBuildRoot = Join-Path $identityQuarantine[0].FullName 'JobsExtensionBuild'
+    }
+    Assert-Route ((Test-Path -LiteralPath (Join-Path $preservedBuildRoot 'build-owner.json')) -and (Test-Path -LiteralPath (Join-Path $preservedBuildRoot ((Split-Path -Leaf $orphanBuild) + '/fixture.obj')))) '身份变化时构建内容未被删除'
+    & $module { $script:OrphanScenario = '' }
+    if ($preservedBuildRoot -ne $buildRoot) { Move-Item -LiteralPath $preservedBuildRoot -Destination $buildRoot -ErrorAction Stop }
+    foreach ($directory in $identityQuarantine) {
+        Assert-Route (@(Get-ChildItem -LiteralPath $directory.FullName -Force).Count -eq 0) '测试恢复身份冲突夹具后只移除空暂存目录'
+        [IO.Directory]::Delete($directory.FullName)
+    }
+    foreach ($metadata in @('.git', '.hg', '.svn')) {
+        foreach ($isDirectory in @($false, $true)) {
+            $metadataPath = Join-Path $orphanBuild $metadata
+            $metadataSentinel = $metadataPath
+            if ($isDirectory) { $metadataSentinel = Join-Path $metadataPath 'sentinel' }
+            Write-Fixture $metadataSentinel 'version-metadata'
+            Assert-Rejected { Clear-JobsPackageBuildArtifacts -PackagePath $package } ('卸载残留含版本元数据时拒绝清理：' + $metadata + '；目录=' + $isDirectory)
+            Assert-Route ([IO.File]::ReadAllText($metadataSentinel) -ceq 'version-metadata') ('版本元数据和构建内容保留：' + $metadata)
+            Assert-Route (Test-Path -LiteralPath (Join-Path $orphanBuild 'fixture.obj')) '版本元数据阻断发生在删除构建文件之前'
+            Remove-Item -LiteralPath $metadataPath -Recurse -Force
+        }
+    }
+    Assert-Rejected { Clear-JobsPackageBuildArtifacts -PackagePath $package -BuildPath $orphanBuild } '已卸载分支不放宽自动清理的安装前提'
+    Write-Fixture $ownerPath '{"Id":"another-feature","PackagePath":"unknown"}'
+    Assert-Rejected { Clear-JobsPackageBuildArtifacts -PackagePath $package } '卸载后归属标记错误仍拒绝清理'
+    [IO.File]::WriteAllBytes($ownerPath, $orphanOwnerBytes)
+    $orphanLink = Join-Path $buildRoot 'orphan-external-link'
+    $orphanLinked = $false
+    try { [void](New-Item -ItemType SymbolicLink -Path $orphanLink -Target (Split-Path -Parent $outside) -ErrorAction Stop); $orphanLinked = $true } catch { Write-Host 'SKIP: 创建卸载残留测试链接需要权限。' }
+    if ($orphanLinked) {
+        Assert-Rejected { Clear-JobsPackageBuildArtifacts -PackagePath $package } '卸载后子项链接仍拒绝递归清理'
+        Assert-Route ([IO.File]::ReadAllText($outside) -ceq 'preserve') '卸载残留清理不触碰外部目标'
+        Remove-Item -LiteralPath $orphanLink -Force
+    }
+    Clear-JobsPackageBuildArtifacts -PackagePath $package
+    Assert-Route (-not (Test-Path -LiteralPath $buildRoot)) '完整卸载后可独立清理专用构建残留'
+    Assert-Route ([IO.File]::ReadAllText($siblingSentinel) -ceq 'other-build') '卸载残留清理保留同前缀兄弟工作区'
+    Assert-Route ([Convert]::ToBase64String([IO.File]::ReadAllBytes($installedSettingsPath)) -ceq [Convert]::ToBase64String($uninstalledSettingsBytes)) '残留清理不改卸载墓碑配置'
+    Assert-Route ((Test-Path -LiteralPath (Join-Path $installed.ReleasePath 'Scripts/Invoke.ps1')) -and (Test-Path -LiteralPath (Join-Path $build.ReleasePath 'Scripts/Invoke.ps1'))) '残留清理保留两条路线的既有运行文件'
+    Assert-Route ((Get-FileHash -LiteralPath (Join-Path $installed.ReleasePath 'bin/JobsFileVolumesContextMenu.dll')).Hash -eq $dllHash) '卸载后的清理不改运行 DLL'
+
     $worker = Join-Path $root 'Scripts/ManagementWorker.ps1'
     $fake = @'
 function Invoke-JobsPackageChange {

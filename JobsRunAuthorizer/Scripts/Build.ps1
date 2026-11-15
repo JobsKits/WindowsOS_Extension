@@ -315,7 +315,8 @@ $arguments = @('/nologo', '/LD', '/MT', '/EHsc', '/std:c++14', '/O2', '/W4', '/u
     ('/DEF:"' + (Join-Path $scripts 'ContextMenu.def') + '"'),
     ('/OUT:"' + (Join-Path $output 'JobsRunAuthorizerContextMenu.dll') + '"'),
     'shell32.lib', 'shlwapi.lib', 'ole32.lib', 'uuid.lib', 'user32.lib')
-[IO.File]::WriteAllLines($response, $arguments, (New-Object Text.UTF8Encoding($true)))
+# MSVC 的 /link 只接收同一物理行的后续参数。
+[IO.File]::WriteAllText($response, ($arguments -join ' '), (New-Object Text.UTF8Encoding($true)))
 $buildStart = New-Object Diagnostics.ProcessStartInfo
 $buildStart.FileName = $compiler
 $buildStart.Arguments = '@"' + $response + '"'

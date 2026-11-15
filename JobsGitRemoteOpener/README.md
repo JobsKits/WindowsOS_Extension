@@ -34,12 +34,14 @@
 | 操作 | 结果 |
 | --- | --- |
 | 右键仓库子目录 → 打开 Git 远程地址 | 将 `git@github.com:org/repo.git` 转成 `https://github.com/org/repo` 后打开。 |
+| 仓库只配置一个 remote | 直接打开，不要求安装 fzf，也不弹选择窗口。 |
+| 仓库配置多个 remote | 在可见 PowerShell 中用 [**fzf**](https://github.com/junegunn/fzf) 选择远端名与网页地址；↑/↓ 或 Tab 选择，回车确认。取消行、←、Esc、Ctrl+C 或空选不打开浏览器。 |
 | 在 `Manage.cmd` 选择“安装 / 更新” | 仅安装或更新 `open-git-remote`。 |
 | 在 `Manage.cmd` 选择“卸载” | 仅移除本包菜单，保留其他包。 |
 
 **系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+）后，也仅可探索基础静态菜单，不构成对本包完整功能的支持承诺。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
 
-**本包依赖与测试范围：** 本包采用静态菜单，安装无需 MSVC；Git for Windows、默认浏览器及其网络 / 认证能力的系统要求单独满足。虚拟机可验证路径解析与浏览器打开，菜单能显示不代表旧系统浏览器已具备访问远端的能力。
+**本包依赖与测试范围：** 本包采用静态菜单，安装无需 MSVC；Git for Windows、默认浏览器及其网络 / 认证能力的系统要求单独满足。多远端选择另需健康的 fzf，缺失或不可用时停止并显示修复提示，可先在终端执行 `winget install --id junegunn.fzf --exact`，完成后重新打开菜单；不会自动安装或改用编号输入。虚拟机可验证路径解析与浏览器打开，菜单能显示不代表旧系统浏览器已具备访问远端的能力。
 
 
 **面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
@@ -83,7 +85,9 @@
 ## <span id="jobs-toc-heading-6" data-jobs-toc="v2">三、功能行为与风险 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
 - 通过 Git 自身解析普通仓库、子模块、`.git` 指针文件、linked worktree 和上级工作树。
-- 优先当前分支关联 remote，其次 `origin`，最后只接受唯一 remote；缺少或有歧义时停止。
+- 无 remote 时明确停止；一个 remote 直接打开，多个 remote 一律进入 fzf，不因当前分支跟踪关系或 `origin` 名称跳过选择。
+- fzf 列表显示远端名与脱敏后的网页地址，取消项默认高亮；取消、无匹配、空选、选择器失败或返回列表外内容都不打开任何远端。不同 remote 即使指向同一地址也分别列出，每个 remote 沿用第一条配置 URL。
+- 只有多远端才启动可见的本包 PowerShell 选择窗口，选择成功或取消后自动关闭；依赖缺失或错误时显示原因并等待回车关闭，不修改仓库、远端或全局配置。
 - 浏览器转换移除凭据，拒绝本地路径和非网络协议；复制原始地址由独立的 `JobsGitRemoteCopier` 包提供。
 
 ## <span id="jobs-toc-heading-7" data-jobs-toc="v2">四、目录与状态 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
@@ -111,7 +115,7 @@ JobsGitRemoteOpener/
 
 ## <span id="jobs-toc-heading-8" data-jobs-toc="v2">五、排查与验证 <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a></span><!-- jobs-toc:heading-end -->
 
-不能打开时，先确认目标位于 Git 工作树、remote 可唯一确定且为网络仓库地址。需要登录的仓库仍由浏览器处理登录。
+不能打开时，先确认目标位于 Git 工作树、至少配置一个 remote 且所选项为网络仓库地址；多个 remote 时还须确认 fzf 可正常运行。需要登录的仓库仍由浏览器处理登录。
 
 菜单未出现时，重新右键并检查 Windows 11 经典菜单入口，再查看本包安装日志。其他包的菜单状态与日志无需改动。
 

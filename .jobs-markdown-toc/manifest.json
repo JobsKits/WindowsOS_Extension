@@ -92,7 +92,10 @@
     "Tests/FlutterRunnerPreflight.Tests.ps1/README.md",
     "Tests/FlutterRunnerVirtualStart.Tests.ps1/README.md",
     "Tests/HarmonyRunPrepare.Tests.ps1/README.md",
+    "Tests/NativeBuild.Tests.ps1/README.md",
     "Tests/NativeRuntimeDeployment.Tests.ps1/README.md",
-    "Tests/PanelPreferences.Tests.ps1/README.md"
+    "Tests/PanelPreferences.Tests.ps1/README.md",
+    "JobsCommandShortcutCreator/README.md",
+    "JobsCommandShortcutCreator/Tests/NamedParameterTests.ps1/README.md"
   ]
 }

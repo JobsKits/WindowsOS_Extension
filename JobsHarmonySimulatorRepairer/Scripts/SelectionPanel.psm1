@@ -7,6 +7,18 @@ Set-StrictMode -Version 2.0
 $script:PanelTranslations = @{}
 $panelTextData = @'
 {
+  "🔗 创建脚本快捷入口…": [
+    "🔗 建立指令稿快捷入口…",
+    "🔗 Create script launcher…"
+  ],
+  "创建脚本快捷入口…": [
+    "建立指令稿快捷入口…",
+    "Create script launcher…"
+  ],
+  "对同名.cmd/.bat/.ps1脚本文件夹，在旁边创建相对路径转发入口；不执行或改写原脚本。": [
+    "對同名.cmd/.bat/.ps1指令稿資料夾，在旁邊建立相對路徑轉發入口；不執行或改寫原指令稿。",
+    "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script."
+  ],
   "自定义Explorer右键菜单" : [
     "自訂Explorer右鍵選單",
     "Custom Explorer context menu"
@@ -821,6 +833,9 @@ $script:PanelTextPatterns = @(
 $panelExtendedJson = @'
 {
   "bo": {
+    "Create script launcher…": "སྒྲིག་ཡིག་འཕྲལ་འཇུག་བཟོ།…",
+    "🔗 Create script launcher…": "🔗 སྒྲིག་ཡིག་འཕྲལ་འཇུག་བཟོ།…",
+    "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": ".cmd/.bat/.ps1 མིང་མཚུངས་སྣོད་ཀྱི་འགྲམ་དུ་ལྟོས་བཅས་འཕྲལ་འཇུག་བཟོ། མ་ཡིག་མི་འགུལ་ཞིང་མི་བསྒྱུར།",
     "Theme": "མངོན་ཚུལ།",
     "Language": "སྐད་ཡིག",
     "🎨 Theme": "🎨 མངོན་ཚུལ།",
@@ -1175,6 +1190,9 @@ $panelExtendedJson = @'
     "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} གྲུབ་པ {1} / {2}（གྲུབ་པའི་ཚན་པ་ལྟར {3}%）། {4} {5}"
   },
   "ja": {
+    "Create script launcher…": "スクリプト起動ファイルを作成…",
+    "🔗 Create script launcher…": "🔗 スクリプト起動ファイルを作成…",
+    "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "同名の .cmd/.bat/.ps1 スクリプトフォルダの横に相対パスの起動ファイルを作成します。元のスクリプトは実行・変更しません。",
     "Theme": "テーマ",
     "Language": "言語",
     "🎨 Theme": "🎨 テーマ",
@@ -1529,6 +1547,9 @@ $panelExtendedJson = @'
     "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} 完了 {1} / {2}（{3}%、完了項目基準）；{4} {5}"
   },
   "fr": {
+    "Create script launcher…": "Créer un lanceur de script…",
+    "🔗 Create script launcher…": "🔗 Créer un lanceur de script…",
+    "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "Créer un lanceur relatif à côté du dossier .cmd/.bat/.ps1 contenant le script du même nom, sans exécuter ni modifier le script source.",
     "Theme": "Thème",
     "Language": "Langue",
     "🎨 Theme": "🎨 Thème",
@@ -1883,6 +1904,9 @@ $panelExtendedJson = @'
     "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Terminés {1} / {2} ({3}% par éléments terminés) ; {4} {5}"
   },
   "es": {
+    "Create script launcher…": "Crear acceso al script…",
+    "🔗 Create script launcher…": "🔗 Crear acceso al script…",
+    "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "Crea un acceso relativo junto a la carpeta .cmd/.bat/.ps1 del mismo nombre, sin ejecutar ni modificar el script original.",
     "Theme": "Tema",
     "Language": "Idioma",
     "🎨 Theme": "🎨 Tema",
@@ -2237,6 +2261,9 @@ $panelExtendedJson = @'
     "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Completados {1} / {2} ({3}% por elementos completados); {4} {5}"
   },
   "de": {
+    "Create script launcher…": "Skriptstarter erstellen…",
+    "🔗 Create script launcher…": "🔗 Skriptstarter erstellen…",
+    "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "Erstellt einen relativen Starter neben dem gleichnamigen .cmd/.bat/.ps1-Skriptordner, ohne das Originalskript auszuführen oder zu ändern.",
     "Theme": "Design",
     "Language": "Sprache",
     "🎨 Theme": "🎨 Design",
@@ -2591,6 +2618,9 @@ $panelExtendedJson = @'
     "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Abgeschlossen {1} / {2} ({3}% nach abgeschlossenen Einträgen); {4} {5}"
   },
   "ru": {
+    "Create script launcher…": "Создать ярлык скрипта…",
+    "🔗 Create script launcher…": "🔗 Создать ярлык скрипта…",
+    "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "Создать относительный ярлык рядом с одноимённой папкой скрипта .cmd/.bat/.ps1, не запуская и не изменяя исходный скрипт.",
     "Theme": "Тема",
     "Language": "Язык",
     "🎨 Theme": "🎨 Тема",
@@ -2945,6 +2975,9 @@ $panelExtendedJson = @'
     "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Завершено {1} из {2} ({3}% по завершённым пунктам); {4} {5}"
   },
   "ko": {
+    "Create script launcher…": "스크립트 실행 파일 만들기…",
+    "🔗 Create script launcher…": "🔗 스크립트 실행 파일 만들기…",
+    "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "같은 이름의 .cmd/.bat/.ps1 스크립트 폴더 옆에 상대 경로 실행 파일을 만듭니다. 원본 스크립트를 실행하거나 수정하지 않습니다.",
     "Theme": "테마",
     "Language": "언어",
     "🎨 Theme": "🎨 테마",
@@ -4691,11 +4724,14 @@ function New-JobsFeatureSelectionForm {
         Initialize-JobsPanelCenteredChoice $themeBox
         Initialize-JobsPanelCenteredChoice $languageBox
         # 闭包保留表单状态，事件不依赖已返回的构造函数局部作用域。
+        # 动态闭包模块只能按已捕获的函数体调用私有选择门禁。
+        $getActiveSelection = ${function:Get-JobsPanelActiveSelection}
+        $setPanelOperation = ${function:Set-JobsPanelOperation}
         $refresh = {
             if ($state.Running -or $state.Started) { return }
             $count = @($state.Checks | Where-Object { $_.Checked }).Count
             Set-JobsFeatureStatusText $state ('已选 {0} / {1} 项；关闭或取消窗口不执行操作。' -f $count, $state.Checks.Count)
-            $activeCount = @(Get-JobsPanelActiveSelection $state).Count
+            $activeCount = @(& $getActiveSelection $state).Count
             $state.ConfirmButton.Enabled = $activeCount -gt 0 -or $state.Mode -eq 'Configure'
             $state.CleanupButton.Enabled = $activeCount -gt 0 -and -not $state.Running -and $state.DeploymentMode -eq 'installed'
             $state.AutoCleanup.Enabled = -not $state.Running -and $state.DeploymentMode -eq 'installed'
@@ -4719,7 +4755,7 @@ function New-JobsFeatureSelectionForm {
         $buttons[1].Add_Click({ foreach ($check in $state.Checks) { $check.Checked = $false } }.GetNewClosure())
         $buttons[2].Add_Click({
             if ($state.Running) { Request-JobsManagementStop $state; return }
-            $ids = @(Get-JobsPanelActiveSelection $state)
+            $ids = @(& $getActiveSelection $state)
             # 即使事件被程序直接调用，也不能绕过空选门禁。
             if ($ids.Count -eq 0 -and $state.Mode -ne 'Configure') { return }
             $choice = [pscustomobject]@{ Features = $ids; Mode = $state.Operation; DeploymentMode = $state.DeploymentMode; AutoCleanup = [bool]$state.AutoCleanup.Checked }
@@ -4755,7 +4791,7 @@ function New-JobsFeatureSelectionForm {
         }.GetNewClosure())
         $cleanupButton.Add_Click({
             if ($state.Running -or $state.Started -or $state.DeploymentMode -ne 'installed') { return }
-            $ids = @(Get-JobsPanelActiveSelection $state)
+            $ids = @(& $getActiveSelection $state)
             if ($ids.Count -eq 0) { return }
             $choice = [pscustomobject]@{ Features = $ids; Mode = 'Cleanup'; DeploymentMode = 'installed'; AutoCleanup = $false }
             if ($state.Preview) { Add-JobsManagementLog $state ('仅预览清理：' + ($ids -join ', ')); return }
@@ -4764,7 +4800,7 @@ function New-JobsFeatureSelectionForm {
         if ($operationBox) {
             $operationBox.Add_SelectedIndexChanged({
                 if ($state.PreferenceUpdating) { return }
-                Set-JobsPanelOperation $state $(if ($state.OperationBox.SelectedIndex -eq 1) { 'Uninstall' } else { 'Install' })
+                & $setPanelOperation $state $(if ($state.OperationBox.SelectedIndex -eq 1) { 'Uninstall' } else { 'Install' })
                 & $refresh
             }.GetNewClosure())
         }

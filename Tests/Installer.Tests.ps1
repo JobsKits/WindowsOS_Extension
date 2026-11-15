@@ -383,6 +383,13 @@ foreach ($feature in $features) {
         Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\' }).Count -eq 0) 'Flutter 运行包不残留始终可见的静态菜单'
         continue
     }
+    if ($feature.Id -eq 'command-shortcut-create') {
+        $clsid = '{A29030C5-2C96-48BF-BBF2-75D80CC8AF80}'
+        $native = @($all | Where-Object { $_.Key.EndsWith('Jobs.WindowsExtension.' + $feature.Id) -or $_.Key.EndsWith('CLSID\' + $clsid) })
+        Assert-JobsTest ($native.Count -eq 2) '快捷入口包仅目录 handler 和本包 CLSID'
+        Assert-JobsTest (@($native | Where-Object { $_.Key -match '\\shell\\|DesktopBackground|\\Drive|\\Directory\\Background' }).Count -eq 0) '快捷入口不注册始终可见的静态或背景菜单'
+        continue
+    }
     if ($feature.Id -in @('run-authorize', 'run-authorization-revoke', 'file-content-viewer', 'file-hash', 'file-volumes')) {
         $clsid = '{AE09A13F-EF17-4CE3-8BA1-F557C34280DE}'
         if ($feature.Id -eq 'run-authorization-revoke') { $clsid = '{6AC50F49-6915-4130-8474-F99DA4D074D6}' }

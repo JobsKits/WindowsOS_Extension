@@ -275,7 +275,10 @@ $tokens = $null
 $errors = $null
 $gitAction = [Management.Automation.Language.Parser]::ParseFile((Join-Path $project 'JobsGitRemoteOpener/Scripts/Action.psm1'), [ref]$tokens, [ref]$errors)
 if ($errors) { throw ($errors | Out-String) }
-foreach ($definition in $gitAction.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -in @('Get-JobsGitRemote', 'ConvertTo-JobsWebUrl') }, $false)) {
+# 复制沿用分支/origin 优先级；打开多远端的选择由专项夹具验证。
+$copyGitAction = [Management.Automation.Language.Parser]::ParseFile((Join-Path $project 'JobsGitRemoteCopier/Scripts/Action.psm1'), [ref]$tokens, [ref]$errors)
+if ($errors) { throw ($errors | Out-String) }
+foreach ($definition in @($copyGitAction.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-JobsGitRemote' }, $false)) + @($gitAction.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'ConvertTo-JobsWebUrl' }, $false))) {
     . ([scriptblock]::Create($definition.Extent.Text))
 }
 
@@ -491,6 +494,43 @@ Start-Sleep -Seconds 30
     $bare = Join-Path $testRoot 'bare.git'
     [void](Invoke-TestGit @('init', '--bare', '-q', $bare))
     Assert-Throws { Get-JobsGitRemote -Directory $bare } '裸仓库没有工作树不提供菜单动作'
+
+    # 打开功能单独验证；浏览器和控制台调度均被拦截，不触碰桌面。
+    $openerModule = Import-Module (Join-Path $project 'JobsGitRemoteOpener/Scripts/Action.psm1') -PassThru -DisableNameChecking
+    try {
+        & $openerModule {
+            $script:OpenedUrl = $null
+            $script:DispatchedDirectory = $null
+            $script:Selection = 'alpha'
+            $script:SelectionCalls = 0
+            function script:Start-Process { param($FilePath) $script:OpenedUrl = $FilePath }
+            function script:Start-JobsGitRemoteSelector { param($Directory) $script:DispatchedDirectory = $Directory }
+            function script:Select-JobsGitRemoteName { param($Git, $Directory, $Remotes) $script:SelectionCalls++; return $script:Selection }
+        }
+        [void](Invoke-TestGit @('-C', $repository, 'remote', 'add', 'alpha', 'git@example.com:team/alpha.git'))
+        & $openerModule { param($Path) Invoke-JobsFeature -Target $Path } $repository
+        Assert-Equal (& $openerModule { $script:OpenedUrl }) 'https://example.com/team/alpha' '唯一远端直接打开且不套用 insteadOf'
+        Assert-Equal (& $openerModule { $script:SelectionCalls }) 0 '唯一远端不依赖 fzf'
+        [void](Invoke-TestGit @('-C', $repository, 'remote', 'add', 'origin', 'https://example.com/team/origin.git'))
+        [void](Invoke-TestGit @('-C', $repository, 'config', ('branch.' + $branchName + '.remote'), 'origin'))
+        $configurationBefore = [IO.File]::ReadAllText((Join-Path $repository '.git/config'))
+        & $openerModule { param($Path) $script:OpenedUrl = $null; Invoke-JobsFeature -Target $Path } $repository
+        Assert-Equal (& $openerModule { $script:DispatchedDirectory }) $repository '多远端隐藏入口转交本包可见控制台'
+        Assert-True ($null -eq (& $openerModule { $script:OpenedUrl })) '控制台调度未打开默认远端'
+        & $openerModule { param($Path) Invoke-JobsFeature -Target $Path -Interactive } $repository
+        Assert-Equal (& $openerModule { $script:OpenedUrl }) 'https://example.com/team/alpha' '多远端遵从选择而不自动采用 origin 或跟踪远端'
+        Assert-Equal (& $openerModule { $script:SelectionCalls }) 1 '多远端进入选择器'
+        & $openerModule { param($Path) $script:OpenedUrl = $null; $script:Selection = $null; Invoke-JobsFeature -Target $Path -Interactive } $repository
+        Assert-True ($null -eq (& $openerModule { $script:OpenedUrl })) '取消选择不打开浏览器'
+        & $openerModule { function script:Select-JobsGitRemoteName { param($Git, $Directory, $Remotes) throw 'isolated selector failure' } }
+        Assert-Throws { & $openerModule { param($Path) Invoke-JobsFeature -Target $Path -Interactive } $repository } '选择器失败明确返回错误'
+        Assert-True ($null -eq (& $openerModule { $script:OpenedUrl })) '选择器失败不回退默认远端'
+        Assert-Equal ([IO.File]::ReadAllText((Join-Path $repository '.git/config'))) $configurationBefore '打开和取消均不改仓库配置'
+        [void](Invoke-TestGit @('-C', $repository, 'remote', 'remove', 'alpha'))
+        [void](Invoke-TestGit @('-C', $repository, 'remote', 'remove', 'origin'))
+        Assert-Throws { & $openerModule { param($Path) Invoke-JobsFeature -Target $Path } $repository } '打开功能无远端时停止'
+    }
+    finally { Remove-Module $openerModule }
 
     $submoduleSource = Join-Path $testRoot 'submodule source'
     [void](Invoke-TestGit @('init', '-q', $submoduleSource))

@@ -270,6 +270,7 @@ $ErrorActionPreference = 'Stop'
 $project = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $project 'JobsCodeGraphUpdater/Scripts/Common.psm1') -Force -DisableNameChecking
 $worker = Join-Path $project 'JobsCodeGraphUpdater/Scripts/Action.psm1'
+. (Join-Path $project 'JobsFlutterPubGet/Scripts/SdkDownloadOutput.ps1')
 foreach ($name in @('JobsFlutterPubGet', 'JobsCodeGraphUpdater', 'JobsGitEmptyCommitPusher')) {
     $tokens = $null
     $errors = $null

@@ -497,6 +497,7 @@ param([string]$Worker, [string]$Project, [string]$State)
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = New-Object Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $OutputEncoding
+[Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
 $env:LOCALAPPDATA = $State
 $module = Import-Module $Worker -PassThru -DisableNameChecking
 # 5.1 重定向宿主以信息流输出 Write-Host；显式渲染文本以验证真实重问次数。
@@ -519,7 +520,12 @@ $module = Import-Module $Worker -PassThru -DisableNameChecking
         $start.RedirectStandardError = $true
         $start.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)
         $start.StandardErrorEncoding = New-Object Text.UTF8Encoding($false)
-        $process = [Diagnostics.Process]::Start($start)
+        # .NET Framework 用父进程的 Console.InputEncoding 创建 stdin writer；带 BOM 会把空输入变成路径文本。
+        $savedInputEncoding = [Console]::InputEncoding
+        try {
+            [Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
+            $process = [Diagnostics.Process]::Start($start)
+        } finally { [Console]::InputEncoding = $savedInputEncoding }
         try {
             $outputTask = $process.StandardOutput.ReadToEndAsync()
             $errorTask = $process.StandardError.ReadToEndAsync()

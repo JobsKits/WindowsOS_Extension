@@ -9,9 +9,9 @@ jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         id: checkout
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         id: node
         with:
           node-version: '24'
@@ -72,6 +72,10 @@ jobs:
           .\Tests\FlutterProjectSetupDashboard.Tests.ps1
           .\Tests\FlutterProjectSetupLogTail.Tests.ps1
           .\Tests\FlutterProjectSetupVersion.Tests.ps1
+      - name: Native build response files keep linker options together
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
+        shell: powershell
+        run: .\Tests\NativeBuild.Tests.ps1\NativeBuild.Tests.ps1
       - name: Build selected Flutter native menu with MSVC
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell

@@ -313,6 +313,7 @@ try {
         if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen', 'git-rollback', 'open-sourcetree')) { $expected = 4 }
         if ($package.Id -in @('android-simulator-create', 'android-simulator-repair', 'harmony-simulator-create', 'harmony-simulator-repair')) { $expected = 2 }
         if ($package.Id -in @('run-authorize', 'run-authorization-revoke', 'file-content-viewer', 'file-hash', 'file-volumes')) { $expected = 2 }
+        if ($package.Id -eq 'command-shortcut-create') { $expected = 2 }
         if ($package.Id -eq 'hidden-files-toggle') { $expected = 2 }
         if ($package.Id -in @('open-android-studio', 'open-vscode')) { $expected = 8 }
         if ($package.Id -eq 'git-proxy-configure') { $expected = 1 }
@@ -361,6 +362,11 @@ try {
             }
             if ($package.Id -in @('flutter-run', 'flutter-package', 'flutter-doctor', 'flutter-codegen')) {
                 Assert-Architecture ($item.Key.EndsWith('Jobs.WindowsExtension.' + $package.Id) -or $item.Key.EndsWith('CLSID\{239D7884-83C5-4D66-AB0C-14A2667DCD61}') -or $item.Key.EndsWith('CLSID\{64A7C5BE-E031-4E89-A2D7-75C3F62B1AC9}') -or $item.Key.EndsWith('CLSID\{A41E939F-64E7-49DD-85FA-81F9B8CFD5E2}') -or $item.Key.EndsWith('CLSID\{DD71AE09-8A16-4B08-9868-5A40A9F39F63}')) '原生 COM 只注册本包处理器及 CLSID'
+                continue
+            }
+            if ($package.Id -eq 'command-shortcut-create') {
+                $clsid = '{A29030C5-2C96-48BF-BBF2-75D80CC8AF80}'
+                Assert-Architecture ($item.Key -eq ('Software\Classes\Directory\shellex\ContextMenuHandlers\Jobs.WindowsExtension.' + $package.Id) -or $item.Key -eq ('Software\Classes\CLSID\' + $clsid)) '脚本快捷入口仅注册目录 handler 与本包 CLSID'
                 continue
             }
             if ($package.Id -in @('run-authorize', 'run-authorization-revoke', 'file-content-viewer', 'file-hash', 'file-volumes')) {

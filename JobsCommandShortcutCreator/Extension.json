@@ -1,0 +1,11 @@
+{
+  "Id": "command-shortcut-create",
+  "Name": "JobsCommandShortcutCreator",
+  "Label": "🔗 创建脚本快捷入口…",
+  "Description": "对同名.cmd/.bat/.ps1脚本文件夹，在旁边创建相对路径转发入口；不执行或改写原脚本。",
+  "DirectoryOnly": true,
+  "Console": false,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

@@ -436,6 +436,43 @@ foreach($columns in $columnChecks.Columns){Assert-Selection ($columns.IconLeft-e
 Assert-Selection ((Get-JobsPanelText '自定义Explorer右键菜单' zh-Hant)-ceq'自訂Explorer右鍵選單') '新主标题使用本端Explorer术语和繁体翻译'
 Assert-Selection ((Get-JobsPanelText '自定义Explorer右键菜单' en)-ceq'Custom Explorer context menu') '新主标题提供英文翻译'
 
+# 提取真实事件闭包，用轻量控件在模块返回后验证选择门禁，不依赖 WinForms。
+$selectionCallbacks = & $installer {
+    $state = [pscustomobject]@{
+        Checks = @([pscustomobject]@{Tag='alpha';Checked=$true;Enabled=$true},[pscustomobject]@{Tag='gamma';Checked=$true;Enabled=$true})
+        Running=$false; Started=$false; Mode='Manage'; Preview=$false; Language='zh-Hans'
+        Operation='Install'; Installed=@('alpha'); Groups=@(); PreferenceUpdating=$false
+        ConfirmButton=[pscustomobject]@{Enabled=$false;Text=''}; CleanupButton=[pscustomobject]@{Enabled=$false}
+        AutoCleanup=[pscustomobject]@{Enabled=$false}; Form=[pscustomobject]@{AcceptButton=$null}
+        StatusLabel=[pscustomobject]@{Text=''}; DeploymentMode='installed'; OperationBox=[pscustomobject]@{SelectedIndex=1}
+    }
+    $constructor = ${function:New-JobsFeatureSelectionForm}.Ast
+    foreach ($name in @('getActiveSelection','setPanelOperation','refresh')) {
+        $assignment = @($constructor.FindAll({ param($node)
+            $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left -is [Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -eq $name
+        }, $true))[0]
+        . ([scriptblock]::Create($assignment.Extent.Text))
+    }
+    $operationEvent = @($constructor.FindAll({ param($node)
+        $node -is [Management.Automation.Language.InvokeMemberExpressionAst] -and
+        $node.Expression -is [Management.Automation.Language.VariableExpressionAst] -and
+        $node.Expression.VariablePath.UserPath -eq 'operationBox' -and $node.Member.Value -eq 'Add_SelectedIndexChanged'
+    }, $true))[0]
+    . ([scriptblock]::Create('$operationChanged = ' + $operationEvent.Arguments[0].Extent.Text))
+    [pscustomobject]@{State=$state;Refresh=$refresh;OperationChanged=$operationChanged}
+}
+& $selectionCallbacks.Refresh
+Assert-Selection $selectionCallbacks.State.ConfirmButton.Enabled '真实刷新闭包在原模块返回后仍能读取私有选择函数'
+& $selectionCallbacks.OperationChanged
+Assert-Selection ($selectionCallbacks.State.Operation -eq 'Uninstall' -and -not $selectionCallbacks.State.Checks[1].Enabled -and $selectionCallbacks.State.Checks[1].Checked) '真实操作事件保留勾选并禁用未安装项'
+$selectionCallbacks.State.Checks[0].Checked = $false
+& $selectionCallbacks.Refresh
+Assert-Selection (-not $selectionCallbacks.State.ConfirmButton.Enabled -and $null -eq $selectionCallbacks.State.Form.AcceptButton) '闭包刷新阻止只有禁用项被勾选时的按钮与回车操作'
+$selectionCallbacks.State.OperationBox.SelectedIndex = 0
+& $selectionCallbacks.OperationChanged
+Assert-Selection ($selectionCallbacks.State.Checks[1].Enabled -and $selectionCallbacks.State.ConfirmButton.Enabled) '闭包切回安装后恢复原勾选的有效操作'
+
 # 真实字体先在 Windows 测量；此处用像素宽度覆盖高 DPI、减列及超长标题换行。
 foreach ($scale in @(1.0, 1.25, 1.5, 2.0)) {
     $metrics = @{

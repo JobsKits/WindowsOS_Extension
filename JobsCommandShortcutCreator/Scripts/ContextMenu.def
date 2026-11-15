@@ -1,0 +1,4 @@
+LIBRARY JobsCommandShortcutCreatorContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE
