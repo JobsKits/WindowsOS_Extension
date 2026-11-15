@@ -266,5 +266,8 @@ jobs:
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
         shell: powershell
         run: |
-          .\Tests\FlutterRunner.Tests.ps1
-          .\Tests\FlutterRunnerVirtualStart.Tests.ps1\FlutterRunnerVirtualStart.Tests.ps1
+          $powerShell = Join-Path $PSHOME 'powershell.exe'
+          foreach ($test in @('Tests/FlutterRunner.Tests.ps1', 'Tests/FlutterRunnerVirtualStart.Tests.ps1/FlutterRunnerVirtualStart.Tests.ps1')) {
+            & $powerShell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $PWD $test)
+            if ($LASTEXITCODE -ne 0) { throw ('Runner test failed: ' + $test + '; exit=' + $LASTEXITCODE) }
+          }
