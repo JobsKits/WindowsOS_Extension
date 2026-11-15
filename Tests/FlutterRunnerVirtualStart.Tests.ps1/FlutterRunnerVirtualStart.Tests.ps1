@@ -295,13 +295,19 @@ try {
             & $module {
                 param($Scenario,$FixtureRoot,$Sdk)
                 $script:Scenario=$Scenario;$script:FixtureRoot=$FixtureRoot;$script:Sdk=$Sdk;$script:Starts=0;$script:Created=0;$script:ObjectGeneration=1
+                $script:SelectedIndex=-1;$script:SelectedName='';$script:IdentityTrace=[Collections.Generic.List[string]]::new()
                 function script:Initialize-JobsRunnerVirtualAndroid {$env:JAVA_HOME='temporary-java';return $script:Sdk}
                 function script:Get-JobsAndroidAvdHome {return $script:FixtureRoot}
-                function script:Get-JobsRunnerFileIdentity {param($Path)return ($Path+'|file-object-'+$script:ObjectGeneration)}
+                function script:Get-JobsRunnerFileIdentity {param($Path)$script:IdentityTrace.Add(([IO.Path]::GetFileName($Path)+'|generation='+$script:ObjectGeneration));return ($Path+'|file-object-'+$script:ObjectGeneration)}
                 function script:Get-JobsRunnerAvds {if($script:Scenario-ceq'missing'){return @()};return @('Original','Other')}
+                if($Scenario-ceq'selection-object'){
+                    # 此夹具只变换已知绝对路径；禁止Provider命令重新引出已捕获的候选IO错误。
+                    function script:Split-Path {throw 'selection-object fixture must not invoke the path provider.'}
+                }
                 function script:Select-JobsRunnerChoice {
                     if($script:Scenario-ceq'cancel'){return $null}
                     if($script:Scenario-ceq'back'){return [pscustomobject]@{Kind='Back';Index=-1}}
+                    $script:SelectedIndex=0;$script:SelectedName=@($args[1])[0]
                     # 直接改变夹具配置，保留真实身份函数及模块作用域。
                     if($script:Scenario-ceq'identity'){
                         [IO.File]::AppendAllText((Join-Path $script:FixtureRoot 'Original.avd/config.ini'),"hw.cpu.arch=changed`n")
@@ -315,8 +321,9 @@ try {
                     if($script:Scenario-ceq'selection-object'){
                         $configPath=Join-Path $script:FixtureRoot 'Original.avd/config.ini';$iniPath=Join-Path $script:FixtureRoot 'Original.ini'
                         $configBytes=[IO.File]::ReadAllBytes($configPath);$iniBytes=[IO.File]::ReadAllBytes($iniPath)
-                        [IO.Directory]::Delete((Split-Path -Parent $configPath),$true);[IO.File]::Delete($iniPath)
-                        [void][IO.Directory]::CreateDirectory((Split-Path -Parent $configPath))
+                        $configDirectory=[IO.Path]::GetDirectoryName($configPath)
+                        [IO.Directory]::Delete($configDirectory,$true);[IO.File]::Delete($iniPath)
+                        [void][IO.Directory]::CreateDirectory($configDirectory)
                         [IO.File]::WriteAllBytes($configPath,$configBytes);[IO.File]::WriteAllBytes($iniPath,$iniBytes)
                         $script:ObjectGeneration=2
                     }
@@ -349,6 +356,8 @@ try {
             } $scenario $FixtureRoot $sdk
             $savedJava=$env:JAVA_HOME;$failed=$false;$result=$null;$failureDetail=''
             try{$result=&$module {Start-JobsRunnerExistingAndroid 'flutter' '/fixture/project'}}catch{$failed=$true;$failureDetail=$_.Exception.Message+' @ '+$_.ScriptStackTrace;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
+            $fixtureTrace=&$module {return ('selected.Index='+$script:SelectedIndex+'; selected.Name='+$script:SelectedName+'; identities='+($script:IdentityTrace-join','))}
+            $failureDetail+='; module='+$relative+'; scenario='+$scenario+'; '+$fixtureTrace
             Assert-Virtual ($env:JAVA_HOME-ceq$savedJava) 'Android成功、失败、返回与取消均恢复父进程环境'
             Assert-Virtual ((&$module {$script:Created})-eq0) '启动已有AVD不转入创建入口'
             if($scenario-in@('success','boot-dynamic')){Assert-Virtual (-not$failed-and$result.Kind-ceq'Ready'-and$result.Id-ceq'emulator-5568'-and$result.Environment.JAVA_HOME-ceq'temporary-java'-and(&$module {$script:Starts})-eq1) '原AVD精确serial承接本次运行并仅启动一次'}
