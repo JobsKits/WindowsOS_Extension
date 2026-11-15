@@ -131,6 +131,17 @@ function Test-VirtualMetadataAndMenuBoundaries {
     }finally{$env:JOBS_FLUTTER_RUNNER_FZF=$savedMode;Remove-Module $module}
 }
 
+$fixtureTokens=$null;$fixtureErrors=$null
+$fixtureAst=[Management.Automation.Language.Parser]::ParseFile($PSCommandPath,[ref]$fixtureTokens,[ref]$fixtureErrors)
+Assert-Virtual (@($fixtureErrors).Count-eq0) '虚拟启动夹具自身AST可解析'
+$replacementBranches=@($fixtureAst.FindAll({param($node)
+    $node-is[Management.Automation.Language.IfStatementAst]-and$node.Clauses[0].Item1.Extent.Text-ceq"`$script:Scenario-ceq'selection-object'"
+},$true))
+Assert-Virtual ($replacementBranches.Count-eq1) '唯一AVD对象替换夹具分支已定位'
+$providerCalls=@($replacementBranches[0].FindAll({param($node)
+    $node-is[Management.Automation.Language.CommandAst]-and(([string]$node.GetCommandName()-split'\\')[-1]-ieq'Split-Path')
+},$true))
+Assert-Virtual ($providerCalls.Count-eq0) '对象替换夹具只使用已知绝对路径，不调用Split-Path Provider'
 [void][IO.Directory]::CreateDirectory($temporary)
 try {
     foreach($relative in @('JobsFlutterRunner/Scripts/Action.psm1','JobsFlutterTools/Scripts/Actions/run/Scripts/Action.psm1')) {
@@ -300,10 +311,6 @@ try {
                 function script:Get-JobsAndroidAvdHome {return $script:FixtureRoot}
                 function script:Get-JobsRunnerFileIdentity {param($Path)$script:IdentityTrace.Add(([IO.Path]::GetFileName($Path)+'|generation='+$script:ObjectGeneration));return ($Path+'|file-object-'+$script:ObjectGeneration)}
                 function script:Get-JobsRunnerAvds {if($script:Scenario-ceq'missing'){return @()};return @('Original','Other')}
-                if($Scenario-ceq'selection-object'){
-                    # 此夹具只变换已知绝对路径；禁止Provider命令重新引出已捕获的候选IO错误。
-                    function script:Split-Path {throw 'selection-object fixture must not invoke the path provider.'}
-                }
                 function script:Select-JobsRunnerChoice {
                     if($script:Scenario-ceq'cancel'){return $null}
                     if($script:Scenario-ceq'back'){return [pscustomobject]@{Kind='Back';Index=-1}}
@@ -355,8 +362,17 @@ try {
                 }
             } $scenario $FixtureRoot $sdk
             $savedJava=$env:JAVA_HOME;$failed=$false;$result=$null;$failureDetail=''
-            try{$result=&$module {Start-JobsRunnerExistingAndroid 'flutter' '/fixture/project'}}catch{$failed=$true;$failureDetail=$_.Exception.Message+' @ '+$_.ScriptStackTrace;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
-            $fixtureTrace=&$module {return ('selected.Index='+$script:SelectedIndex+'; selected.Name='+$script:SelectedName+'; identities='+($script:IdentityTrace-join','))}
+            try{$result=&$module {Start-JobsRunnerExistingAndroid 'flutter' '/fixture/project'}}catch{$failed=$true;$failureDetail=$_.Exception.Message+'; exception='+$_.Exception.GetType().FullName+'; base='+$_.Exception.GetBaseException().GetType().FullName+'; id='+$_.FullyQualifiedErrorId+' @ '+$_.ScriptStackTrace;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
+            $fixtureTrace=&$module {
+                $candidateError='none';$otherPath=[IO.Path]::Combine($script:FixtureRoot,'Other.ini')
+                foreach($record in $Error){
+                    if($record.Exception.Message.Contains($otherPath)){
+                        $candidateError=$record.Exception.GetType().FullName+' / '+$record.Exception.GetBaseException().GetType().FullName+' / '+$record.FullyQualifiedErrorId
+                        break
+                    }
+                }
+                return ('selected.Index='+$script:SelectedIndex+'; selected.Name='+$script:SelectedName+'; identities='+($script:IdentityTrace-join',')+'; other.error='+$candidateError)
+            }
             $failureDetail+='; module='+$relative+'; scenario='+$scenario+'; '+$fixtureTrace
             Assert-Virtual ($env:JAVA_HOME-ceq$savedJava) 'Android成功、失败、返回与取消均恢复父进程环境'
             Assert-Virtual ((&$module {$script:Created})-eq0) '启动已有AVD不转入创建入口'
