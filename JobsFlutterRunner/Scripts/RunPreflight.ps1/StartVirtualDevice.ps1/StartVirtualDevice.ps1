@@ -212,10 +212,23 @@ function Start-JobsRunnerExistingAndroid {
         $identities=@{}; $identityErrors=@{}
         foreach ($listedName in $names) {
             if ($identities.ContainsKey($listedName) -or $identityErrors.ContainsKey($listedName)) { throw 'AVD清单名称不唯一，未启动。' }
-            try { $identities[$listedName]=Get-JobsRunnerAndroidAvdIdentity $listedName }
-            catch [Management.Automation.PipelineStoppedException] { throw }
-            catch [OperationCanceledException] { throw }
-            catch { $identityErrors[$listedName]=$_.Exception.Message }
+            try {
+                $candidateIdentity=Get-JobsRunnerAndroidAvdIdentity $listedName
+                $identities[$listedName]=$candidateIdentity
+            } catch {
+                # 5.1 的管道包装与实际候选异常分开判断；取消不得被当作坏候选继续。
+                $pendingFailures=[Collections.Generic.Stack[Exception]]::new()
+                $seenFailures=[Collections.Generic.HashSet[Exception]]::new()
+                $pendingFailures.Push($_.Exception)
+                while($pendingFailures.Count-gt0){
+                    $identityFailure=$pendingFailures.Pop()
+                    if(-not$seenFailures.Add($identityFailure)){continue}
+                    if($identityFailure-is[Management.Automation.PipelineStoppedException]-or$identityFailure-is[OperationCanceledException]){throw}
+                    if($null-ne$identityFailure.InnerException){$pendingFailures.Push($identityFailure.InnerException)}
+                    if($identityFailure-is[Management.Automation.RuntimeException]-and$null-ne$identityFailure.ErrorRecord-and$null-ne$identityFailure.ErrorRecord.Exception){$pendingFailures.Push($identityFailure.ErrorRecord.Exception)}
+                }
+                $identityErrors[$listedName]=$_.Exception.Message
+            }
         }
         $selection=Select-JobsRunnerChoice '启动Android模拟器' ($names+@('返回上一层')) -Back
         if ($null -eq $selection) { return $null }

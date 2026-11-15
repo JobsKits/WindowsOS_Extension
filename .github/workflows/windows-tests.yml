@@ -174,12 +174,6 @@ jobs:
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FlutterDependencyExtractor.Tests.ps1
-      - name: Flutter runner project, lifecycle, and native build guards
-        if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
-        shell: powershell
-        run: |
-          .\Tests\FlutterRunner.Tests.ps1
-          .\Tests\FlutterRunnerVirtualStart.Tests.ps1\FlutterRunnerVirtualStart.Tests.ps1
       - name: Flutter packaging selection, SDK, failure, and artifact guards
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
@@ -263,3 +257,14 @@ jobs:
         if: ${{ !cancelled() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success' }}
         shell: powershell
         run: .\Tests\FileVolumes.Tests.ps1
+  runner-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        id: checkout
+      - name: Flutter runner project, lifecycle, and native build guards
+        if: ${{ !cancelled() && steps.checkout.outcome == 'success' }}
+        shell: powershell
+        run: |
+          .\Tests\FlutterRunner.Tests.ps1
+          .\Tests\FlutterRunnerVirtualStart.Tests.ps1\FlutterRunnerVirtualStart.Tests.ps1

@@ -19,6 +19,63 @@ function Format-VirtualEnvironmentState {
     else{$length=([string]$State.Value).Length}
     return ('Exists='+$State.Exists+'; Value='+$kind+'; Length='+$length)
 }
+# 独立Runspace验证真实候选读取；取消不得中断主测试或进入选择菜单。
+function Test-VirtualAndroidIdentityCatch {
+    param([string]$ModulePath,[string]$Fixture)
+    $probeRoot=[IO.Path]::Combine($Fixture,('catch-'+[guid]::NewGuid().ToString('N')))
+    $avd=[IO.Path]::Combine($probeRoot,'Original.avd');[void][IO.Directory]::CreateDirectory($avd)
+    [IO.File]::WriteAllText([IO.Path]::Combine($probeRoot,'Original.ini'),('path='+$avd+[Environment]::NewLine))
+    [IO.File]::WriteAllText([IO.Path]::Combine($avd,'config.ini'),('AvdId=Original'+[Environment]::NewLine))
+    $driver={
+        param($ModulePath,$Fixture,$Scenario,$Flow)
+        $ErrorActionPreference='Stop'
+        $module=Import-Module $ModulePath -Force -PassThru -DisableNameChecking
+        try {
+            &$module {
+                param($Fixture,$Scenario,$Flow)
+                $script:CatchFixture=$Fixture;$script:CatchScenario=$Scenario;$script:Flow=$Flow
+                function script:Initialize-JobsRunnerVirtualAndroid {return 'fixture-sdk'}
+                function script:Get-JobsRunnerAvds {return @('Original','Other')}
+                function script:Get-JobsAndroidAvdHome {return $script:CatchFixture}
+                function script:Get-JobsRunnerFileIdentity {param($Path)return ($Path+'|generation=1')}
+                function script:Select-JobsRunnerChoice {
+                    $script:Flow.Add('select-invoked')
+                    if($script:CatchScenario-ceq'select-other'){return [pscustomobject]@{Kind='Selected';Index=1}}
+                    return [pscustomobject]@{Kind='Back';Index=-1}
+                }
+                if($Scenario-in@('wrapped-cancel','pipeline-cancel')){
+                    function script:Get-JobsRunnerAndroidAvdIdentity {
+                        param($Name)
+                        $script:Flow.Add('identity:'+ $Name)
+                        if($Name-ceq'Original'){return [pscustomobject]@{Name='Original'}}
+                        if($script:CatchScenario-ceq'pipeline-cancel'){throw (New-Object Management.Automation.PipelineStoppedException)}
+                        throw (New-Object Exception('wrapped-cancel',(New-Object OperationCanceledException 'probe-cancel')))
+                    }
+                }
+            } $Fixture $Scenario $Flow
+            $failure=$null;$result=$null
+            try{$result=&$module {Start-JobsRunnerExistingAndroid 'fixture-flutter' 'fixture-project'}}catch{$failure=$_.Exception}
+            [pscustomobject]@{Result=$(if($result){$result.Kind}else{''});Failure=$(if($failure){$failure.Message}else{''});Canceled=($null-ne$failure-and$failure.GetBaseException()-is[OperationCanceledException])}
+        }finally{Remove-Module $module}
+    }
+    foreach($scenario in @('missing-other','select-other','wrapped-cancel','pipeline-cancel')){
+        $flow=[Collections.Generic.List[string]]::new();$probe=[PowerShell]::Create();$probeOutput=@();$invocationFailure=$null
+        try {
+            [void]$probe.AddScript($driver.ToString()).AddArgument($ModulePath).AddArgument($probeRoot).AddArgument($scenario).AddArgument($flow)
+            try{$probeOutput=@($probe.Invoke())}catch{$invocationFailure=$_.Exception}
+            $detail='scenario='+$scenario+'; flow='+($flow-join' -> ')+'; invocation='+$invocationFailure+'; errors='+($probe.Streams.Error-join' | ')
+            if($scenario-ceq'pipeline-cancel'){
+                Assert-Virtual ($flow.Contains('identity:Other')-and-not$flow.Contains('select-invoked')-and($null-ne$invocationFailure-or$probe.InvocationStateInfo.State-in@('Failed','Stopped'))) ('Pipeline取消不进入菜单：'+$detail)
+            }else{
+                Assert-Virtual ($null-eq$invocationFailure-and$probeOutput.Count-eq1) ('候选探针完成：'+$detail)
+                $answer=$probeOutput[0]
+                if($scenario-ceq'missing-other'){Assert-Virtual ($answer.Result-ceq'Back'-and$answer.Failure-ceq''-and$flow.Contains('select-invoked')) '未选中的缺失Other候选不阻断真实Original身份与返回菜单'}
+                elseif($scenario-ceq'select-other'){Assert-Virtual ($answer.Failure.Contains('所选AVD在列出时无法核验实例身份')-and$answer.Failure.Contains('Other.ini')-and$flow.Contains('select-invoked')) '选择缺失Other仍在真实身份门禁拒绝'}
+                else{Assert-Virtual ($answer.Canceled-and-not$flow.Contains('select-invoked')) '包装的OperationCanceledException原样透传且不进入菜单'}
+            }
+        }finally{$probe.Dispose()}
+    }
+}
 function New-VirtualSdkListing {
     param([switch]$TargetUpdates,[switch]$OtherUpdates,[switch]$UpdatedTargets)
     $emulator=if($UpdatedTargets){'36.2.0'}else{'35.1.0'}
@@ -146,6 +203,7 @@ Assert-Virtual ($providerCalls.Count-eq0) '对象替换夹具只使用已知绝�
 try {
     foreach($relative in @('JobsFlutterRunner/Scripts/Action.psm1','JobsFlutterTools/Scripts/Actions/run/Scripts/Action.psm1')) {
         $path=Join-Path $root $relative
+        Test-VirtualAndroidIdentityCatch $path $temporary
         Test-VirtualMetadataAndMenuBoundaries $path
         if($BoundaryOnly){continue}
         $module=Import-Module $path -Force -PassThru -DisableNameChecking
