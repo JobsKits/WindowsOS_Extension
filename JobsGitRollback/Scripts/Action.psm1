@@ -228,34 +228,56 @@ function Select-JobsRollbackEntry {
     $options = @('--no-sort','--reverse','--no-multi','--prompt',($Title + '：'))
     if ($Back) { $options += @('--expect=left','--header','回车选择，← 返回上一层，Esc 取消') }
     else { $options += @('--header','回车选择，Esc 取消') }
-    $previous = $ErrorActionPreference
-    $oldOptions = [Environment]::GetEnvironmentVariable('FZF_DEFAULT_OPTS')
-    $oldFile = [Environment]::GetEnvironmentVariable('FZF_DEFAULT_OPTS_FILE')
-    $hadOptions = Test-Path Env:FZF_DEFAULT_OPTS
-    $hadFile = Test-Path Env:FZF_DEFAULT_OPTS_FILE
-    $previousOutputEncoding = $OutputEncoding
-    $previousConsoleEncoding = [Console]::OutputEncoding
-    $previousInputEncoding = [Console]::InputEncoding
+    $utf8 = New-Object Text.UTF8Encoding($false, $true)
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $fzf
+    $start.Arguments = (@($options | ForEach-Object { Quote-JobsArgument $_ }) -join ' ')
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $false
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    # stderr 仍连接当前终端；fzf 自行从终端读取按键和绘制界面。
+    $start.RedirectStandardError = $false
+    $start.EnvironmentVariables['FZF_DEFAULT_OPTS'] = ''
+    $start.EnvironmentVariables['FZF_DEFAULT_OPTS_FILE'] = ''
+    $process = $null
+    $reader = $null
     try {
-        $env:FZF_DEFAULT_OPTS = ''
-        $env:FZF_DEFAULT_OPTS_FILE = ''
-        # Windows PowerShell 5.1 的默认 ASCII 管道会损坏中文模式和提交信息。
-        $OutputEncoding = New-Object Text.UTF8Encoding($false)
-        [Console]::OutputEncoding = $OutputEncoding
-        # Framework 的原生 stdin writer 在接管管道前即可写 BOM，输入编码也必须明确不带 BOM。
-        [Console]::InputEncoding = $OutputEncoding
-        $ErrorActionPreference = 'Continue'
-        $lines = @($Entries | & $fzf @options)
-        $code = $LASTEXITCODE
+        # Framework 在 Start 内创建并 AutoFlush stdin writer，必须在它写出前导字节前指定无 BOM。
+        $previousInputEncoding = [Console]::InputEncoding
+        try {
+            [Console]::InputEncoding = $utf8
+            $process = [Diagnostics.Process]::Start($start)
+        } finally { [Console]::InputEncoding = $previousInputEncoding }
+        # 不经过宿主的对象/原生管道；数据两端固定严格 UTF-8，保留空白和列表成员校验。
+        $reader = New-Object IO.StreamReader($process.StandardOutput.BaseStream, $utf8, $false)
+        $outputTask = $reader.ReadToEndAsync()
+        $inputFailure = $null
+        try {
+            $bytes = $utf8.GetBytes(($Entries -join "`n") + "`n")
+            $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+        } catch [IO.IOException] { $inputFailure = $_ }
+        finally { $process.StandardInput.BaseStream.Close() }
+        while (-not $process.WaitForExit(100)) { }
+        $code = $process.ExitCode
+        # 用户可在候选尚未写完时选择或取消；仅已知完成码转交严格结果解析。
+        if ($null -ne $inputFailure -and $code -notin @(0,1,130)) { throw $inputFailure }
+        $output = $outputTask.GetAwaiter().GetResult()
+        $lines = @()
+        if ($output.Length -gt 0) {
+            $lines = @([regex]::Split($output, '\r?\n'))
+            if ($output.EndsWith("`n")) { $lines = @($lines | Select-Object -First ($lines.Count - 1)) }
+        }
     } finally {
-        $ErrorActionPreference = $previous
-        $OutputEncoding = $previousOutputEncoding
-        [Console]::OutputEncoding = $previousConsoleEncoding
-        [Console]::InputEncoding = $previousInputEncoding
-        if ($hadOptions) { [Environment]::SetEnvironmentVariable('FZF_DEFAULT_OPTS', $oldOptions) }
-        else { Remove-Item Env:FZF_DEFAULT_OPTS -ErrorAction SilentlyContinue }
-        if ($hadFile) { [Environment]::SetEnvironmentVariable('FZF_DEFAULT_OPTS_FILE', $oldFile) }
-        else { Remove-Item Env:FZF_DEFAULT_OPTS_FILE -ErrorAction SilentlyContinue }
+        if ($null -ne $reader) { $reader.Dispose() }
+        if ($null -ne $process) {
+            try {
+                if (-not $process.HasExited) {
+                    $process.Kill()
+                    if (-not $process.WaitForExit(5000)) { throw 'fzf 退出清理超时，请保留现场检查。' }
+                }
+            } finally { $process.Dispose() }
+        }
     }
     return ConvertFrom-JobsRollbackSelection -Lines $lines -ExitCode $code -Entries $Entries -Back:$Back
 }

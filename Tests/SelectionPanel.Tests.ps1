@@ -266,6 +266,8 @@ try {
 # BEGIN JOBS_TERMINAL_STYLE_ORIGINAL_BODY
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
+# 轻量布局夹具也使用绘图类型，显式加载以兼容未预载程序集的 5.1。
+Add-Type -AssemblyName System.Drawing
 $script:Assertions = 0
 $root = Split-Path -Parent $PSScriptRoot
 $installer = Import-Module (Join-Path $root 'Scripts/Installer.psm1') -PassThru -Force -DisableNameChecking

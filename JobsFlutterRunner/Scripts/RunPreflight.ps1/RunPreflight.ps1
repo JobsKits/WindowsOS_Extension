@@ -21,10 +21,16 @@ function Get-JobsRunnerTaskEnvironmentSnapshot {
     $snapshot = @{}
     foreach ($name in $Names) {
         $exists = $false
+        $value = $null
         foreach ($actualName in $environment.Keys) {
-            if ([string]::Equals([string]$actualName, $name, $comparison)) { $exists = $true; break }
+            if ([string]::Equals([string]$actualName, $name, $comparison)) {
+                $exists = $true
+                # 5.1 单键读取空值可能受上次 Win32 错误影响；同一枚举同时保留存在性和值。
+                $value = [string]$environment[$actualName]
+                break
+            }
         }
-        $snapshot[$name] = @{ Exists=$exists; Value=[Environment]::GetEnvironmentVariable($name,'Process') }
+        $snapshot[$name] = @{ Exists=$exists; Value=$value }
     }
     return $snapshot
 }

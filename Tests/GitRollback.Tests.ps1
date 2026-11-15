@@ -489,19 +489,67 @@ try {
             if($parseErrors.Count){throw 'Production selector parse failed.'}
             $definition=$ast.Find({param($Node) $Node -is [Management.Automation.Language.FunctionDefinitionAst] -and $Node.Name -ceq 'Select-JobsRollbackEntry'},$false)
             Set-Item Function:script:Select-JobsRollbackEntry ([scriptblock]::Create($definition.Body.Extent.Text.Substring(1,$definition.Body.Extent.Text.Length-2)))
-            $script:OutputEncoding=[Text.Encoding]::ASCII
+            $outputBefore=$OutputEncoding
             $consoleBefore=[Console]::OutputEncoding
             $inputBefore=[Console]::InputEncoding
-            [Console]::OutputEncoding=[Text.Encoding]::ASCII
-            [Console]::InputEncoding=New-Object Text.UTF8Encoding($true)
+            $keys=@('FZF_DEFAULT_OPTS','FZF_DEFAULT_OPTS_FILE','JOBS_FZF_PROBE_MODE')
+            $environmentBefore=[Environment]::GetEnvironmentVariables('Process')
+            if([Environment]::OSVersion.Platform-eq[PlatformID]::Win32NT-and-not('Jobs.RollbackEnvironmentProbe'-as[type])){
+                Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; namespace Jobs { public static class RollbackEnvironmentProbe { [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)] public static extern bool SetEnvironmentVariable(string name, string value); } }'
+            }
+            # Windows 的空环境值需要原生 API；夹具也必须区分空值和未设置。
+            function Set-RollbackProbeEnvironment {
+                param([string]$Key,[bool]$Exists,[string]$Value)
+                if(-not$Exists){[Environment]::SetEnvironmentVariable($Key,[NullString]::Value,'Process')}
+                elseif($Value-ceq''-and[Environment]::OSVersion.Platform-eq[PlatformID]::Win32NT){
+                    if(-not[Jobs.RollbackEnvironmentProbe]::SetEnvironmentVariable($Key,'')){throw 'Cannot prepare empty probe environment.'}
+                }else{[Environment]::SetEnvironmentVariable($Key,$Value,'Process')}
+            }
             try {
-                $result=Select-JobsRollbackEntry '中文编码' @('选择提交 soft 回退','hard 回退到 upstream') -Back
-                if($result.Value -cne '选择提交 soft 回退'){throw 'Native pipe corrupted Chinese mode.'}
-                if($OutputEncoding.CodePage -ne 20127 -or [Console]::OutputEncoding.CodePage -ne 20127){throw 'Original ASCII encoding not restored.'}
-                if([Console]::InputEncoding.CodePage -ne 65001 -or [Console]::InputEncoding.GetPreamble().Length -ne 3){throw 'Original UTF8 BOM input encoding not restored.'}
-            } finally { [Console]::OutputEncoding=$consoleBefore; [Console]::InputEncoding=$inputBefore }
+                $script:OutputEncoding=[Text.Encoding]::ASCII
+                [Console]::OutputEncoding=[Text.Encoding]::ASCII
+                [Console]::InputEncoding=New-Object Text.UTF8Encoding($true)
+                foreach($environmentKind in @('absent','empty','value')){
+                    foreach($key in $keys){Set-RollbackProbeEnvironment $key ($environmentKind-cne'absent') $(if($environmentKind-ceq'value'){'parent-value'}else{''})}
+                    foreach($case in @(
+                        @{Mode='select';Back=$false;Action='Selected'},@{Mode='select';Back=$true;Action='Selected'},
+                        @{Mode='back';Back=$true;Action='Back'},@{Mode='cancel';Back=$true;Action='Cancel'},
+                        @{Mode='empty';Back=$false;Action='Cancel'},@{Mode='early-cancel';Back=$false;Action='Cancel'},
+                        @{Mode='early-select';Back=$true;Action='Selected'},
+                        @{Mode='early-select';Back=$false;Action='Selected'},@{Mode='early-back-zero';Back=$true;Action='Back'},
+                        @{Mode='early-back';Back=$true;Action='Back'},@{Mode='failure';Back=$false;Error='退出码：2'},
+                        @{Mode='outside';Back=$false;Error='列表外内容'},@{Mode='outside';Back=$true;Error='列表外内容'},
+                        @{Mode='invalid-utf8';Back=$false;Error='InvalidUtf8'})){
+                        [Environment]::SetEnvironmentVariable('JOBS_FZF_PROBE_MODE',$case.Mode,'Process')
+                        $expectedEnvironment=[Environment]::GetEnvironmentVariables('Process')
+                        $entries=@('选择提交 soft 回退','hard 回退到 upstream')
+                        if($case.Mode.StartsWith('early-')){$entries+=('x'*1048576)}
+                        $failure=$null;$result=$null
+                        try{$result=Select-JobsRollbackEntry '中文编码' $entries -Back:$case.Back}catch{$failure=$_}
+                        if($case.ContainsKey('Error')){
+                            if($null-eq$failure){throw ('Native probe should reject '+$case.Mode)}
+                            if($case.Error-ceq'InvalidUtf8'){
+                                if($failure.Exception.GetBaseException()-isnot[Text.DecoderFallbackException]){throw $failure}
+                            }elseif(-not$failure.Exception.Message.Contains($case.Error)){throw $failure}
+                        }else{
+                            if($null-ne$failure){throw $failure}
+                            if($result.Action-cne$case.Action){throw ('Native probe wrong action: '+$case.Mode)}
+                            if($case.Action-ceq'Selected'-and$result.Value-cne$entries[0]){throw 'Native pipe corrupted Chinese mode.'}
+                        }
+                        if($OutputEncoding.CodePage-ne20127-or[Console]::OutputEncoding.CodePage-ne20127){throw 'Original ASCII encoding changed.'}
+                        if([Console]::InputEncoding.CodePage-ne65001-or[Console]::InputEncoding.GetPreamble().Length-ne3){throw 'Original UTF8 BOM input encoding not restored.'}
+                        $actualEnvironment=[Environment]::GetEnvironmentVariables('Process')
+                        foreach($key in $keys){
+                            if($actualEnvironment.Contains($key)-ne$expectedEnvironment.Contains($key)-or$actualEnvironment[$key]-cne$expectedEnvironment[$key]){throw ('Parent environment changed: '+$key)}
+                        }
+                    }
+                }
+            } finally {
+                $script:OutputEncoding=$outputBefore;[Console]::OutputEncoding=$consoleBefore;[Console]::InputEncoding=$inputBefore
+                foreach($key in $keys){Set-RollbackProbeEnvironment $key $environmentBefore.Contains($key) $environmentBefore[$key]}
+            }
         } ([IO.Path]::GetFullPath($FzfProbeExecutable))
-        Assert-Rollback $true '初始ASCII输出与带BOM输入的原生管道仍完整往返中文并恢复编码'
+        Assert-Rollback $true '42组原生字节管道覆盖中文、返回取消、早退断管、失败与非法输出并保留父环境及编码'
     } else { Write-Host 'SKIP optional native encoding shim: compile GitRollbackFzfProbe.cpp and pass -FzfProbeExecutable.' }
     Write-Host ('PASS GitRollback: ' + $script:assertions + ' assertions; temporary repositories only.')
 } finally {

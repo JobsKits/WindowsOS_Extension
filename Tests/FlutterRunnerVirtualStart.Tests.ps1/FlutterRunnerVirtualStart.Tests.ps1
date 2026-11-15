@@ -10,6 +10,15 @@ $temporary=Join-Path ([IO.Path]::GetTempPath()) ('JobsVirtualStart-'+[guid]::New
 if($temporary.StartsWith('/var/')-and[IO.Directory]::Exists('/private/var')){$temporary='/private'+$temporary}
 $script:Checks=0
 function Assert-Virtual {param([bool]$Value,[string]$Message)if(-not$Value){throw ('FAIL: '+$Message)};$script:Checks++}
+# 仅输出环境变量状态分类与长度，不回显变量内容。
+function Format-VirtualEnvironmentState {
+    param([hashtable]$State)
+    $kind='NonEmpty';$length=-1
+    if($null-eq$State.Value){$kind='Null'}
+    elseif($State.Value-ceq''){$kind='Empty';$length=0}
+    else{$length=([string]$State.Value).Length}
+    return ('Exists='+$State.Exists+'; Value='+$kind+'; Length='+$length)
+}
 function New-VirtualSdkListing {
     param([switch]$TargetUpdates,[switch]$OtherUpdates,[switch]$UpdatedTargets)
     $emulator=if($UpdatedTargets){'36.2.0'}else{'35.1.0'}
@@ -137,7 +146,20 @@ try {
                 # 在正常路径准备原生空值支持，随后验证异常展开中不丢失“存在但为空”。
                 &$module {param($Key)Restore-JobsRunnerTaskEnvironment @{$Key=@{Exists=$true;Value=''}}} $environmentKeys[2]
             }
+            # 缺失键会留下 ERROR_ENVVAR_NOT_FOUND；随后读取空值仍须来自同一环境块。
+            [void][Environment]::GetEnvironmentVariable($environmentKeys[1],'Process')
             $environmentSnapshot=&$module {param($Keys)Get-JobsRunnerTaskEnvironmentSnapshot $Keys} $environmentKeys
+            $expectedEnvironment=@{
+                $environmentKeys[0]=@{Exists=$true;Value='original-value'}
+                $environmentKeys[1]=@{Exists=$false;Value=$null}
+                $environmentKeys[2]=@{Exists=$false;Value=$null}
+            }
+            if([Environment]::OSVersion.Platform-eq[PlatformID]::Win32NT){$expectedEnvironment[$environmentKeys[2]]=@{Exists=$true;Value=''}}
+            foreach($key in $environmentKeys){
+                $expected=$expectedEnvironment[$key];$actual=$environmentSnapshot[$key]
+                $diagnostic='module='+$relative+'; key='+$key+'; expected={'+(Format-VirtualEnvironmentState $expected)+'}; actual={'+(Format-VirtualEnvironmentState $actual)+'}'
+                Assert-Virtual ($actual.Exists-eq$expected.Exists-and$actual.Value-ceq$expected.Value) ('初始快照区分未设置、空串及既有值：'+$diagnostic)
+            }
             &$module {
                 function script:Set-Item {throw 'Environment provider Set-Item must not run during restoration.'}
                 function script:Remove-Item {throw 'Environment provider Remove-Item must not run during restoration.'}
@@ -160,7 +182,9 @@ try {
                 else{Assert-Virtual ($environmentFailure-ceq''-and$environmentResult-ceq'returned') '正常return仍执行环境恢复且保留返回值'}
                 $restored=&$module {param($Keys)Get-JobsRunnerTaskEnvironmentSnapshot $Keys} $environmentKeys
                 foreach($key in $environmentKeys){
-                    Assert-Virtual ($restored[$key].Exists-eq$environmentSnapshot[$key].Exists-and$restored[$key].Value-ceq$environmentSnapshot[$key].Value) '恢复既有值、未设置和Windows空值时保持精确存在性'
+                    $before=$environmentSnapshot[$key];$after=$restored[$key]
+                    $diagnostic='module='+$relative+'; exit='+$exitKind+'; key='+$key+'; before={'+(Format-VirtualEnvironmentState $before)+'}; after={'+(Format-VirtualEnvironmentState $after)+'}'
+                    Assert-Virtual ($after.Exists-eq$before.Exists-and$after.Value-ceq$before.Value) ('恢复既有值、未设置和Windows空值时保持精确存在性：'+$diagnostic)
                 }
             }
         } finally {
