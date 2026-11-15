@@ -3883,14 +3883,15 @@ function Set-JobsPanelHeaderLayout {
         $box.ItemHeight = [int][Math]::Max(20 * $scale, $State.Font.Height + 4 * $scale)
     }
     $controlHeight = [Math]::Max($State.ThemeBox.PreferredHeight, $State.LanguageBox.PreferredHeight)
-    $title = Measure-JobsFeatureText $State.HeaderLabel.Text $State.Font
+    # Label 的原生内边距与字体回退纳入实测，避免通用 TextRenderer 高度裁字。
+    $title = $State.HeaderLabel.GetPreferredSize([Drawing.Size]::Empty)
     $layout = Get-JobsPanelHeaderLayout -Width $width -Padding $padding -Scale $scale -TitleWidth $title.Width -TitleHeight $title.Height -ThemeLabelWidth $themeWidth -LanguageLabelWidth $languageWidth -ChoiceWidth $choiceWidth -ControlHeight $controlHeight
     $State.PreferencePanel.SetBounds($layout.PreferenceLeft, $layout.PreferenceTop, $layout.PreferenceWidth, $layout.PreferenceHeight)
     $State.ThemeLabel.SetBounds($layout.ThemeLabelLeft, 0, $themeWidth, $controlHeight)
     $State.ThemeBox.SetBounds($layout.ThemeChoiceLeft, 0, $choiceWidth, $controlHeight)
     $State.LanguageLabel.SetBounds($layout.LanguageLabelLeft, $layout.LanguageTop, $languageWidth, $controlHeight)
     $State.LanguageBox.SetBounds($layout.LanguageChoiceLeft, $layout.LanguageTop, $choiceWidth, $controlHeight)
-    $wrappedTitle = Measure-JobsFeatureText $State.HeaderLabel.Text $State.Font $layout.TitleWidth
+    $wrappedTitle = $State.HeaderLabel.GetPreferredSize((New-Object Drawing.Size($layout.TitleWidth, 0)))
     if ($wrappedTitle.Height -gt $title.Height) {
         $layout = Get-JobsPanelHeaderLayout -Width $width -Padding $padding -Scale $scale -TitleWidth $title.Width -TitleHeight $wrappedTitle.Height -ThemeLabelWidth $themeWidth -LanguageLabelWidth $languageWidth -ChoiceWidth $choiceWidth -ControlHeight $controlHeight
         $State.PreferencePanel.Top = $layout.PreferenceTop

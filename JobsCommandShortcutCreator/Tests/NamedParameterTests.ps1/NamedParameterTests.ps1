@@ -1,4 +1,4 @@
-# NamedParameterTests.ps1 | JobsCommandShortcutCreator
+﻿# NamedParameterTests.ps1 | JobsCommandShortcutCreator
 # Created by Jobs on 2026年11月14日，星期六.
 # 仅比较临时源脚本和所生成入口；不显示界面、不注册菜单、不读写管理偏好。
 Set-StrictMode -Version 2.0

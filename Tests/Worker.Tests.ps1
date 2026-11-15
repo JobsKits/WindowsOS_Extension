@@ -320,13 +320,22 @@ try {
     if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         $fakeFlutter = Join-Path $script:root 'flutter.bat'
         $capturedDirectory = Join-Path $script:root 'flutter-working-directory.txt'
-        [IO.File]::WriteAllText($fakeFlutter, "@echo off`r`n> `"%JOBS_FLUTTER_TEST_OUTPUT%`" <nul set /p `"=%CD%`"`r`nexit /b 0`r`n", [Text.Encoding]::ASCII)
+        # CMD 内建 set /p 使用 OEM 代码页写文件，不能用它证明 Unicode 工作目录；子进程按 UTF-8 记录实际 cwd。
+        $cwdProbe = '[IO.File]::WriteAllText($env:JOBS_FLUTTER_TEST_OUTPUT, [Environment]::CurrentDirectory, (New-Object Text.UTF8Encoding($false)))'
+        $encodedProbe = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($cwdProbe))
+        [IO.File]::WriteAllText($fakeFlutter, ("@echo off`r`n`"%JOBS_FLUTTER_TEST_POWERSHELL%`" -NoProfile -NonInteractive -EncodedCommand " + $encodedProbe + "`r`nexit /b %ERRORLEVEL%`r`n"), [Text.Encoding]::ASCII)
         $savedOutput = [Environment]::GetEnvironmentVariable('JOBS_FLUTTER_TEST_OUTPUT', 'Process')
+        $savedPowerShell = [Environment]::GetEnvironmentVariable('JOBS_FLUTTER_TEST_POWERSHELL', 'Process')
         try {
             $env:JOBS_FLUTTER_TEST_OUTPUT = $capturedDirectory
+            $env:JOBS_FLUTTER_TEST_POWERSHELL = [Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
             Invoke-JobsFlutterProcess $fakeFlutter @('--version') $script:root 10
-            Assert-True ([IO.File]::ReadAllText($capturedDirectory) -eq $script:root) 'cmd 工具和工作目录中的中文、百分号、叹号、单引号、& 不展开或注入'
-        } finally { [Environment]::SetEnvironmentVariable('JOBS_FLUTTER_TEST_OUTPUT', $savedOutput, 'Process') }
+            $observed = [IO.File]::ReadAllText($capturedDirectory, (New-Object Text.UTF8Encoding($false, $true)))
+            Assert-True ($observed -eq $script:root) ('cmd 工具和工作目录中的中文、百分号、叹号、单引号、& 不展开或注入；actual=' + $observed)
+        } finally {
+            [Environment]::SetEnvironmentVariable('JOBS_FLUTTER_TEST_OUTPUT', $savedOutput, 'Process')
+            [Environment]::SetEnvironmentVariable('JOBS_FLUTTER_TEST_POWERSHELL', $savedPowerShell, 'Process')
+        }
     }
 
     $package = Join-Path $script:root 'fake-package'

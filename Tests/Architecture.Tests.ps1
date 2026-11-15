@@ -298,6 +298,12 @@ try {
             }
             Assert-Architecture (@($package.InfrastructureOverrides).Count -eq 1 -and $package.InfrastructureOverrides[0] -ceq 'PackageInstaller.psm1') '鸿蒙安装器独立覆盖且保留其它基础设施模板'
         }
+        if ($package.Id -ceq 'open-git-remote') {
+            Assert-Architecture ($package.Name -ceq 'JobsGitRemoteOpener' -and @($package.InfrastructureOverrides).Count -eq 1 -and $package.InfrastructureOverrides[0] -ceq 'Invoke.ps1') 'Git 远端包仅覆盖自己的多远端选择入口'
+            $invokeSource = [IO.File]::ReadAllText((Join-Path $standalone 'Scripts/Invoke.ps1'))
+            Assert-Architecture ($invokeSource.Contains('[switch]$SelectRemote') -and $invokeSource.Contains('$console = [bool]$manifest.Console -or $SelectRemote')) '独立远端入口保留显式多远端控制台模式'
+            Assert-Architecture ($invokeSource.Contains('Invoke-JobsFeature -Target $Path -Interactive:$Interactive')) '多远端选择仍转交本包业务并保留交互标志'
+        }
         $action = Import-Module (Join-Path $standalone 'Scripts/Action.psm1') -PassThru -DisableNameChecking
         Assert-Architecture ($action.ExportedCommands.ContainsKey('Invoke-JobsFeature')) ('独立业务可载入：' + $package.Id)
         $common = Import-Module (Join-Path $standalone 'Scripts/Common.psm1') -PassThru -DisableNameChecking
@@ -307,6 +313,9 @@ try {
         $installer = Import-Module (Join-Path $standalone 'Scripts/PackageInstaller.psm1') -PassThru -DisableNameChecking
         $release = Join-Path $temporary ('release-' + $package.Id)
         & $installer { param($Path, $Destination) New-JobsPackageRelease -PackagePath $Path -Destination $Destination } $standalone $release | Out-Null
+        if ($package.Id -ceq 'open-git-remote') {
+            Assert-Architecture ([IO.File]::ReadAllText((Join-Path $release 'Scripts/Invoke.ps1')) -ceq $invokeSource) '独立发布保留多远端专用入口原文'
+        }
         $plan = @(& $installer { param($Manifest, $Release, $PowerShell) Get-JobsPackageRegistryPlan -Manifest $Manifest -ReleasePath $Release -PowerShellPath $PowerShell -Enabled $true } $package $release (Join-Path $PSHOME 'powershell.exe'))
         $expected = 4
         if ($package.DirectoryOnly) { $expected = 3 }
@@ -417,6 +426,45 @@ try {
     Assert-Architecture (-not $failure.Success -and @($failure.Completed).Count -eq 2 -and $failure.Failed -eq $configure[0].Id) '单包失败后继续其它所选包并保留成功结果'
     foreach ($name in @('Worker.ps1', 'Invoke-Menu.ps1', 'Common.psm1')) {
         Assert-Architecture (-not (Test-Path -LiteralPath (Join-Path $root ('Scripts/' + $name)))) ('总入口不再承载集中业务：' + $name)
+    }
+    # 在独立夹具中执行同步写入，验证例外入口不被模板覆盖及白名单拒绝边界。
+    $syncRoot = Join-Path $temporary 'infrastructure-override'
+    $syncScripts = Join-Path $syncRoot 'Scripts'
+    [void][IO.Directory]::CreateDirectory($syncScripts)
+    Copy-Item -LiteralPath (Join-Path $root 'Infrastructure') -Destination $syncRoot -Recurse
+    foreach ($name in @('Installer.psm1', 'Sync-PackageInfrastructure.ps1')) {
+        Copy-Item -LiteralPath (Join-Path $root ('Scripts/' + $name)) -Destination $syncScripts
+    }
+    $syncPackage = Join-Path $syncRoot 'JobsGitRemoteOpener'
+    [void][IO.Directory]::CreateDirectory((Join-Path $syncPackage 'Scripts'))
+    $syncInvoke = Join-Path $syncPackage 'Scripts/Invoke.ps1'
+    Copy-Item -LiteralPath (Join-Path $root 'JobsGitRemoteOpener/Scripts/Invoke.ps1') -Destination $syncInvoke
+    $invokeHash = (Get-FileHash -LiteralPath $syncInvoke).Hash
+    $syncManifest = Get-Content -LiteralPath (Join-Path $root 'JobsGitRemoteOpener/Extension.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $manifestJson = $syncManifest | ConvertTo-Json -Depth 10
+    $catalogJson = '[{"Id":"open-git-remote","Name":"JobsGitRemoteOpener"}]'
+    [IO.File]::WriteAllText((Join-Path $syncPackage 'Extension.json'), $manifestJson)
+    [IO.File]::WriteAllText((Join-Path $syncRoot 'Extensions.json'), $catalogJson)
+    & (Join-Path $syncScripts 'Sync-PackageInfrastructure.ps1') -Write 6>$null
+    Assert-Architecture ((Get-FileHash -LiteralPath $syncInvoke).Hash -ceq $invokeHash) '同步写入保留白名单多远端入口的完整字节'
+    Assert-Architecture ((Get-FileHash -LiteralPath (Join-Path $syncPackage 'Scripts/Common.psm1')).Hash -ceq (Get-FileHash -LiteralPath (Join-Path $root 'Infrastructure/Common.psm1')).Hash) '专用入口覆盖不豁免其它通用模板同步'
+    foreach ($invalid in @(@{Overrides=@('Invoke.ps1','Invoke.ps1')}, @{Overrides=@('Invoke.ps1','Common.psm1')}, @{Overrides=@('invoke.ps1')}, @{Overrides=@('PackageInstaller.psm1')}, @{Id='other-remote'}, @{Name='JobsOtherRemote'}, @{CatalogId='other-remote'}, @{CatalogName='JobsOtherRemote'})) {
+        $candidate = $manifestJson | ConvertFrom-Json
+        $entry = [pscustomobject]@{Id='open-git-remote';Name='JobsGitRemoteOpener'}
+        if ($invalid.ContainsKey('Overrides')) { $candidate.InfrastructureOverrides = $invalid.Overrides }
+        if ($invalid.ContainsKey('Id')) { $candidate.Id = $invalid.Id }
+        if ($invalid.ContainsKey('Name')) { $candidate.Name = $invalid.Name }
+        if ($invalid.ContainsKey('CatalogId')) { $entry.Id = $invalid.CatalogId }
+        if ($invalid.ContainsKey('CatalogName')) { $entry.Name = $invalid.CatalogName }
+        $candidateRoot = Join-Path $syncRoot $entry.Name
+        [void][IO.Directory]::CreateDirectory($candidateRoot)
+        [IO.File]::WriteAllText((Join-Path $candidateRoot 'Extension.json'), ($candidate | ConvertTo-Json -Depth 10))
+        [IO.File]::WriteAllText((Join-Path $syncRoot 'Extensions.json'), (ConvertTo-Json -InputObject @($entry)))
+        $blocked = $false
+        try { & (Join-Path $syncScripts 'Sync-PackageInfrastructure.ps1') 6>$null }
+        catch { $blocked = $_.Exception.Message -match '基础设施覆盖白名单|只允许本包多远端选择' }
+        Assert-Architecture $blocked '同步白名单拒绝重复、额外、错名、大小写及不匹配的目录/包身份'
+        Assert-Architecture ((Get-FileHash -LiteralPath $syncInvoke).Hash -ceq $invokeHash) '拒绝非法覆盖清单后保留远端专用入口'
     }
     Write-Host ('PASS: Architecture.Tests.ps1 (' + $script:assertions + ' assertions)')
 } finally {

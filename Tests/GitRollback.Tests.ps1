@@ -491,14 +491,17 @@ try {
             Set-Item Function:script:Select-JobsRollbackEntry ([scriptblock]::Create($definition.Body.Extent.Text.Substring(1,$definition.Body.Extent.Text.Length-2)))
             $script:OutputEncoding=[Text.Encoding]::ASCII
             $consoleBefore=[Console]::OutputEncoding
+            $inputBefore=[Console]::InputEncoding
             [Console]::OutputEncoding=[Text.Encoding]::ASCII
+            [Console]::InputEncoding=New-Object Text.UTF8Encoding($true)
             try {
                 $result=Select-JobsRollbackEntry '中文编码' @('选择提交 soft 回退','hard 回退到 upstream') -Back
                 if($result.Value -cne '选择提交 soft 回退'){throw 'Native pipe corrupted Chinese mode.'}
                 if($OutputEncoding.CodePage -ne 20127 -or [Console]::OutputEncoding.CodePage -ne 20127){throw 'Original ASCII encoding not restored.'}
-            } finally { [Console]::OutputEncoding=$consoleBefore }
+                if([Console]::InputEncoding.CodePage -ne 65001 -or [Console]::InputEncoding.GetPreamble().Length -ne 3){throw 'Original UTF8 BOM input encoding not restored.'}
+            } finally { [Console]::OutputEncoding=$consoleBefore; [Console]::InputEncoding=$inputBefore }
         } ([IO.Path]::GetFullPath($FzfProbeExecutable))
-        Assert-Rollback $true '初始ASCII原生管道仍完整往返中文并恢复编码'
+        Assert-Rollback $true '初始ASCII输出与带BOM输入的原生管道仍完整往返中文并恢复编码'
     } else { Write-Host 'SKIP optional native encoding shim: compile GitRollbackFzfProbe.cpp and pass -FzfProbeExecutable.' }
     Write-Host ('PASS GitRollback: ' + $script:assertions + ' assertions; temporary repositories only.')
 } finally {

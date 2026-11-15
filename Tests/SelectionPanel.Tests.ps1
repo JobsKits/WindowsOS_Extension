@@ -472,6 +472,71 @@ Assert-Selection (-not $selectionCallbacks.State.ConfirmButton.Enabled -and $nul
 $selectionCallbacks.State.OperationBox.SelectedIndex = 0
 & $selectionCallbacks.OperationChanged
 Assert-Selection ($selectionCallbacks.State.Checks[1].Enabled -and $selectionCallbacks.State.ConfirmButton.Enabled) '闭包切回安装后恢复原勾选的有效操作'
+$selectionCallbacks.State.Groups = @([pscustomobject]@{
+    Checks=$selectionCallbacks.State.Checks; Counter=[pscustomobject]@{Text=""}
+    All=[pscustomobject]@{Enabled=$false}; None=[pscustomobject]@{Enabled=$false}
+})
+foreach ($language in @('zh-Hans','en','fr')) {
+    $selectionCallbacks.State.Language = $language
+    & $selectionCallbacks.Refresh
+    $expectedCounter = (Get-JobsPanelText '已选 {0} / {1}' $language) -f 1, 2
+    Assert-Selection ($selectionCallbacks.State.Groups[0].Counter.Text -ceq $expectedCounter) ('真实刷新按当前语言显示组计数：' + $language)
+}
+
+# 控件首选高度可高于通用字体测量；轻量标签验证实际布局调用与下方空间。
+$headerMetricChecks = & $installer {
+    function Measure-JobsFeatureText {
+        param($Text, $Font, [int]$Width=0)
+        [pscustomobject]@{ Width=40; Height=12 }
+    }
+    function New-HeaderFixtureControl {
+        param([string]$Text='', [int]$NaturalWidth=40, [int]$NaturalHeight=24)
+        $control = [pscustomobject]@{
+            Text=$Text; Left=0; Top=0; Width=0; Height=0; NaturalWidth=$NaturalWidth; NaturalHeight=$NaturalHeight
+            PreferredHeight=24; Items=@($Text); DropDownWidth=0; ItemHeight=0; MaximumSize=$null; Size=$null
+        }
+        $control | Add-Member ScriptMethod SetBounds {
+            param($Left, $Top, $Width, $Height)
+            $this.Left=$Left; $this.Top=$Top; $this.Width=$Width; $this.Height=$Height
+        }
+        $control | Add-Member ScriptProperty Bottom { $this.Top + $this.Height }
+        $control | Add-Member ScriptMethod GetPreferredSize {
+            param($Proposed)
+            $width = if ($Proposed.Width -gt 0) { $Proposed.Width } else { $this.NaturalWidth }
+            $height = $this.NaturalHeight
+            if ($width -lt $this.NaturalWidth) { $height *= 2 }
+            New-Object Drawing.Size($width, $height)
+        }
+        return $control
+    }
+    function Set-JobsPanelDeploymentRowLayout {
+        param($State, [int]$Top, [int]$Width)
+        $State.DeploymentRow.SetBounds(0, $Top, $Width, 30)
+    }
+    $toolTip = [pscustomobject]@{}
+    $toolTip | Add-Member ScriptMethod SetToolTip { param($Control,$Text) }
+    $state = [pscustomobject]@{
+        Scale=1; Padding=12; Font=[pscustomobject]@{Height=12}; Form=[pscustomobject]@{ClientSize=[pscustomobject]@{Width=1000}}
+        ThemeLabel=(New-HeaderFixtureControl '主题'); LanguageLabel=(New-HeaderFixtureControl '语言')
+        ThemeBox=(New-HeaderFixtureControl 'Light'); LanguageBox=(New-HeaderFixtureControl 'English')
+        HeaderLabel=(New-HeaderFixtureControl '标题' 300 32); HeaderDetailsLabel=(New-HeaderFixtureControl '说明' 300 42)
+        PreferencePanel=(New-HeaderFixtureControl); Header=(New-HeaderFixtureControl); LogToolbar=(New-HeaderFixtureControl)
+        DeploymentRow=(New-HeaderFixtureControl); PreferredHeaderHeight=0; OperationBox=$null; ToolTip=$toolTip; HeaderTopLayout=$null
+    }
+    foreach ($case in @(@{Width=1000;TitleHeight=32}, @{Width=580;TitleHeight=32}, @{Width=280;TitleHeight=64})) {
+        $state.Form.ClientSize.Width=$case.Width
+        Set-JobsPanelHeaderLayout $state
+        [pscustomobject]@{
+            Width=$case.Width; ExpectedTitleHeight=$case.TitleHeight; TitleHeight=$state.HeaderLabel.Height
+            DetailsTop=$state.HeaderDetailsLabel.Top; TitleBottom=$state.HeaderLabel.Bottom; PreferenceBottom=$state.PreferencePanel.Bottom
+        }
+    }
+}
+foreach ($metrics in $headerMetricChecks) {
+    Assert-Selection ($metrics.TitleHeight -eq $metrics.ExpectedTitleHeight) ('标题采用 Label 首选高度，包含回退字体和换行：宽度 ' + $metrics.Width)
+    Assert-Selection ($metrics.DetailsTop -gt $metrics.TitleBottom) ('说明位于完整标题下方：宽度 ' + $metrics.Width)
+    Assert-Selection ($metrics.DetailsTop -gt $metrics.PreferenceBottom) ('说明位于完整工具组下方：宽度 ' + $metrics.Width)
+}
 
 # 真实字体先在 Windows 测量；此处用像素宽度覆盖高 DPI、减列及超长标题换行。
 foreach ($scale in @(1.0, 1.25, 1.5, 2.0)) {
@@ -590,14 +655,25 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         return New-Object Drawing.Rectangle($left, $top, $Control.Width, $Control.Height)
     }
 
+    function Get-SelectionControlDiagnostic {
+        param([string]$Name, $Control)
+        $parentType = '<none>'
+        $parentBounds = '<none>'
+        if ($null -ne $Control.Parent) {
+            $parentType = $Control.Parent.GetType().FullName
+            $parentBounds = $Control.Parent.Bounds.ToString()
+        }
+        return ('{0} type={1} bounds={2} parent={3} parentBounds={4}' -f $Name, $Control.GetType().FullName, $Control.Bounds, $parentType, $parentBounds)
+    }
     function Assert-SelectionTextFits {
         param($Control, [string]$Context, [switch]$SingleLine)
         $proposed = New-Object Drawing.Size($Control.Width, 0)
         if ($SingleLine) { $proposed = [Drawing.Size]::Empty }
         $natural = $Control.GetPreferredSize($proposed)
-        Assert-Selection ($natural.Height -le $Control.Height + 1) ($Context + ' 完整文字高度可见：' + $Control.Text)
+        $diagnostic = Get-SelectionControlDiagnostic $Context $Control
+        Assert-Selection ($natural.Height -le $Control.Height + 1) ($Context + ' 完整文字高度可见：' + $Control.Text + '；required=' + $natural + '；' + $diagnostic)
         if ($SingleLine) {
-            Assert-Selection ($natural.Width -le $Control.Width + 1) ($Context + ' 完整文字宽度可见：' + $Control.Text)
+            Assert-Selection ($natural.Width -le $Control.Width + 1) ($Context + ' 完整文字宽度可见：' + $Control.Text + '；required=' + $natural + '；' + $diagnostic)
         }
         Assert-Selection (-not $Control.AutoEllipsis) ($Context + ' 不用省略号替代完整文字')
     }
@@ -612,12 +688,26 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
         Assert-Selection (-not $State.HeaderLabel.Bounds.IntersectsWith($State.PreferencePanel.Bounds)) ($Context + ' 右上工具组不遮挡标题')
         Assert-Selection (-not $State.HeaderDetailsLabel.Bounds.IntersectsWith($State.PreferencePanel.Bounds)) ($Context + ' 右上工具组不遮挡说明')
         Assert-Selection ($State.PreferencePanel.Right -eq $State.Form.ClientSize.Width - $State.Padding) ($Context + ' 主题语言按内容右边距对齐')
-        $routeCenter = $State.RouteBox.Top + $State.RouteBox.Height / 2.0
-        $autoCenter = $State.CleanupPanel.Top + $State.AutoCleanup.Top + $State.AutoCleanup.Height / 2.0
-        $buttonCenter = $State.CleanupPanel.Top + $State.CleanupButton.Top + $State.CleanupButton.Height / 2.0
         if ($State.DeploymentMode -eq 'installed') {
-            Assert-Selection ([Math]::Abs($routeCenter - $autoCenter) -le 1 -and [Math]::Abs($routeCenter - $buttonCenter) -le 1) ($Context + ' 安装位置与两个清理控件同排居中')
-            Assert-Selection ($State.CleanupPanel.Left -ge $State.RouteBox.Right) ($Context + ' 位置下拉不覆盖清理选项')
+            $routeBounds = Get-SelectionBoundsInForm $State.RouteBox $State.Form
+            $autoBounds = Get-SelectionBoundsInForm $State.AutoCleanup $State.Form
+            $routeCenter = $routeBounds.Top + $routeBounds.Height / 2.0
+            $autoCenter = $autoBounds.Top + $autoBounds.Height / 2.0
+            $deploymentDiagnostic = @(
+                ('scale=' + $State.Scale)
+                (Get-SelectionControlDiagnostic 'route' $State.RouteBox)
+                (Get-SelectionControlDiagnostic 'cleanupPanel' $State.CleanupPanel)
+                (Get-SelectionControlDiagnostic 'autoCleanup' $State.AutoCleanup)
+                (Get-SelectionControlDiagnostic 'cleanupButton' $State.CleanupButton)
+                (Get-SelectionControlDiagnostic 'confirmButton' $State.ConfirmButton)
+                (Get-SelectionControlDiagnostic 'footer' $State.Footer)
+            ) -join '；'
+            Assert-Selection ([Math]::Abs($routeCenter - $autoCenter) -le 1) ($Context + ' 安装位置与自动清理复选框同排居中；' + $deploymentDiagnostic)
+            Assert-Selection ($State.CleanupPanel.Left -ge $State.RouteBox.Right) ($Context + ' 位置下拉不覆盖清理选项；' + $deploymentDiagnostic)
+            Assert-Selection ([object]::ReferenceEquals($State.CleanupButton.Parent, $State.Footer)) ($Context + ' 独立清理按钮属于底部操作区；' + $deploymentDiagnostic)
+            $cleanupAfterConfirm = ($State.CleanupButton.Top -eq $State.ConfirmButton.Top -and $State.CleanupButton.Left -ge $State.ConfirmButton.Right) -or $State.CleanupButton.Top -ge $State.ConfirmButton.Bottom
+            Assert-Selection $cleanupAfterConfirm ($Context + ' 独立清理位于主操作右侧，窄窗换行时继续排在主操作之后；' + $deploymentDiagnostic)
+            Assert-Selection ($State.Footer.ClientRectangle.Contains($State.CleanupButton.Bounds)) ($Context + ' 独立清理按钮完整位于底栏；' + $deploymentDiagnostic)
             Assert-SelectionTextFits $State.AutoCleanup ($Context + ' 自动清理复选框') -SingleLine
             Assert-SelectionTextFits $State.CleanupButton ($Context + ' 独立清理按钮') -SingleLine
         }
@@ -705,6 +795,7 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
             Assert-Selection ($State.Progress.Bottom -le $State.ConfirmButton.Top) ($Context + ' 进度条不覆盖操作按钮')
             Assert-Selection ($State.Footer.ClientRectangle.Contains($State.ConfirmButton.Bounds)) ($Context + ' 变长说明后操作按钮仍完整位于底栏')
             $footerButtons = @($State.SelectAllButton, $State.ClearButton, $State.ConfirmButton, $State.CancelButton)
+            if ($State.DeploymentMode -eq 'installed') { $footerButtons += $State.CleanupButton }
             foreach ($button in $footerButtons) {
                 Assert-SelectionTextFits $button ($Context + ' 全局操作按钮') -SingleLine
                 Assert-Selection ($State.Footer.ClientRectangle.Contains($button.Bounds)) ($Context + ' 全局操作按钮完整位于底栏：' + $button.Text)
@@ -712,7 +803,9 @@ if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
             }
             for ($left = 0; $left -lt $footerButtons.Count; $left++) {
                 for ($right = $left + 1; $right -lt $footerButtons.Count; $right++) {
-                    Assert-Selection (-not $footerButtons[$left].Bounds.IntersectsWith($footerButtons[$right].Bounds)) ($Context + ' 全局操作按钮不重叠')
+                    $leftDetails = Get-SelectionControlDiagnostic 'leftButton' $footerButtons[$left]
+                    $rightDetails = Get-SelectionControlDiagnostic 'rightButton' $footerButtons[$right]
+                    Assert-Selection (-not $footerButtons[$left].Bounds.IntersectsWith($footerButtons[$right].Bounds)) ($Context + ' 全局操作按钮不重叠；' + $leftDetails + '；' + $rightDetails)
                 }
             }
         }

@@ -33,13 +33,14 @@ function Restore-JobsRunnerTaskEnvironment {
     param([hashtable]$Snapshot)
     foreach ($key in $Snapshot.Keys) {
         $item = $Snapshot[$key]
-        if (-not $item.Exists) { Remove-Item ('Env:' + $key) -ErrorAction SilentlyContinue }
+        # 异常展开时直接恢复进程变量，避免环境Provider管道覆盖原业务异常。
+        if (-not $item.Exists) { [Environment]::SetEnvironmentVariable($key,[NullString]::Value,'Process') }
         elseif ($item.Value -ceq '' -and [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
             if (-not ('Jobs.SetupEnvironment' -as [type])) {
                 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; namespace Jobs { public static class SetupEnvironment { [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)] [return:MarshalAs(UnmanagedType.Bool)] public static extern bool SetEnvironmentVariable(string name, string value); } }'
             }
             if (-not [Jobs.SetupEnvironment]::SetEnvironmentVariable($key,'')) { throw ('恢复空环境变量失败：' + $key) }
-        } else { Set-Item ('Env:' + $key) -Value $item.Value }
+        } else { [Environment]::SetEnvironmentVariable($key,[string]$item.Value,'Process') }
     }
 }
 

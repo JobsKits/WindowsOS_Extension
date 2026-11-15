@@ -235,12 +235,15 @@ function Select-JobsRollbackEntry {
     $hadFile = Test-Path Env:FZF_DEFAULT_OPTS_FILE
     $previousOutputEncoding = $OutputEncoding
     $previousConsoleEncoding = [Console]::OutputEncoding
+    $previousInputEncoding = [Console]::InputEncoding
     try {
         $env:FZF_DEFAULT_OPTS = ''
         $env:FZF_DEFAULT_OPTS_FILE = ''
         # Windows PowerShell 5.1 的默认 ASCII 管道会损坏中文模式和提交信息。
         $OutputEncoding = New-Object Text.UTF8Encoding($false)
         [Console]::OutputEncoding = $OutputEncoding
+        # Framework 的原生 stdin writer 在接管管道前即可写 BOM，输入编码也必须明确不带 BOM。
+        [Console]::InputEncoding = $OutputEncoding
         $ErrorActionPreference = 'Continue'
         $lines = @($Entries | & $fzf @options)
         $code = $LASTEXITCODE
@@ -248,6 +251,7 @@ function Select-JobsRollbackEntry {
         $ErrorActionPreference = $previous
         $OutputEncoding = $previousOutputEncoding
         [Console]::OutputEncoding = $previousConsoleEncoding
+        [Console]::InputEncoding = $previousInputEncoding
         if ($hadOptions) { [Environment]::SetEnvironmentVariable('FZF_DEFAULT_OPTS', $oldOptions) }
         else { Remove-Item Env:FZF_DEFAULT_OPTS -ErrorAction SilentlyContinue }
         if ($hadFile) { [Environment]::SetEnvironmentVariable('FZF_DEFAULT_OPTS_FILE', $oldFile) }

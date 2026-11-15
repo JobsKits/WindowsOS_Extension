@@ -302,6 +302,11 @@ try {
                 Copy-Item -LiteralPath (Join-Path $package.FullName ('Scripts/' + $name)) -Destination $scripts -Recurse
             }
         }
+        if ($package.Name -eq 'JobsCommandShortcutCreator') {
+            foreach ($name in @('SelectionPanel.psm1', 'CommandShortcut.ps1')) {
+                Copy-Item -LiteralPath (Join-Path $package.FullName ('Scripts/' + $name)) -Destination $scripts
+            }
+        }
         if ($package.Name -eq 'JobsFileVolumes') {
             Copy-Item -LiteralPath (Join-Path $package.FullName 'Scripts/FileVolumes.ps1') -Destination $scripts
         }
@@ -333,7 +338,14 @@ try {
         $imports = @($ast.FindAll({ param($node)
             $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Import-Module'
         }, $false))
-        Assert-True ($imports.Count -eq 1 -and $imports[0].Extent.Text -eq "Import-Module (Join-Path `$PSScriptRoot 'Common.psm1') -DisableNameChecking") ($package.Name + ' 只导入本包 Common')
+        $expectedImports = @("Import-Module (Join-Path `$PSScriptRoot 'Common.psm1') -DisableNameChecking")
+        if ($package.Name -eq 'JobsCommandShortcutCreator') {
+            $expectedImports += "Import-Module (Join-Path `$PSScriptRoot 'SelectionPanel.psm1') -DisableNameChecking"
+        }
+        Assert-True ($imports.Count -eq $expectedImports.Count) ($package.Name + ' 只导入明确的本包私有依赖')
+        for ($importIndex = 0; $importIndex -lt $expectedImports.Count; $importIndex++) {
+            Assert-True ($imports[$importIndex].Extent.Text -ceq $expectedImports[$importIndex]) ($package.Name + ' 本包依赖路径：' + $importIndex)
+        }
         $readCommands = @($ast.FindAll({ param($node)
             $node -is [Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Get-Content'
         }, $true))
@@ -418,6 +430,7 @@ try {
                 function script:Invoke-JobsCodeGraphAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsGitAction { param($Directory) $script:Captured = $Directory }
                 function script:Invoke-JobsProxyConfiguratorAction { param($Directory) $script:Captured = $Directory }
+                function script:Show-JobsCommandShortcutDialog { param($Target) $script:Captured = $Target }
                 Invoke-JobsFeature -Target ($Target + '|JobsPathEnd')
                 return $script:Captured
             } $manifest.Id $testRoot

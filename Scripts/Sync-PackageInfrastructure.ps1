@@ -290,6 +290,8 @@ foreach ($package in $packages) {
             if (($overrides -join ',') -cne 'PackageInstaller.psm1,Invoke.ps1') { throw '隐藏文件菜单只允许独立安装器及显式 Show/Hide 传输入口。' }
         } elseif ($package.Id -ceq 'file-volumes' -and $package.Name -ceq 'JobsFileVolumes') {
             if (($overrides -join ',') -cne 'PackageInstaller.psm1,Invoke.ps1') { throw '分卷包只覆盖原生安装器及精确选择清单入口。' }
+        } elseif ($package.Id -ceq 'open-git-remote' -and $package.Name -ceq 'JobsGitRemoteOpener') {
+            if ($manifest.Id -cne $package.Id -or $manifest.Name -cne $package.Name -or $overrides.Count -ne 1 -or $overrides[0] -cne 'Invoke.ps1') { throw 'Git 远程地址包只允许本包多远端选择 Invoke.ps1 入口。' }
         } elseif ($overrides.Count -ne 1 -or $overrides[0] -cne 'PackageInstaller.psm1') { throw '基础设施覆盖白名单只允许 PackageInstaller.psm1。' }
     }
     foreach ($name in @('Common.psm1', 'Invoke.ps1', 'Manage.ps1', 'PackageInstaller.psm1', 'SelectionPanel.psm1', 'ManagementWorker.ps1')) {

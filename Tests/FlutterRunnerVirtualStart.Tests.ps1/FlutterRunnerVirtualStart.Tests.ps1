@@ -130,6 +130,45 @@ try {
         if($BoundaryOnly){continue}
         $module=Import-Module $path -Force -PassThru -DisableNameChecking
         Assert-Virtual ((&$module {(Get-Command Get-JobsAndroidSdk).ScriptBlock.File})-like'*AndroidRuntime.ps1') '两份运行器均随包携带真实Android启动工具能力，不能依赖测试mock或兄弟目录'
+        $environmentKeys=@(('JOBS_RUNNER_PRESENT_'+[guid]::NewGuid().ToString('N')),('JOBS_RUNNER_ABSENT_'+[guid]::NewGuid().ToString('N')),('JOBS_RUNNER_EMPTY_'+[guid]::NewGuid().ToString('N')))
+        try {
+            [Environment]::SetEnvironmentVariable($environmentKeys[0],'original-value','Process')
+            if([Environment]::OSVersion.Platform-eq[PlatformID]::Win32NT){
+                # 在正常路径准备原生空值支持，随后验证异常展开中不丢失“存在但为空”。
+                &$module {param($Key)Restore-JobsRunnerTaskEnvironment @{$Key=@{Exists=$true;Value=''}}} $environmentKeys[2]
+            }
+            $environmentSnapshot=&$module {param($Keys)Get-JobsRunnerTaskEnvironmentSnapshot $Keys} $environmentKeys
+            &$module {
+                function script:Set-Item {throw 'Environment provider Set-Item must not run during restoration.'}
+                function script:Remove-Item {throw 'Environment provider Remove-Item must not run during restoration.'}
+            }
+            foreach($exitKind in @('return','error')){
+                $environmentFailure='';$environmentResult=$null
+                try {
+                    $environmentResult=&$module {
+                        param($Keys,$Snapshot,$ExitKind)
+                        try {
+                            foreach($key in $Keys){[Environment]::SetEnvironmentVariable($key,'temporary-value','Process')}
+                            # 先处理一个原生IO错误，后续业务错误仍必须保持自己的身份。
+                            try{[void][IO.File]::GetAttributes((Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N')+'.missing')))}catch{}
+                            if($ExitKind-ceq'error'){throw 'Original runner business gate.'}
+                            return 'returned'
+                        } finally {Restore-JobsRunnerTaskEnvironment $Snapshot}
+                    } $environmentKeys $environmentSnapshot $exitKind
+                } catch {$environmentFailure=$_.Exception.Message}
+                if($exitKind-ceq'error'){Assert-Virtual ($environmentFailure-ceq'Original runner business gate.') '原生IO错误已捕获后，恢复环境不覆盖后续业务异常'}
+                else{Assert-Virtual ($environmentFailure-ceq''-and$environmentResult-ceq'returned') '正常return仍执行环境恢复且保留返回值'}
+                $restored=&$module {param($Keys)Get-JobsRunnerTaskEnvironmentSnapshot $Keys} $environmentKeys
+                foreach($key in $environmentKeys){
+                    Assert-Virtual ($restored[$key].Exists-eq$environmentSnapshot[$key].Exists-and$restored[$key].Value-ceq$environmentSnapshot[$key].Value) '恢复既有值、未设置和Windows空值时保持精确存在性'
+                }
+            }
+        } finally {
+            foreach($key in $environmentKeys){[Environment]::SetEnvironmentVariable($key,[NullString]::Value,'Process')}
+            &$module {Microsoft.PowerShell.Management\Remove-Item 'Function:script:Set-Item','Function:script:Remove-Item' -ErrorAction SilentlyContinue}
+            Remove-Module $module
+        }
+        $module=Import-Module $path -Force -PassThru -DisableNameChecking
         $complete=New-VirtualSdkListing
         $updatesReport=New-VirtualSdkListing -TargetUpdates -OtherUpdates
         $afterReport=New-VirtualSdkListing -UpdatedTargets -OtherUpdates
@@ -231,7 +270,7 @@ try {
             $module=Import-Module $path -Force -PassThru -DisableNameChecking
             & $module {
                 param($Scenario,$FixtureRoot,$Sdk)
-                $script:Scenario=$Scenario;$script:FixtureRoot=$FixtureRoot;$script:Sdk=$Sdk;$script:Starts=0;$script:Created=0;$script:IdentityReads=0;$script:ObjectGeneration=1
+                $script:Scenario=$Scenario;$script:FixtureRoot=$FixtureRoot;$script:Sdk=$Sdk;$script:Starts=0;$script:Created=0;$script:ObjectGeneration=1
                 function script:Initialize-JobsRunnerVirtualAndroid {$env:JAVA_HOME='temporary-java';return $script:Sdk}
                 function script:Get-JobsAndroidAvdHome {return $script:FixtureRoot}
                 function script:Get-JobsRunnerFileIdentity {param($Path)return ($Path+'|file-object-'+$script:ObjectGeneration)}
@@ -239,6 +278,10 @@ try {
                 function script:Select-JobsRunnerChoice {
                     if($script:Scenario-ceq'cancel'){return $null}
                     if($script:Scenario-ceq'back'){return [pscustomobject]@{Kind='Back';Index=-1}}
+                    # 直接改变夹具配置，保留真实身份函数及模块作用域。
+                    if($script:Scenario-ceq'identity'){
+                        [IO.File]::AppendAllText((Join-Path $script:FixtureRoot 'Original.avd/config.ini'),"hw.cpu.arch=changed`n")
+                    }
                     if($script:Scenario-ceq'selection-identity'){
                         $replacement=Join-Path $script:FixtureRoot 'Replacement.avd'
                         [void][IO.Directory]::CreateDirectory($replacement)
@@ -279,21 +322,22 @@ try {
                     if($script:Scenario-ceq'boot-dynamic'){[IO.File]::AppendAllText((Join-Path $script:FixtureRoot 'Original.avd/config.ini'),"fastboot.chosenSnapshotFile=runtime`n")}
                     return $Target.Id
                 }
-                if($Scenario-ceq'identity'){
-                    $script:RealIdentity=${function:Get-JobsRunnerAndroidAvdIdentity}
-                    function script:Get-JobsRunnerAndroidAvdIdentity {param($Name)$result=&$script:RealIdentity $Name;$script:IdentityReads++;if($script:IdentityReads-gt1){$result.ConfigHash='changed'};return $result}
-                }
             } $scenario $FixtureRoot $sdk
             $savedJava=$env:JAVA_HOME;$failed=$false;$result=$null;$failureDetail=''
-            try{$result=&$module {Start-JobsRunnerExistingAndroid 'flutter' '/fixture/project'}}catch{$failed=$true;$failureDetail=$_.Exception.Message;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
+            try{$result=&$module {Start-JobsRunnerExistingAndroid 'flutter' '/fixture/project'}}catch{$failed=$true;$failureDetail=$_.Exception.Message+' @ '+$_.ScriptStackTrace;if($scenario-in@('success','running')){Write-Host $_.Exception.Message;Write-Host $_.ScriptStackTrace}}
             Assert-Virtual ($env:JAVA_HOME-ceq$savedJava) 'Android成功、失败、返回与取消均恢复父进程环境'
             Assert-Virtual ((&$module {$script:Created})-eq0) '启动已有AVD不转入创建入口'
             if($scenario-in@('success','boot-dynamic')){Assert-Virtual (-not$failed-and$result.Kind-ceq'Ready'-and$result.Id-ceq'emulator-5568'-and$result.Environment.JAVA_HOME-ceq'temporary-java'-and(&$module {$script:Starts})-eq1) '原AVD精确serial承接本次运行并仅启动一次'}
             elseif($scenario-in@('wait-failed','wait-identity','wait-id','wait-portreuse')){
                 $starts=&$module {$script:Starts}
                 Assert-Virtual ($failed-and$starts-eq1) ('启动后发现失败不重放启动或误选其它设备：scenario='+$scenario+'; starts='+$starts+'; failed='+$failed+'; '+$failureDetail)
+                $expectedFailure=@{'wait-failed'='not visible';'wait-identity'='等待期间原AVD实例或配置已改变';'wait-id'='Android准备返回不同设备';'wait-portreuse'='等待后原AVD未就绪或端口已由其它实例复用'}
+                Assert-Virtual ($failureDetail.Contains($expectedFailure[$scenario])) ('等待失败来自对应门禁：scenario='+$scenario+'; '+$failureDetail)
             }
-            elseif($scenario-in@('identity','selection-identity','selection-object')){Assert-Virtual ($failed-and(&$module {$script:Starts})-eq0) '选择期间同名AVD被替换或原配置改变时阻止启动'}
+            elseif($scenario-in@('identity','selection-identity','selection-object')){
+                Assert-Virtual ($failed-and(&$module {$script:Starts})-eq0) '选择期间同名AVD被替换或原配置改变时阻止启动'
+                Assert-Virtual ($failureDetail.Contains('选择期间原AVD实例已被替换')) ('选择失败来自真实实例门禁：scenario='+$scenario+'; '+$failureDetail)
+            }
             else{Assert-Virtual (-not$failed-and(&$module {$script:Starts})-eq0-and($scenario-ceq'cancel'-or$result.Kind-ceq'Back')) '空列表返回、左键返回与取消均无启动'}
             Remove-Module $module
         }

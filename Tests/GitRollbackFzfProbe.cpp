@@ -12,6 +12,10 @@ int main(int argc, char** argv) {
     }
     std::string first;
     if (!std::getline(std::cin, first)) return 1;
+    if (first.compare(0, 3, "\xEF\xBB\xBF") == 0) {
+        std::cerr << "Unexpected UTF-8 BOM at native stdin.\n";
+        return 23;
+    }
     if (back) std::cout << '\n';
     std::cout << first << '\n';
     return 0;

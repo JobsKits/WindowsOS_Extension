@@ -362,14 +362,24 @@ Export-ModuleMember -Function Invoke-JobsPackageChange
 }
 if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
     $ui = Import-Module (Join-Path $root 'Scripts/Installer.psm1') -PassThru -DisableNameChecking
-    $state = & $ui { param($Items) New-JobsFeatureSelectionForm -Packages $Items -Selected @() -Mode Install } $features
+    $state = & $ui {
+        param($Items)
+        $preferencePath = Join-Path ([IO.Path]::GetTempPath()) ('JobsFlutterFeaturePanel-' + [guid]::NewGuid().ToString('N') + '.json')
+        try {
+            Save-JobsPanelPreferences -Theme light -Language en -Path $preferencePath
+            New-JobsFeatureSelectionForm -Packages $Items -Selected @() -Mode Install -PreferencesPath $preferencePath
+        } finally { if ([IO.File]::Exists($preferencePath)) { [IO.File]::Delete($preferencePath) } }
+    } $features
     try {
         Assert (@($state.Checks).Count -eq $features.Count -and $state.Groups.Count -eq 9) '真实面板包含全部叶功能及用途分组'
         Assert ($state.ContentPanel.AutoScroll -and $state.Footer.Dock -eq [Windows.Forms.DockStyle]::Bottom) '仅内容区滚动且操作区固定'
         $group = @($state.Groups | Where-Object { $_.Name -ceq '🏥 Flutter项目体检' })[0]
         $click = $group.All.GetType().GetMethod('OnClick', [Reflection.BindingFlags]'Instance,NonPublic')
         [void]$click.Invoke($group.All, @([EventArgs]::Empty))
-        Assert (@($state.Checks | Where-Object Checked).Count -eq 3 -and $group.Counter.Text -eq '已选 3 / 3') '组内全选只勾选本组且更新计数'
+        $selectedCount = @($state.Checks | Where-Object Checked).Count
+        $expectedCounter = (Get-JobsPanelText '已选 {0} / {1}' $state.Language) -f 3, $group.Checks.Count
+        Assert ($selectedCount -eq 3) ('组内全选只勾选本组；实际数量：' + $selectedCount)
+        Assert ($group.Counter.Text -ceq $expectedCounter) ('组内计数按当前语言更新；语言：' + $state.Language + '；实际：' + $group.Counter.Text + '；期望：' + $expectedCounter)
         [void]$click.Invoke($group.None, @([EventArgs]::Empty))
         Assert (@($state.Checks | Where-Object Checked).Count -eq 0 -and -not $state.ConfirmButton.Enabled -and $null -eq $state.Form.AcceptButton) '组内全不选恢复空选门禁'
     } finally { $state.Form.Dispose(); $state.ToolTip.Dispose(); $state.Font.Dispose() }
