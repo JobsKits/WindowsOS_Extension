@@ -627,12 +627,43 @@ try {
         # 官方归档正向侧装使用真实ZIP/大小/SHA/安全解压和version.txt，绝不执行其中假exe。
         $archiveRoot=Join-Path $temporary ('official-'+[guid]::NewGuid().ToString('N'))
         $content=Join-Path $archiveRoot 'command-line-tools'
-        foreach($directory in @('emulator','node','ohpm/bin','sdk/default/openharmony/ets','sdk/default/openharmony/native','sdk/default/openharmony/toolchains')){[void][IO.Directory]::CreateDirectory((Join-Path $content $directory))}
-        foreach($file in @('emulator/Emulator.exe','node/node.exe','ohpm/bin/ohpm.bat','sdk/default/openharmony/toolchains/hdc.exe')){[IO.File]::WriteAllText((Join-Path $content $file),'fixture, never execute')}
+        $archiveDirectories=@('emulator','node','ohpm/bin','sdk/default/openharmony/ets','sdk/default/openharmony/native','sdk/default/openharmony/toolchains')
+        $archiveFiles=@('emulator/Emulator.exe','node/node.exe','ohpm/bin/ohpm.bat','sdk/default/openharmony/toolchains/hdc.exe','version.txt')
+        foreach($directory in $archiveDirectories){[void][IO.Directory]::CreateDirectory((Join-Path $content $directory))}
+        foreach($file in $archiveFiles){[IO.File]::WriteAllText((Join-Path $content $file),'fixture, never execute')}
         [IO.File]::WriteAllText((Join-Path $content 'version.txt'),'6.1.1.300')
         $archive=Join-Path $temporary ([guid]::NewGuid().ToString('N')+'.zip')
+        Add-Type -AssemblyName System.IO.Compression
         Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [IO.Compression.ZipFile]::CreateFromDirectory($archiveRoot,$archive)
+        # Framework 的目录打包可能保留反斜杠；ZIP成员名显式使用标准斜杠。
+        $zip=[IO.Compression.ZipFile]::Open($archive,[IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach($directory in $archiveDirectories){[void]$zip.CreateEntry('command-line-tools/'+$directory+'/')}
+            foreach($file in $archiveFiles){
+                $entry=$zip.CreateEntry('command-line-tools/'+$file)
+                $source=[IO.File]::OpenRead((Join-Path $content $file));$destination=$entry.Open()
+                try{$source.CopyTo($destination)}finally{$destination.Dispose();$source.Dispose()}
+            }
+        }finally{$zip.Dispose()}
+        $zip=[IO.Compression.ZipFile]::OpenRead($archive)
+        try {
+            $expectedEntries=@($archiveDirectories|ForEach-Object{'command-line-tools/'+$_+'/'})+@($archiveFiles|ForEach-Object{'command-line-tools/'+$_})
+            Assert-Virtual ($zip.Entries.Count-eq$expectedEntries.Count) '正向ZIP保留全部真实文件与空SDK目录'
+            $seenEntries=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            foreach($entry in $zip.Entries){
+                Assert-Virtual (-not$entry.FullName.Contains('\')-and$entry.FullName-cin$expectedEntries-and$seenEntries.Add($entry.FullName)) ('正向ZIP成员使用唯一标准斜杠路径：'+$entry.FullName)
+                $relativeEntry=$entry.FullName.Substring('command-line-tools/'.Length)
+                $sourcePath=Join-Path $content $relativeEntry
+                if($entry.FullName.EndsWith('/')){Assert-Virtual ([IO.Directory]::Exists($sourcePath)) 'ZIP目录对应真实源目录'}
+                else{
+                    $source=$entry.Open();$bytes=New-Object IO.MemoryStream
+                    try{
+                        $source.CopyTo($bytes)
+                        Assert-Virtual ([Convert]::ToBase64String($bytes.ToArray())-ceq[Convert]::ToBase64String([IO.File]::ReadAllBytes($sourcePath))) ('ZIP成员与真实源文件逐字节一致：'+$entry.FullName)
+                    }finally{$bytes.Dispose();$source.Dispose()}
+                }
+            }
+        }finally{$zip.Dispose()}
         $package=[pscustomobject]@{Name='commandline-tools-windows-x64-6.1.1.300.zip';Version='6.1.1.300';Size=(Get-Item $archive).Length;Sha256=(Get-FileHash $archive -Algorithm SHA256).Hash;ArchivePath=$archive;Url=''}
         $module=Import-Module $path -Force -PassThru -DisableNameChecking
         $snapshot=&$module {Get-JobsRunnerTaskEnvironmentSnapshot @('LOCALAPPDATA')}
