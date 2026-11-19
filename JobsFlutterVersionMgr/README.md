@@ -23,7 +23,7 @@
 
 ---
 
-**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。任务开始前关闭或取消面板不会启动操作；卸载保留日志、备份、运行文件和工具。
 
 ## 🔥 <span id="前言">前言</span>
 
@@ -39,8 +39,8 @@
 | 选择尚未缓存的具体版本 | 确认并备份后，通过 FVM 下载、初始化并绑定该 SDK。 |
 | 选择已经初始化的缓存版本 | 通过 FVM 切换当前项目，不重复安装 SDK。 |
 | 官方版本源不可用 | 仅列出已经初始化的本机 SDK，标注“离线（最新未知）”；无可用缓存则停止。 |
-| fzf 中按 Esc，或最终确认输入任意字符后回车 | 取消，项目配置不写入；此前经单独确认安装的工具会保留。 |
-| 最终确认直接回车 | 先备份，再为当前项目安装或切换已选版本，并复核实际 SDK。 |
+| fzf 中按 Esc，或最终确认保留默认取消行 | 取消，项目配置不写入；此前经单独确认安装的工具会保留。 |
+| 最终确认移到明确执行项后回车 | 先备份，再为当前项目安装或切换已选版本，并复核实际 SDK。 |
 | 右键普通目录、仅有 `flutter_test` 或描述文字的目录 | 终端立即拒绝，尚未调用工具体检、安装或 SDK 下载。 |
 
 静态注册表菜单无法在弹出时解析项目文件，所以目录菜单可能显示在普通文件夹中；**只有通过运行时项目门禁的目录才会继续。Windows 11 请打开“显示更多选项”或按 `Shift+F10`。**
@@ -51,6 +51,10 @@
 
 
 **面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
+
+**管理面板关闭：** 空闲关闭时选择退到系统托盘或完全退出，默认回车为托盘、Esc 保留原窗；安装／卸载／构建清理进行中关闭直接后台，不询问、不终止任务。完工仍驻留，从托盘双击或“显示管理面板”恢复同一窗口；忙碌时不能完全退出。
+
+**整行选择：** 点击复选框、图标、功能文字、普通状态区或该功能行空白，仅切换该项一次，保留原 Tab／Space 复选框操作及勾选事件。任务执行中及不可用项禁止切换；失败日志链接和独立按钮优先执行自身动作，不连带勾选。组标题拖动、分组按钮和组尾空白不算功能行；移动、离开、滚动或触控滑动会取消本次点击候选，不接管原生滚动。选择本身不执行安装、卸载或清理，原默认空选、主题／语言切换保留勾选及持久化规则不变。
 
 **两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
 
@@ -64,15 +68,15 @@
 
 | 层级 | 健康检查 | 缺失或损坏时 |
 | --- | --- | --- |
-| [**Git**](https://git-scm.com/) | 查找 PATH 和常见用户 / 系统目录，执行 `--version`。 | 检查 WinGet 后，回车确认安装 `Git.Git`，限定 `--scope user`，刷新当前进程 PATH 并二次复检。 |
-| fzf | 执行 `--version`。 | 同样经 WinGet 安装 `junegunn.fzf` 并复检。 |
+| [**Git**](https://git-scm.com/) | 查找 PATH 和常见用户 / 系统目录，执行 `--version`。 | 回车确认后才准备必需 WinGet，以原生交互安装／修复 `Git.Git`，限定当前用户，刷新本进程 PATH 并二次复检。 |
+| fzf | 路径、版本及实际选择选项探针。 | 仅必需时经当前用户 WinGet 安装／修复，当前流程持续复检并续行；健康工具直接复用。 |
 | FVM | 复用健康的 `fvm.exe` / Dart 安装的 `fvm.bat` / `fvm.cmd`，执行 `--version` 与 JSON API 体检。 | 查询官方 GitHub 最新 release，按 x64 / ARM64 选 ZIP，显示完整来源与 SHA-256；回车确认后下载、校验并安装到本包 `tools/`。 |
-| [**WinGet / App Installer**](https://learn.microsoft.com/windows/package-manager/winget/) | 只在需要安装 Git / fzf 时执行 `winget --version`。 | 打开官方 Microsoft Store 的 App Installer 页面后停止；安装或更新后重新打开右键菜单。 |
+| [**WinGet / App Installer**](https://learn.microsoft.com/windows/package-manager/winget/) | 只在需要安装 Git / fzf 时执行 `winget --version`。 | Git／fzf 必需分支只打开一次官方页面并等待当前流程复检；各分支保留原有单独确认及权限边界。 |
 | 符号链接能力 | 最终确认后，在临时目录检验 SDK 链接所需权限并精确清理。 | 给出 Windows“开发者模式”指导后停止；不自动修改设置或要求整套菜单以管理员运行。 |
 
 每一层只修复缺失或损坏分支，健康组件直接复用；安装失败或二次体检失败就停止。已有 FVM 不支持所需 JSON API 时提示先修复或升级，不静默覆盖已有安装。Windows 使用原生工具链；不安装 macOS 的 Homebrew。
 
-工具安装是单独确认步骤：**必需工具缺失时回车安装，任意字符取消整个流程。** WinGet 来源协议与软件包协议随明确安装命令接受；受企业软件策略或用户权限限制时保持失败，不切换到系统安装范围。已有健康 Git / fzf 时不要求 WinGet 存在。
+工具安装是单独确认步骤：**必需工具缺失时回车安装，任意字符取消整个流程。** WinGet 来源与软件包协议均交给原生交互确认；各工具保留原有安装确认；受企业软件策略或用户权限限制时保持失败，不切换到系统安装范围。已有健康 Git / fzf 时不要求 WinGet 存在。
 
 FVM 独立包来自官方 [`btwld/fvm` release](https://github.com/btwld/fvm/releases)，同时兼容官方旧仓 `leoafarias/fvm` 的发布地址。缺少可验证的 GitHub asset SHA-256 digest、ZIP 路径越界或执行复检失败时停止。本包自己安装的 FVM 路径记录在 `tools/fvm-path.txt`，不写全局 PATH；后续终端命令使用脚本输出的 FVM 完整路径，或自行将该工具目录加入用户 PATH。
 
@@ -83,7 +87,7 @@ FVM 独立包来自官方 [`btwld/fvm` release](https://github.com/btwld/fvm/rel
 - 查询 Flutter 官方 [`releases_windows.json`](https://storage.googleapis.com/flutter_infra_release/releases/releases_windows.json)，展示 stable / beta / dev 的具体历史版本、发布日期、各渠道最新版本、当前 `.fvmrc` 绑定及缓存是否就绪；master 浮动分支不列为具体版本。
 - 在项目外建立本次私有体检目录，复制目标自身的当前/旧版配置（没有则写入空对象），屏蔽祖先配置后，通过 `fvm api context` 与 `fvm api list --compress --skip-size-calculation` 读取目标将采用的 FVM 实际缓存；尊重已有 FVM 缓存配置，不猜测固定缓存目录。项目 `cachePath`、`FVM_CACHE_PATH` 及最终有效缓存位置必须是绝对路径，相对路径会在工具安装前停止，要求先明确原缓存位置。只有 FVM 标为已初始化且 Flutter / Dart 可执行文件齐全的缓存才支持离线切换。
 - fzf 内输入搜索，方向键选中，Enter 确认一项，Esc 取消；不继承可能执行其他命令的用户 `FZF_DEFAULT_OPTS` 或选项文件。
-- 最终展示“原版本 → 新版本”、缓存状态、写入范围和下载来源。**这一步直接回车执行安装/切换；输入任意字符后回车取消，空格也算非空输入。**
+- 最终展示“原版本 → 新版本”、缓存状态、写入范围和下载来源。**最终确认默认取消，移到明确执行项后回车才写入；← 返回版本列表并保留查询。**
 - 复核项目与写入路径，再备份配置，在精确工程根创建或合并 `.fvmrc`。优先读取当前根 `.fvmrc`，缺失时从本层旧 `.fvm/fvm_config.json` 迁移（包括 flavors、缓存、源和 IDE 策略）；保留其他配置字段，设置 `flutter` 为具体版本，并设置 `updateMelosSettings: false`，避免影响祖先 `.fvmrc` 或 `melos.yaml`。
 - 根配置建立后再次比较有效 FVM 缓存目录与 SDK 来源，若因原先继承父配置而变化则在 SDK 操作前停止，要求重新选版；已写配置可按备份恢复。缓存未就绪时执行 `fvm install <version> --skip-pub-get`；再执行 `fvm use <version> --skip-pub-get --skip-setup`。不设置全局版本，也不自动安装项目 pub 依赖。
 - 补回上游 FVM 序列化时省略的原有扩展配置字段。成功后核对 `.fvmrc`、`.fvm/flutter_sdk` 链接及 `fvm flutter --version --machine` 的实际版本。任何一步失败就停止，不将部分完成报告为成功；窗口保留到回车关闭。
@@ -137,14 +141,23 @@ JobsFlutterVersionMgr/
 
 ## <span id="jobs-toc-heading-8" data-jobs-toc="v2">五、验证边界与依据</span><!-- jobs-toc:heading-end -->
 
-仓库 [`FlutterVersionMgr.Tests.ps1`](../Tests/FlutterVersionMgr.Tests.ps1) 使用临时文件和受控工具夹具，覆盖项目识别、历史 / 最新标识、离线缓存、取消不写项目、原有配置保留、精确备份、父项目保护及切换后的版本复核。配套架构回归将本包独立复制后检查安装内容和注册命令，全部测试不安装真实工具或 SDK。
+仓库 [`FlutterVersionMgr.Tests.ps1`](../Tests/FlutterVersionMgr.Tests.ps1/FlutterVersionMgr.Tests.ps1) 使用临时文件和受控工具夹具，覆盖项目识别、历史 / 最新标识、离线缓存、取消不写项目、原有配置保留、精确备份、父项目保护及切换后的版本复核。配套架构回归将本包独立复制后检查安装内容和注册命令，全部测试不安装真实工具或 SDK。
 
 已完成 macOS 便携 PowerShell 的语法及隔离夹具检查；**Windows PowerShell 5.1 实际桌面、注册表菜单、fzf 终端键盘、WinGet 安装、ARM64、开发者模式权限及真实 SDK 安装 / 切换仍须在 Windows 验收。** 普通开发验证不运行真实安装入口、注册菜单或访问业务项目。
 
 一手依据：[FVM 安装](https://fvm.app/documentation/getting-started/installation)、[FVM 命令与跳过依赖选项](https://fvm.app/documentation/guides/basic-commands)、[FVM JSON API](https://fvm.app/documentation/advanced/json-api)、[fzf Windows 安装](https://github.com/junegunn/fzf#windows-packages)、[Flutter SDK 归档](https://docs.flutter.dev/install/archive)、[WinGet](https://learn.microsoft.com/windows/package-manager/winget/)。
 
-管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs/Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 **SDK 环境准备：** 已选择的 SDK／版本所需下载、安装及首次 Flutter／Dart 缓存补齐自动执行；网络失败或无进度超时后持续重试，间隔逐步增加并封顶 30 秒，没有次数和总时长上限，直到成功或本人 Ctrl+C／停止。仍在输出下载进度的传输不按总时长截断；成功后才进入后续业务。目标／版本选择、官方许可证与系统权限仍由本人处理；路径、权限、磁盘或明确不存在的版本会报告具体原因。每次尝试和真实进度追加到终端所示日志；同一 URL 有 ETag／Last-Modified 时安全续传，跨来源保留独立临时文件，不拼接不同来源。失败／取消保留下载现场；业务构建和配置写入不因网络重试而整体重放。
+
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [Manage.vbs](./Manage.vbs/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
+
+**键盘选择依赖：** 仅实际进入多项选择或最终执行确认时准备 fzf；健康路径、版本和真实选项探针通过就复用。缺失或损坏时沿当前流程调用当前用户 WinGet 安装／修复并刷新本进程 PATH；App Installer 缺失时仅打开一次官方界面并等待本流程复检，许可与系统权限由本人处理。网络失败持续重试至成功或 Ctrl+C；明确权限、磁盘、许可、版本阻塞停止。选择器不继承用户执行选项；默认取消，↑／↓／Tab 导航，← 返回真正上一层，Esc／Ctrl+C 取消。未进入选择、单一可复用目标、只读检查和管理 GUI 不因此安装依赖。
+
+**必要 WinGet 分支：** 只有已经进入安装／修复且本人通过原有确认的流程才准备 App Installer／WinGet；健康、只读、取消和未选择 Chrome 安装不获取。缺失时只打开一次官方界面并在当前流程复检，不要求重开菜单；命令不再传自动接受协议或禁用交互旗标，许可和权限由本人处理。暂时网络失败沿本次流程退避，间隔封顶 30 秒，Ctrl+C 停止；取消／重启请求及确定的权限、许可、版本和包阻塞直接返回。成功后刷新本进程 PATH 并运行原必要工具复检，不持久化修改 PATH。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

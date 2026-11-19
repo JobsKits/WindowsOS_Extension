@@ -4,11 +4,172 @@
 
 
 # Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
+# JOBS_WINGET_NECESSARY_NATIVE_V1_BEGIN
+# 按Windows原生argv规则保留参数边界，不通过命令字符串求值。
+function ConvertTo-JobsWingetNativeArgument {
+    param([AllowNull()][AllowEmptyString()][string]$Value)
+    if ($null -eq $Value) { $Value = '' }
+    if ($Value.IndexOf([char]0) -ge 0) { throw '参数不能包含空字符。' }
+    $quoted = New-Object Text.StringBuilder
+    [void]$quoted.Append('"')
+    $slashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq [char]92) { $slashes++; continue }
+        if ($character -eq [char]34) {
+            [void]$quoted.Append([char]92, (2 * $slashes + 1))
+            [void]$quoted.Append([char]34)
+        } else {
+            if ($slashes -gt 0) { [void]$quoted.Append([char]92, $slashes) }
+            [void]$quoted.Append($character)
+        }
+        $slashes = 0
+    }
+    if ($slashes -gt 0) { [void]$quoted.Append([char]92, (2 * $slashes)) }
+    [void]$quoted.Append('"')
+    return $quoted.ToString()
+}
+# 隔离原生工具健康探针并限制单次时长，不改父进程环境。
+function Invoke-JobsWingetNativeProbe {
+    param([string]$Executable, [string[]]$NativeArguments, [string[]]$InputLines = @(), [switch]$Probe)
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $Executable
+    $start.Arguments = (@($NativeArguments | ForEach-Object { ConvertTo-JobsWingetNativeArgument $_ }) -join ' ')
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $false
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = [bool]$Probe
+    $start.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)
+    if ($Probe) { $start.StandardErrorEncoding = New-Object Text.UTF8Encoding($false) }
+    foreach ($key in @('FZF_DEFAULT_OPTS', 'FZF_DEFAULT_OPTS_FILE', 'FZF_DEFAULT_COMMAND')) { [void]$start.EnvironmentVariables.Remove($key) }
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    try {
+        [void]$process.Start()
+        $outputTask = $process.StandardOutput.ReadToEndAsync()
+        $errorTask = if ($Probe) { $process.StandardError.ReadToEndAsync() } else { $null }
+        $inputWriter = New-Object IO.StreamWriter($process.StandardInput.BaseStream, (New-Object Text.UTF8Encoding($false)))
+        $inputWriter.NewLine = "`n"
+        try { foreach ($line in $InputLines) { $inputWriter.WriteLine($line) } } finally { $inputWriter.Dispose() }
+        if ($Probe) {
+            if (-not $process.WaitForExit(10000)) {
+                $process.Kill(); $process.WaitForExit()
+                return [pscustomobject]@{ Code = 124; Lines = @(); Error = '原生工具健康探针超时（10 秒）。' }
+            }
+        } else { $process.WaitForExit() }
+        $output = $outputTask.GetAwaiter().GetResult()
+        $errorText = if ($errorTask) { $errorTask.GetAwaiter().GetResult() } else { '' }
+        $lines = @()
+        if ($output.Length -gt 0) { $lines = @($output.Replace("`r`n", "`n").TrimEnd([char]10) -split "`n") }
+        return [pscustomobject]@{ Code = $process.ExitCode; Lines = $lines; Error = $errorText }
+    } finally {
+        try { if ($process.Id -gt 0 -and -not $process.HasExited) { $process.Kill(); $process.WaitForExit() } } catch { }
+        $process.Dispose()
+    }
+}
+# 只刷新当前进程的原生工具路径，不持久化环境变更。
+function Update-JobsWingetNativePath {
+    param([string]$ExecutableDirectory)
+    $parts = New-Object 'Collections.Generic.List[string]'
+    $separator = [IO.Path]::PathSeparator
+    foreach ($value in @($ExecutableDirectory, [Environment]::GetEnvironmentVariable('Path', 'User'), [Environment]::GetEnvironmentVariable('Path', 'Machine'), $env:Path)) {
+        foreach ($part in @(([string]$value) -split [regex]::Escape([string]$separator))) {
+            if (-not [string]::IsNullOrWhiteSpace($part) -and -not $parts.Contains($part)) { $parts.Add($part) }
+        }
+    }
+    $env:Path = $parts -join [string]$separator
+}
+# 只读发现当前用户已注册且能够运行的WinGet。
+function Find-JobsNativeWinget {
+    $command = Get-Command 'winget.exe' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    $candidates = @()
+    if ($command) { $candidates += $command.Source }
+    if ($env:LOCALAPPDATA) { $candidates += Join-Path $env:LOCALAPPDATA 'Microsoft/WindowsApps/winget.exe' }
+    foreach ($candidate in @($candidates | Select-Object -Unique)) {
+        if (-not [IO.File]::Exists($candidate)) { continue }
+        try { $probe = Invoke-JobsWingetNativeProbe $candidate @('--version') -Probe; if ($probe.Code -eq 0) { return $candidate } } catch [Management.Automation.PipelineStoppedException] { throw } catch { }
+    }
+    return $null
+}
+# 仅必需安装分支准备当前用户App Installer，一次打开官方界面并等待复检。
+function Get-JobsNativeRequiredWinget {
+    $winget = Find-JobsNativeWinget
+    if ($winget) { return $winget }
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '当前不是 Windows，未调用 App Installer 或安装 Windows 依赖。' }
+    Write-JobsWingetNativeStatus '本次需要 Windows 原生 App Installer/winget；仅注册当前用户已有组件，不接受许可或修改系统策略。'
+    $registration = Get-Command Add-AppxPackage -ErrorAction SilentlyContinue
+    if ($registration -and $registration.Parameters.ContainsKey('RegisterByFamilyName')) {
+        try { Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction Stop } catch { Write-JobsWingetNativeStatus ('App Installer 注册未就绪：' + $_.Exception.Message) }
+        $winget = Find-JobsNativeWinget
+        if ($winget) { Update-JobsWingetNativePath ([IO.Path]::GetDirectoryName($winget)); return $winget }
+    }
+    Write-JobsWingetNativeStatus '官方 App Installer：https://apps.microsoft.com/detail/9NBLGGH4NNS1；将打开一次官方页面。请按系统要求完成安装/许可，本入口持续复检并续行，Ctrl+C 停止等待。'
+    Start-Process -FilePath 'ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1' -ErrorAction Stop | Out-Null
+    while ($true) {
+        Update-JobsWingetNativePath
+        $winget = Find-JobsNativeWinget
+        if ($winget) { return $winget }
+        Write-JobsWingetNativeStatus '等待官方 App Installer 安装和当前用户注册；不会重复打开窗口，Ctrl+C 取消。'
+        Start-Sleep -Seconds 3
+    }
+}
+# 将原生包管理诊断安全送往业务展示与纯文本日志。
+function Write-JobsWingetNativeStatus {
+    [CmdletBinding()]
+    param([string]$Text)
+    $plain=$Text -replace '\x1b\][^\x07]*(?:\x07|\x1b\\)', '' -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+    $plain=$plain -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@' -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]' -replace '(?im)((?:token|password|secret|authorization)\s*[:=]\s*)\S+', '$1[已省略]'
+    foreach($name in @('Write-JobsFvmMessage','Write-JobsSetupMessage','Write-JobsWorkerMessage','Write-JobsStatus','Write-JobsLog')){
+        $writer=Get-Command $name -CommandType Function -ErrorAction SilentlyContinue
+        if($writer){&$writer $plain;return}
+    }
+    Write-Host $plain
+}
+# 捕获展示副本但保持原生stdin与许可交互；不传accept/disable，不自动接受许可或提升权限。
+function Invoke-JobsNativeWinget {
+    param([string]$Winget,[string[]]$Arguments)
+    $text=New-Object Collections.Generic.List[string];$saved=$ErrorActionPreference;$failure=$null;$PSNativeCommandUseErrorActionPreference=$false
+    try {
+        $ErrorActionPreference='Continue';$global:LASTEXITCODE=-1
+        &$Winget @Arguments 2>&1|ForEach-Object {$line=[string]$_;$text.Add($line);try{Write-JobsWingetNativeStatus $line -ErrorAction Stop}catch{$failure=$_.Exception;throw}}
+        $code=$LASTEXITCODE
+    }finally{$ErrorActionPreference=$saved}
+    if($failure){throw $failure}
+    return [pscustomobject]@{Code=$code;Text=($text-join"`n")}
+}
+# 只对必要工具的临时获取故障持续重试，取消和确定阻塞立即停止。
+function Invoke-JobsNativeWingetRetry {
+    param([string]$Winget,[string[]]$Arguments)
+    $delay=1
+    while($true){
+        $result=Invoke-JobsNativeWinget $Winget $Arguments
+        if($result.Code-in@(129,130,137,143,1223,1602,-1073741510,-2147023673)){throw(New-Object OperationCanceledException('本人已取消原生包管理操作。'))}
+        if($result.Code-in@(3010,1641)){throw '包管理器要求重启，请本人处理后继续；不会自动重启。'}
+        if($result.Code-eq0){return $result}
+        $plain=$result.Text -replace '\x1b\][^\x07]*(?:\x07|\x1b\\)', '' -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+        $plain=$plain -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@' -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]' -replace '(?im)((?:token|password|secret|authorization)\s*[:=]\s*)\S+', '$1[已省略]'
+        if($plain-match'(?i)permission|access.denied|no.space|disk.full|hash|checksum|certificate|unauthor|license|agreement|unsupported|not.supported|unknown.command|unrecognized|no.applicable|no.package|no.installed.package|not.found|already.installed|no.available.upgrade|requires?.*reboot|权限|拒绝|空间不足|许可|协议|不支持|未知命令|无法找到|找不到|没有找到|不存在|无适用|已安装|需要重启') {throw ('原生包管理遇到明确阻塞，退出码 '+$result.Code+'：'+$plain)}
+        Write-JobsWingetNativeStatus ('包管理网络获取失败；'+$delay+'秒后沿当前流程重试，Ctrl+C停止。')
+        Start-Sleep -Seconds $delay;$delay=[Math]::Min(30,$delay*2)
+    }
+}
+# JOBS_WINGET_NECESSARY_NATIVE_V1_END
+
 function Test-JobsEnterChoiceColor {
-    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $false }
-    $consoleType = [Console]
-    if ($null -eq $consoleType.GetProperty('IsInputRedirected') -or $null -eq $consoleType.GetProperty('IsOutputRedirected')) { return $false }
-    return ($Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+    param([Collections.IDictionary]$Capabilities = $null)
+    if ($null -eq $Capabilities) {
+        try {
+            $environment = [Environment]::GetEnvironmentVariables('Process')
+            $Capabilities = @{ HostName = $Host.Name; InputRedirected = [Console]::IsInputRedirected; OutputRedirected = [Console]::IsOutputRedirected;
+                               ErrorRedirected = [Console]::IsErrorRedirected; NoColorPresent = $environment.Contains('NO_COLOR');
+                               PlainOutput = $env:PLAIN_OUTPUT; Term = $env:TERM; Windows = ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT); VirtualTerminal = $false; SourceTree = ($env:IS_SOURCETREE_RUNTIME -eq '1') }
+            if ($null -ne $Host.UI.PSObject.Properties['SupportsVirtualTerminal']) { $Capabilities.VirtualTerminal = $Host.UI.SupportsVirtualTerminal }
+            foreach ($key in $environment.Keys) { if ([string]$key -match '^(?i:SOURCE_?TREE)') { $Capabilities.SourceTree = $true; break } }
+        } catch { return $false }
+    }
+    return ($Capabilities.HostName -eq 'ConsoleHost' -and -not $Capabilities.InputRedirected -and -not $Capabilities.OutputRedirected -and
+            -not $Capabilities.ErrorRedirected -and -not $Capabilities.NoColorPresent -and $Capabilities.PlainOutput -ne '1' -and
+            $Capabilities.Term -ine 'dumb' -and (-not [string]::IsNullOrEmpty($Capabilities.Term) -or ($Capabilities.Contains('Windows') -and $Capabilities.Windows)) -and -not $Capabilities.SourceTree -and $Capabilities.VirtualTerminal)
 }
 # Older hosts keep native colors without sending unsupported bold escape sequences.
 function Test-JobsEnterChoiceBold {
@@ -18,7 +179,7 @@ function Test-JobsEnterChoiceBold {
 # Separate ordinary question text from Enter and arbitrary-input options without changing words.
 function Get-JobsEnterChoiceParts {
     param([string]$Text)
-    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)'
+    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)|(?:type\s+(?:anything|any\s+(?:characters?|text|input)))'
     $green = '(?:(?:\u76f4\u63a5|\u53ea\u9700|\u4ec5(?:\u9700)?|\u6309(?:\u4e0b)?|\u7a7a)?\s*\u56de\u8f66|(?:press\s+)?\bEnter\b(?!\s+(?:YES|REPAIR|CLEAN|CONTINUE)\b))'
     $pattern = '(?is)(?<red>(?:' + $red + ')[^;\uFF1B\r\n]*?(?=[;\uFF1B\r\n]|\z))|(?<green>(?:' + $green + ')[^;\uFF1B\r\n]*?(?=(?:' + $red + ')|[;\uFF1B\r\n]|\z))'
     $offset = 0
@@ -33,35 +194,183 @@ function Get-JobsEnterChoiceParts {
     if ($offset -lt $Text.Length) { [pscustomobject]@{ Text = $Text.Substring($offset); Color = '' } }
 }
 # Native host text remains plain in information streams and logs; bold control is console-only.
+# 仅在真实询问中突出主体和各类操作选项。
+function Get-JobsQuestionChoiceParts {
+    param([string]$Text)
+    $plain = [regex]::Replace($Text, '\x1b\[[0-9;]*m', '')
+    $questionBody = $true
+    foreach ($part in @(Get-JobsEnterChoiceParts $plain)) {
+        $isOption = $part.Color -eq 'Red' -or $part.Color -eq 'Green'
+        foreach ($token in [regex]::Matches($part.Text, '[^；;/|，,、？?：:=＝（）()\[\]【】\r\n]+|[；;/|，,、？?：:=＝（）()\[\]【】\r\n]')) {
+            $value = $token.Value
+            $separator = $value -match '^[；;/|，,、？?：:=＝（）()\[\]【】\r\n]$'
+            $color = ''
+            if (-not $separator -and -not [string]::IsNullOrWhiteSpace($value)) {
+                if ($isOption) { $color = $part.Color }
+                elseif ($questionBody) { $color = 'Cyan' }
+            }
+            [pscustomobject]@{ Text = $value; Color = $color }
+        }
+        if ($isOption) { $questionBody = $false }
+    }
+}
+# 识别展示地址边界，保留查询、编码与配对括号。
+function Get-JobsUrlRanges {
+    param([string]$Text)
+    $pattern = '[A-Za-z][A-Za-z0-9+.-]*://[^\s<>"''\x1b]+'
+    $punctuation = '，。；：！？、（）【】《》「」『』“”‘’'
+    $offset = 0
+    while ($offset -lt $Text.Length) {
+        $match = [regex]::Match($Text.Substring($offset), $pattern)
+        if (-not $match.Success) { break }
+        $start = $offset + $match.Index
+        $url = $match.Value
+        foreach ($mark in $punctuation.ToCharArray()) {
+            $at = $url.IndexOf($mark)
+            if ($at -ge 0) { $url = $url.Substring(0, $at) }
+        }
+        while ($url.Length) {
+            $last = $url.Substring($url.Length - 1, 1)
+            $unmatched = $false
+            foreach ($pair in @(@('(', ')'), @('[', ']'), @('{', '}'))) {
+                if ($last -eq $pair[1] -and ([regex]::Matches($url, [regex]::Escape($pair[1]))).Count -gt ([regex]::Matches($url, [regex]::Escape($pair[0]))).Count) { $unmatched = $true }
+            }
+            if ('. , ; : ! ?'.Split(' ') -contains $last -or $unmatched) { $url = $url.Substring(0, $url.Length - 1) }
+            else { break }
+        }
+        [pscustomobject]@{ Start = $start; End = $start + $url.Length }
+        $offset = $start + $url.Length
+    }
+}
+# 暂时遮蔽URL，避免询问分段误识别地址内的Enter。
+function Protect-JobsDisplayUrls {
+    param([string]$Text)
+    $builder = New-Object Text.StringBuilder
+    $tokens = New-Object 'Collections.Generic.List[object]'
+    $offset = 0; $number = 0
+    foreach ($range in @(Get-JobsUrlRanges $Text)) {
+        do { $number++; $token = [string][char]2 + 'U' + $number + [char]3 } while ($Text.Contains($token))
+        [void]$builder.Append($Text.Substring($offset, $range.Start - $offset)).Append($token)
+        $tokens.Add([pscustomobject]@{ Token = $token; Text = $Text.Substring($range.Start, $range.End - $range.Start) })
+        $offset = $range.End
+    }
+    [void]$builder.Append($Text.Substring($offset))
+    [pscustomobject]@{ Text = $builder.ToString(); Tokens = $tokens.ToArray() }
+}
+# 给可见地址标绿下划线，并恢复原SGR上下文。
+function Format-JobsUrlText {
+    param([AllowEmptyString()][string]$Text, [switch]$Color)
+    $control = '\x1b\][^\x1b\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]'
+    $sgr = '\x1b\[[0-9;:]*m'
+    $value = [regex]::Replace($Text, $control, {
+        param($match)
+        if ($Color -and $match.Value -match ('^' + $sgr + '$')) { return $match.Value }
+        return ''
+    })
+    if (-not $Color) { return $value }
+    $styles = @{}; $visible = New-Object Text.StringBuilder; $offset = 0
+    foreach ($match in [regex]::Matches($value, $sgr)) {
+        [void]$visible.Append($value.Substring($offset, $match.Index - $offset))
+        $index = $visible.Length
+        if (-not $styles.ContainsKey($index)) { $styles[$index] = '' }
+        $styles[$index] += $match.Value
+        $offset = $match.Index + $match.Length
+    }
+    [void]$visible.Append($value.Substring($offset))
+    $plain = $visible.ToString(); $starts = @{}; $ends = @{}
+    foreach ($range in @(Get-JobsUrlRanges $plain)) { $starts[$range.Start] = $true; $ends[$range.End - 1] = $true }
+    $escape = [string][char]27; $active = ''; $inUrl = $false; $output = New-Object Text.StringBuilder
+    for ($index = 0; $index -le $plain.Length; $index++) {
+        if ($styles.ContainsKey($index)) {
+            $tokens = $styles[$index]; [void]$output.Append($tokens)
+            foreach ($match in [regex]::Matches($tokens, $sgr)) {
+                $token = $match.Value; $code = $token.Substring(2, $token.Length - 3)
+                $fields = $code.Split(';'); $reset = $code -eq ''
+                for ($item = 0; $item -lt $fields.Count; $item++) {
+                    if ($fields[$item] -eq '0') { $reset = $true }
+                    if (@('38', '48', '58') -contains $fields[$item] -and $item + 1 -lt $fields.Count) {
+                        if ($fields[$item + 1] -eq '2') { $item += 4 }
+                        elseif ($fields[$item + 1] -eq '5') { $item += 2 }
+                    }
+                }
+                if ($reset) { $active = '' }
+                $active += $token
+            }
+            if ($inUrl) { [void]$output.Append($escape + '[32;4m') }
+        }
+        if ($index -eq $plain.Length) { break }
+        if ($starts.ContainsKey($index)) { [void]$output.Append($escape + '[32;4m'); $inUrl = $true }
+        [void]$output.Append($plain[$index])
+        if ($ends.ContainsKey($index)) { [void]$output.Append($escape + '[0m' + $active); $inUrl = $false }
+    }
+    return $output.ToString()
+}
+# 按现行询问规则合成展示字符串，保持输入原文。
+function Format-JobsDisplayText {
+    param([AllowEmptyString()][string]$Text, [switch]$Question, [switch]$Color, [string]$BaseStyle = '')
+    if (-not $Color) { return (Format-JobsUrlText $Text) }
+    $plain = Format-JobsUrlText $Text
+    $protected = Protect-JobsDisplayUrls $plain
+    $parts = if ($Question) { @(Get-JobsQuestionChoiceParts $protected.Text) } else { @(Get-JobsEnterChoiceParts $protected.Text) }
+    $escape = [string][char]27
+    if (-not $Question -and @($parts | Where-Object { $_.Color }).Count -eq 0) {
+        $result = Format-JobsUrlText ($BaseStyle + $Text) -Color
+    } else {
+        $output = New-Object Text.StringBuilder
+        foreach ($part in $parts) {
+            $code = switch ($part.Color) { 'Red' { 31 } 'Green' { 32 } 'Cyan' { 36 } default { 0 } }
+            if ($code) { [void]$output.Append($escape + '[1;' + $code + 'm' + $part.Text + $escape + '[0m' + $BaseStyle) }
+            else { [void]$output.Append($BaseStyle + $part.Text) }
+        }
+        $formatted = $output.ToString()
+        foreach ($item in $protected.Tokens) { $formatted = $formatted.Replace($item.Token, $item.Text) }
+        $result = Format-JobsUrlText $formatted -Color
+    }
+    if ($BaseStyle) { $result += $escape + '[0m' }
+    return $result
+}
+# 按调用者明确指定的ConsoleColor计算临时展示色。
+function Get-JobsDisplayBaseStyle {
+    param([Collections.IDictionary]$Parameters)
+    $codes = @{ Black=30; DarkBlue=34; DarkGreen=32; DarkCyan=36; DarkRed=31; DarkMagenta=35; DarkYellow=33; Gray=37; DarkGray=90; Blue=94; Green=92; Cyan=96; Red=91; Magenta=95; Yellow=93; White=97 }
+    $style = ''; $escape = [string][char]27
+    if ($Parameters.ContainsKey('ForegroundColor')) { $style += $escape + '[' + $codes[[string]$Parameters.ForegroundColor] + 'm' }
+    if ($Parameters.ContainsKey('BackgroundColor')) { $style += $escape + '[' + ($codes[[string]$Parameters.BackgroundColor] + 10) + 'm' }
+    return $style
+}
 function Write-JobsEnterChoiceText {
     [CmdletBinding()]
-    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ')
+    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ', [switch]$Question)
     $text = if ($Object -is [array]) { $Object -join [string]$Separator } else { [string]$Object }
-    if (-not (Test-JobsEnterChoiceColor)) {
-        Write-Host $Object -NoNewline:$NoNewline -Separator $Separator
-        return
-    }
-    $normal = @{}
-    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $normal.ForegroundColor = $ForegroundColor }
-    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $normal.BackgroundColor = $BackgroundColor }
-    foreach ($part in @(Get-JobsEnterChoiceParts $text)) {
-        if (-not $part.Color) { Write-Host $part.Text -NoNewline @normal; continue }
-        $bold = Test-JobsEnterChoiceBold
-        if ($bold) { [Console]::Write(([string][char]27) + '[1m') }
-        try { Write-Host $part.Text -ForegroundColor $part.Color -NoNewline }
-        finally { if ($bold) { [Console]::Write(([string][char]27) + '[0m') } }
-    }
-    if (-not $NoNewline) { Write-Host }
+    $plain = Format-JobsUrlText $text
+    if (-not (Test-JobsEnterChoiceColor)) { Write-Host $plain -NoNewline:$NoNewline; return }
+    $baseStyle = Get-JobsDisplayBaseStyle $PSBoundParameters
+    $rendered = Format-JobsDisplayText $text -Question:$Question -Color -BaseStyle $baseStyle
+    $message = New-Object Management.Automation.HostInformationMessage
+    $message.Message = $plain
+    $message.NoNewLine = [bool]$NoNewline
+    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $message.ForegroundColor = $ForegroundColor }
+    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $message.BackgroundColor = $BackgroundColor }
+    Write-Information -MessageData $message -Tags 'JobsDisplay' -InformationAction SilentlyContinue
+    [Console]::Write($rendered)
+    if (-not $NoNewline) { [Console]::WriteLine() }
 }
 # Delegate the original reader, including secure input and EOF behavior, after prompt display.
 function Read-JobsEnterChoiceHost {
     [CmdletBinding()]
     param([Parameter(Position=0)][string]$Prompt, [switch]$AsSecureString, [switch]$MaskInput)
-    if ($AsSecureString -or $MaskInput -or -not (Test-JobsEnterChoiceColor) -or @((Get-JobsEnterChoiceParts $Prompt) | Where-Object { $_.Color }).Count -eq 0) {
-        return (Read-Host @PSBoundParameters)
+    if (-not (Test-JobsEnterChoiceColor)) {
+        $plainArguments = @{}
+        foreach ($key in $PSBoundParameters.Keys) { $plainArguments[$key] = $PSBoundParameters[$key] }
+        if ($plainArguments.ContainsKey('Prompt')) { $plainArguments.Prompt = Format-JobsUrlText $Prompt }
+        return (Read-Host @plainArguments)
     }
-    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline
-    return (Read-Host)
+    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline -Question
+    $readerArguments = @{}
+    foreach ($key in $PSBoundParameters.Keys) {
+        if ($key -ne 'Prompt') { $readerArguments[$key] = $PSBoundParameters[$key] }
+    }
+    return (Read-Host @readerArguments)
 }
 
 Set-StrictMode -Version 2.0
@@ -296,26 +605,23 @@ function Update-JobsCodeGraphSessionPath {
     }
     $env:PATH = (@($paths | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique) -join [IO.Path]::PathSeparator)
 }
-
+# 只修复实际缺失或损坏的Node工具链，复检后再恢复原索引业务。
 function Repair-JobsCodeGraphNodeTools {
-    param([string]$Winget, [string]$Directory)
-    if (-not $Winget) {
-        Write-JobsWorkerMessage '官方修复来源：https://learn.microsoft.com/windows/package-manager/winget/'
-        Write-JobsWorkerMessage 'Node.js 官方安装包：https://nodejs.org/en/download'
-        throw '工具链阻塞在 WinGet/App Installer；请修复该层或安装官方 Node.js/npm 后重试。'
-    }
-    Write-JobsWorkerMessage '安装来源：WinGet 官方 winget 源；OpenJS.NodeJS.LTS，仅选 24.x。Windows 原生不使用 WSL Homebrew。'
-    $available = (Invoke-JobsCheckedProcess $Winget @('show', '--id', 'OpenJS.NodeJS.LTS', '--exact', '--versions', '--source', 'winget', '--accept-source-agreements', '--disable-interactivity') $Directory 120 -Quiet).StdOut
-    $versions = @([regex]::Matches($available, '(?m)^\s*(24\.\d+\.\d+)\s*$') | ForEach-Object { [version]$_.Groups[1].Value } | Sort-Object -Descending)
-    if ($versions.Count -eq 0) { throw 'WinGet 官方源没有可核实的 Node.js 24.x；停止，不安装不兼容的新 major。' }
-    $version = $versions[0].ToString()
-    [void](Invoke-JobsCheckedProcess $Winget @('show', '--id', 'OpenJS.NodeJS.LTS', '--exact', '--version', $version, '--source', 'winget', '--accept-source-agreements', '--disable-interactivity') $Directory 120)
-    Write-JobsWorkerMessage "将强制重跑 Node.js $version 官方安装器，可能替换现有损坏或不兼容的 Node.js、登记其 PATH 并请求系统授权；本包不主动提权。"
-    if ((Read-JobsEnterChoiceHost '按回车安装/修复 Node.js/npm；输入任意字符取消') -ne '') { throw '已取消。' }
-    [void](Invoke-JobsCheckedProcess $Winget @('install', '--id', 'OpenJS.NodeJS.LTS', '--exact', '--version', $version, '--source', 'winget', '--force', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity') $Directory 900)
+    param([string]$Winget,[string]$Directory)
+    Write-JobsWorkerMessage '安装来源：WinGet 官方 winget 源；OpenJS.NodeJS.LTS，仅24.x最新可用补丁；当前用户范围。原生许可本人处理，Windows不使用WSL Homebrew。'
+    if((Read-JobsEnterChoiceHost '按回车准备必需WinGet并安装/修复Node.js 24.x；输入任意字符取消')-cne''){throw(New-Object OperationCanceledException('已取消Node.js准备。'))}
+    if(-not$Winget){$Winget=Get-JobsNativeRequiredWinget}
+    $available=(Invoke-JobsNativeWingetRetry $Winget @('show','--id','OpenJS.NodeJS.LTS','--exact','--versions','--source','winget')).Text
+    $versions=@([regex]::Matches($available,'(?m)^\s*(24\.\d+\.\d+)\s*$')|ForEach-Object{[version]$_.Groups[1].Value}|Sort-Object -Descending)
+    if($versions.Count-eq0){throw 'WinGet官方源没有可验证的Node.js24.x，未安装其它major。'}
+    $version=$versions[0].ToString()
+    [void](Invoke-JobsNativeWingetRetry $Winget @('show','--id','OpenJS.NodeJS.LTS','--exact','--version',$version,'--source','winget'))
+    Write-JobsWorkerMessage ('准备官方Node.js '+$version+'；安装器会处理许可并可能要求系统权限，本包不主动提权。')
+    [void](Invoke-JobsNativeWingetRetry $Winget @('install','--id','OpenJS.NodeJS.LTS','--exact','--version',$version,'--source','winget','--scope','user','--force','--interactive'))
     Update-JobsCodeGraphSessionPath
-    $tools = Get-JobsCodeGraphNodeTools $Directory
-    if (-not $tools) { throw 'Node.js/npm 一次安装/修复后仍不健康；停止，不继续安装 CodeGraph。' }
+    Update-JobsWingetNativePath
+    $tools=Get-JobsCodeGraphNodeTools $Directory
+    if(-not$tools){throw 'Node.js/npm安装返回后仍未通过实际工具复检，未继续CodeGraph。'}
     return $tools
 }
 

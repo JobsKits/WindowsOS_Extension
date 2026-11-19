@@ -18,4 +18,9 @@
 
 供上层 `Core/HarmonySdk.psm1` 导入配置、目录和下载函数；不在菜单注册、不直接执行交互主流程。副本来源见 `Core/SourceSnapshots.json`。实际当前项目 SDK 选择、兼容约束和绑定由 `PrepareHarmonyRun.ps1` 编排。
 
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [SdkDownloadOutput.ps1](./SdkDownloadOutput.ps1/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
+
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

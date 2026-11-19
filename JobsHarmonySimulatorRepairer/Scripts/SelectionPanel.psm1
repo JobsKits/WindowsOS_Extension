@@ -7,6 +7,19 @@ Set-StrictMode -Version 2.0
 $script:PanelTranslations = @{}
 $panelTextData = @'
 {
+  "🫥 隐藏 / 显示所选项目": ["🫥 隱藏 / 顯示所選項目", "🫥 Hide / show selected items"],
+  "设置所选文件或文件夹的隐藏属性，支持多选；不递归、不改名、不改变全局显示偏好。": ["設定所選檔案或資料夾的隱藏屬性，支援多選；不遞迴、不改名、不改變全域顯示偏好。", "Set the Hidden attribute of selected files or folders, including multiple selections; do not recurse, rename, or change global visibility preferences."],
+  "关闭管理面板": ["關閉管理面板", "Close management panel"],
+  "退到系统托盘": ["退到系統匣", "Minimize to tray"],
+  "完全退出": ["完全結束", "Exit completely"],
+  "保留窗口": ["保留視窗", "Keep window open"],
+  "面板空闲。请选择退到系统托盘继续保留窗口，或完全退出。": ["面板閒置。請選擇退到系統匣保留視窗，或完全結束。", "The manager is idle. Keep it in the system tray, or exit completely."],
+  "显示管理面板": ["顯示管理面板", "Show management panel"],
+  "当前状态": ["目前狀態", "Current status"],
+  "任务进行中，暂时不能完全退出；可恢复窗口查看日志。": ["工作進行中，暫時無法完全結束；可恢復視窗查看日誌。", "A task is running. Exit is unavailable; restore the window to view logs."],
+  "无法显示系统托盘，窗口保持打开。": ["無法顯示系統匣，視窗保持開啟。", "The system tray is unavailable. The window will remain open."],
+  "💽 磁盘剩余空间": ["💽 磁碟剩餘空間","💽 Disk free space"],
+  "显示本机磁盘总剩余 / 总容量和两位小数百分比；点击在独立终端选择清理，确认后才执行。": ["顯示本機磁碟總剩餘 / 總容量和兩位小數百分比；點擊在獨立終端選擇清理，確認後才執行。","Show total local disk free / capacity and a two-decimal percentage. Click to choose cleanup in a separate terminal; changes require confirmation."],
   "🔗 创建脚本快捷入口…": [
     "🔗 建立指令稿快捷入口…",
     "🔗 Create script launcher…"
@@ -833,6 +846,17 @@ $script:PanelTextPatterns = @(
 $panelExtendedJson = @'
 {
   "bo": {
+    "Close management panel": "དོ་དམ་པང་ལེབ་ཁ་རྒྱག",
+    "Minimize to tray": "མ་ལག་རྟགས་སྒྲོམ་ནང་འཇོག",
+    "Exit completely": "ཆ་ཚང་ཕྱིར་འཐོན",
+    "Keep window open": "སྒེའུ་ཁུང་ཕྱེ་བཞག",
+    "The manager is idle. Keep it in the system tray, or exit completely.": "ལས་འགན་མེད། མ་ལག་རྟགས་སྒྲོམ་ནང་བཞག་པའམ་ཆ་ཚང་ཕྱིར་འཐོན་འདེམས།",
+    "Show management panel": "དོ་དམ་པང་ལེབ་སྟོན",
+    "Current status": "མིག་སྔའི་གནས་སྟངས",
+    "A task is running. Exit is unavailable; restore the window to view logs.": "ལས་འགན་འགྲོ་བཞིན་ཡོད། ད་ལྟ་ཆ་ཚང་ཕྱིར་འཐོན་མི་ཐུབ། སྒེའུ་ཁུང་བསྐྱར་སྟོན་ནས་ཟིན་ཐོ་ལྟ།",
+    "The system tray is unavailable. The window will remain open.": "མ་ལག་རྟགས་སྒྲོམ་སྟོན་མི་ཐུབ། སྒེའུ་ཁུང་ཕྱེ་བཞག",
+    "💽 Disk free space": "💽 སྡུད་སྡེར་ལྷག་མ།",
+    "Show total local disk free / capacity and a two-decimal percentage. Click to choose cleanup in a separate terminal; changes require confirmation.": "ས་གནས་སྡུད་སྡེར་ལྷག་མ་དང་ཤོང་ཚད། བརྒྱ་ཆ་ཚག་གྲངས་གཉིས་སྟོན། གནོན་ན་རང་ཚུགས་མཐའ་སྣེར་གཙང་སེལ་འདེམས། གཏན་འཁེལ་རྗེས་ལག་བསྟར།",
     "Create script launcher…": "སྒྲིག་ཡིག་འཕྲལ་འཇུག་བཟོ།…",
     "🔗 Create script launcher…": "🔗 སྒྲིག་ཡིག་འཕྲལ་འཇུག་བཟོ།…",
     "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": ".cmd/.bat/.ps1 མིང་མཚུངས་སྣོད་ཀྱི་འགྲམ་དུ་ལྟོས་བཅས་འཕྲལ་འཇུག་བཟོ། མ་ཡིག་མི་འགུལ་ཞིང་མི་བསྒྱུར།",
@@ -1187,9 +1211,22 @@ $panelExtendedJson = @'
     "{0} {1}": "{0} {1}",
     "{0}{1} {2}": "{0}{1} {2}",
     "{0} in progress; completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} བྱེད་བཞིན། གྲུབ་པ {1} / {2}（གྲུབ་པའི་ཚན་པ་ལྟར {3}%）། {4} {5}",
-    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} གྲུབ་པ {1} / {2}（གྲུབ་པའི་ཚན་པ་ལྟར {3}%）། {4} {5}"
+    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} གྲུབ་པ {1} / {2}（གྲུབ་པའི་ཚན་པ་ལྟར {3}%）། {4} {5}",
+    "🫥 Hide / show selected items": "🫥 བདམས་པའི་རྣམ་གྲངས་སྦེད / སྟོན།",
+    "Set the Hidden attribute of selected files or folders, including multiple selections; do not recurse, rename, or change global visibility preferences.": "བདམས་པའི་ཡིག་ཆ་དང་སྣོད་ཀྱི་སྦས་པའི་ཁྱད་ཆོས་སྒྲིག མང་པོ་འདེམས་ཆོག ནང་གསེས་མི་བསྒྱུར། མིང་དང་སྤྱིའི་མངོན་སྟངས་མི་བསྒྱུར།"
   },
   "ja": {
+    "Close management panel": "管理パネルを閉じる",
+    "Minimize to tray": "通知領域に格納",
+    "Exit completely": "完全に終了",
+    "Keep window open": "ウィンドウを開いたままにする",
+    "The manager is idle. Keep it in the system tray, or exit completely.": "現在、処理はありません。通知領域に格納して保持するか、完全に終了してください。",
+    "Show management panel": "管理パネルを表示",
+    "Current status": "現在の状態",
+    "A task is running. Exit is unavailable; restore the window to view logs.": "処理中のため完全には終了できません。ウィンドウを復元するとログを確認できます。",
+    "The system tray is unavailable. The window will remain open.": "通知領域を表示できません。ウィンドウは開いたままになります。",
+    "💽 Disk free space": "💽 ディスク空き容量",
+    "Show total local disk free / capacity and a two-decimal percentage. Click to choose cleanup in a separate terminal; changes require confirmation.": "ローカルディスクの空き容量合計 / 総容量と小数点以下2桁の割合を表示します。クリックすると別のターミナルでクリーンアップを選択でき、確認後に実行します。",
     "Create script launcher…": "スクリプト起動ファイルを作成…",
     "🔗 Create script launcher…": "🔗 スクリプト起動ファイルを作成…",
     "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "同名の .cmd/.bat/.ps1 スクリプトフォルダの横に相対パスの起動ファイルを作成します。元のスクリプトは実行・変更しません。",
@@ -1544,9 +1581,22 @@ $panelExtendedJson = @'
     "{0} {1}": "{0} {1}",
     "{0}{1} {2}": "{0}{1} {2}",
     "{0} in progress; completed {1} / {2} ({3}% by completed items); {4} {5}": "{0}を実行中；完了 {1} / {2}（{3}%、完了項目基準）；{4} {5}",
-    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} 完了 {1} / {2}（{3}%、完了項目基準）；{4} {5}"
+    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} 完了 {1} / {2}（{3}%、完了項目基準）；{4} {5}",
+    "🫥 Hide / show selected items": "🫥 選択した項目を非表示 / 表示",
+    "Set the Hidden attribute of selected files or folders, including multiple selections; do not recurse, rename, or change global visibility preferences.": "選択したファイルやフォルダーの隠し属性を設定します。複数選択に対応し、再帰処理、名前変更、全体の表示設定の変更は行いません。"
   },
   "fr": {
+    "Close management panel": "Fermer le panneau de gestion",
+    "Minimize to tray": "Réduire dans la zone de notification",
+    "Exit completely": "Quitter complètement",
+    "Keep window open": "Garder la fenêtre ouverte",
+    "The manager is idle. Keep it in the system tray, or exit completely.": "Aucune tâche en cours. Gardez le gestionnaire dans la zone de notification ou quittez complètement.",
+    "Show management panel": "Afficher le panneau de gestion",
+    "Current status": "État actuel",
+    "A task is running. Exit is unavailable; restore the window to view logs.": "Une tâche est en cours. La fermeture complète est désactivée ; restaurez la fenêtre pour voir les journaux.",
+    "The system tray is unavailable. The window will remain open.": "La zone de notification est indisponible. La fenêtre reste ouverte.",
+    "💽 Disk free space": "💽 Espace disque libre",
+    "Show total local disk free / capacity and a two-decimal percentage. Click to choose cleanup in a separate terminal; changes require confirmation.": "Afficher l’espace libre total / la capacité des disques locaux et le pourcentage à deux décimales. Cliquer pour choisir un nettoyage dans un terminal séparé ; une confirmation est requise.",
     "Create script launcher…": "Créer un lanceur de script…",
     "🔗 Create script launcher…": "🔗 Créer un lanceur de script…",
     "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "Créer un lanceur relatif à côté du dossier .cmd/.bat/.ps1 contenant le script du même nom, sans exécuter ni modifier le script source.",
@@ -1901,9 +1951,22 @@ $panelExtendedJson = @'
     "{0} {1}": "{0} {1}",
     "{0}{1} {2}": "{0}{1} {2}",
     "{0} in progress; completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} en cours ; terminés {1} / {2} ({3}% par éléments terminés) ; {4} {5}",
-    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Terminés {1} / {2} ({3}% par éléments terminés) ; {4} {5}"
+    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Terminés {1} / {2} ({3}% par éléments terminés) ; {4} {5}",
+    "🫥 Hide / show selected items": "🫥 Masquer / afficher la sélection",
+    "Set the Hidden attribute of selected files or folders, including multiple selections; do not recurse, rename, or change global visibility preferences.": "Définir l’attribut caché des fichiers ou dossiers sélectionnés, y compris en sélection multiple ; sans récursion, renommage ni changement des préférences globales."
   },
   "es": {
+    "Close management panel": "Cerrar el panel de gestión",
+    "Minimize to tray": "Minimizar a la bandeja",
+    "Exit completely": "Salir por completo",
+    "Keep window open": "Mantener la ventana abierta",
+    "The manager is idle. Keep it in the system tray, or exit completely.": "No hay tareas en curso. Mantenga el gestor en la bandeja del sistema o salga por completo.",
+    "Show management panel": "Mostrar el panel de gestión",
+    "Current status": "Estado actual",
+    "A task is running. Exit is unavailable; restore the window to view logs.": "Hay una tarea en curso. No se puede salir; restaure la ventana para ver los registros.",
+    "The system tray is unavailable. The window will remain open.": "La bandeja del sistema no está disponible. La ventana permanecerá abierta.",
+    "💽 Disk free space": "💽 Espacio libre en disco",
+    "Show total local disk free / capacity and a two-decimal percentage. Click to choose cleanup in a separate terminal; changes require confirmation.": "Mostrar espacio libre total / capacidad local y porcentaje con dos decimales. Pulsar para elegir la limpieza en una terminal independiente; requiere confirmación.",
     "Create script launcher…": "Crear acceso al script…",
     "🔗 Create script launcher…": "🔗 Crear acceso al script…",
     "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "Crea un acceso relativo junto a la carpeta .cmd/.bat/.ps1 del mismo nombre, sin ejecutar ni modificar el script original.",
@@ -2258,9 +2321,22 @@ $panelExtendedJson = @'
     "{0} {1}": "{0} {1}",
     "{0}{1} {2}": "{0}{1} {2}",
     "{0} in progress; completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} en curso; completados {1} / {2} ({3}% por elementos completados); {4} {5}",
-    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Completados {1} / {2} ({3}% por elementos completados); {4} {5}"
+    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Completados {1} / {2} ({3}% por elementos completados); {4} {5}",
+    "🫥 Hide / show selected items": "🫥 Ocultar / mostrar la selección",
+    "Set the Hidden attribute of selected files or folders, including multiple selections; do not recurse, rename, or change global visibility preferences.": "Configura el atributo oculto de los archivos o carpetas seleccionados, con selección múltiple; sin recursión, cambio de nombre ni cambios en las preferencias globales."
   },
   "de": {
+    "Close management panel": "Verwaltungsfenster schließen",
+    "Minimize to tray": "In den Infobereich minimieren",
+    "Exit completely": "Vollständig beenden",
+    "Keep window open": "Fenster geöffnet lassen",
+    "The manager is idle. Keep it in the system tray, or exit completely.": "Es läuft keine Aufgabe. Behalten Sie das Fenster im Infobereich oder beenden Sie das Programm vollständig.",
+    "Show management panel": "Verwaltungsfenster anzeigen",
+    "Current status": "Aktueller Status",
+    "A task is running. Exit is unavailable; restore the window to view logs.": "Eine Aufgabe läuft. Vollständiges Beenden ist gesperrt; stellen Sie das Fenster wieder her, um Protokolle zu sehen.",
+    "The system tray is unavailable. The window will remain open.": "Der Infobereich ist nicht verfügbar. Das Fenster bleibt geöffnet.",
+    "💽 Disk free space": "💽 Freier Speicherplatz",
+    "Show total local disk free / capacity and a two-decimal percentage. Click to choose cleanup in a separate terminal; changes require confirmation.": "Freien lokalen Speicher / Gesamtkapazität und den Anteil mit zwei Dezimalstellen anzeigen. Ein Klick öffnet die Bereinigungsauswahl in einem eigenen Terminal; Änderungen müssen bestätigt werden.",
     "Create script launcher…": "Skriptstarter erstellen…",
     "🔗 Create script launcher…": "🔗 Skriptstarter erstellen…",
     "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "Erstellt einen relativen Starter neben dem gleichnamigen .cmd/.bat/.ps1-Skriptordner, ohne das Originalskript auszuführen oder zu ändern.",
@@ -2615,9 +2691,22 @@ $panelExtendedJson = @'
     "{0} {1}": "{0} {1}",
     "{0}{1} {2}": "{0}{1} {2}",
     "{0} in progress; completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} läuft; abgeschlossen {1} / {2} ({3}% nach abgeschlossenen Einträgen); {4} {5}",
-    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Abgeschlossen {1} / {2} ({3}% nach abgeschlossenen Einträgen); {4} {5}"
+    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Abgeschlossen {1} / {2} ({3}% nach abgeschlossenen Einträgen); {4} {5}",
+    "🫥 Hide / show selected items": "🫥 Ausgewählte Objekte ausblenden / anzeigen",
+    "Set the Hidden attribute of selected files or folders, including multiple selections; do not recurse, rename, or change global visibility preferences.": "Setzt das Versteckt-Attribut ausgewählter Dateien oder Ordner, auch bei Mehrfachauswahl; ohne Rekursion, Umbenennen oder Änderung globaler Anzeigeeinstellungen."
   },
   "ru": {
+    "Close management panel": "Закрыть панель управления",
+    "Minimize to tray": "Свернуть в системный трей",
+    "Exit completely": "Полностью выйти",
+    "Keep window open": "Оставить окно открытым",
+    "The manager is idle. Keep it in the system tray, or exit completely.": "Задачи не выполняются. Оставьте менеджер в системном трее или полностью выйдите.",
+    "Show management panel": "Показать панель управления",
+    "Current status": "Текущее состояние",
+    "A task is running. Exit is unavailable; restore the window to view logs.": "Выполняется задача. Выход недоступен; восстановите окно для просмотра журнала.",
+    "The system tray is unavailable. The window will remain open.": "Системный трей недоступен. Окно останется открытым.",
+    "💽 Disk free space": "💽 Свободное место на дисках",
+    "Show total local disk free / capacity and a two-decimal percentage. Click to choose cleanup in a separate terminal; changes require confirmation.": "Показывать суммарное свободное место / ёмкость локальных дисков и процент с двумя знаками. Нажатие открывает выбор очистки в отдельном терминале; изменения требуют подтверждения.",
     "Create script launcher…": "Создать ярлык скрипта…",
     "🔗 Create script launcher…": "🔗 Создать ярлык скрипта…",
     "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "Создать относительный ярлык рядом с одноимённой папкой скрипта .cmd/.bat/.ps1, не запуская и не изменяя исходный скрипт.",
@@ -2972,9 +3061,22 @@ $panelExtendedJson = @'
     "{0} {1}": "{0} {1}",
     "{0}{1} {2}": "{0}{1} {2}",
     "{0} in progress; completed {1} / {2} ({3}% by completed items); {4} {5}": "Выполняется {0}; завершено {1} из {2} ({3}% по завершённым пунктам); {4} {5}",
-    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Завершено {1} из {2} ({3}% по завершённым пунктам); {4} {5}"
+    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} Завершено {1} из {2} ({3}% по завершённым пунктам); {4} {5}",
+    "🫥 Hide / show selected items": "🫥 Скрыть / показать выбранное",
+    "Set the Hidden attribute of selected files or folders, including multiple selections; do not recurse, rename, or change global visibility preferences.": "Устанавливает атрибут скрытия выбранных файлов или папок, включая множественный выбор; без рекурсии, переименования и изменения общих настроек отображения."
   },
   "ko": {
+    "Close management panel": "관리 패널 닫기",
+    "Minimize to tray": "시스템 트레이로 최소화",
+    "Exit completely": "완전히 종료",
+    "Keep window open": "창 열린 상태 유지",
+    "The manager is idle. Keep it in the system tray, or exit completely.": "실행 중인 작업이 없습니다. 시스템 트레이에 유지하거나 완전히 종료하세요.",
+    "Show management panel": "관리 패널 표시",
+    "Current status": "현재 상태",
+    "A task is running. Exit is unavailable; restore the window to view logs.": "작업 실행 중에는 완전히 종료할 수 없습니다. 창을 복원하여 로그를 확인하세요.",
+    "The system tray is unavailable. The window will remain open.": "시스템 트레이를 사용할 수 없습니다. 창을 열린 상태로 유지합니다.",
+    "💽 Disk free space": "💽 디스크 여유 공간",
+    "Show total local disk free / capacity and a two-decimal percentage. Click to choose cleanup in a separate terminal; changes require confirmation.": "로컬 디스크의 총 여유 공간 / 용량과 소수점 둘째 자리 비율을 표시합니다. 클릭하면 별도 터미널에서 정리를 선택하며 확인 후에만 실행합니다.",
     "Create script launcher…": "스크립트 실행 파일 만들기…",
     "🔗 Create script launcher…": "🔗 스크립트 실행 파일 만들기…",
     "Create a relative launcher beside a same-name .cmd/.bat/.ps1 script folder; do not run or modify the source script.": "같은 이름의 .cmd/.bat/.ps1 스크립트 폴더 옆에 상대 경로 실행 파일을 만듭니다. 원본 스크립트를 실행하거나 수정하지 않습니다.",
@@ -3329,7 +3431,9 @@ $panelExtendedJson = @'
     "{0} {1}": "{0} {1}",
     "{0}{1} {2}": "{0}{1} {2}",
     "{0} in progress; completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} 진행 중; 완료 {1} / {2} ({3}%, 완료 항목 기준); {4} {5}",
-    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} 완료 {1} / {2} ({3}%, 완료 항목 기준); {4} {5}"
+    "{0} Completed {1} / {2} ({3}% by completed items); {4} {5}": "{0} 완료 {1} / {2} ({3}%, 완료 항목 기준); {4} {5}",
+    "🫥 Hide / show selected items": "🫥 선택 항목 숨기기 / 표시",
+    "Set the Hidden attribute of selected files or folders, including multiple selections; do not recurse, rename, or change global visibility preferences.": "선택한 파일이나 폴더의 숨김 특성을 설정합니다. 다중 선택을 지원하며 하위 항목, 이름 및 전체 표시 설정은 변경하지 않습니다."
   }
 }
 '@
@@ -3487,6 +3591,262 @@ function Get-JobsPanelText {
     }
     return $Text
 }
+# 内嵌日志解析、明暗配色和原生视口保护；不加载外部脚本或修改终端样式。
+function Initialize-JobsManagementLogFormat {
+    if ('JobsManagementLog.AnsiParser' -as [type]) { return }
+    $source = @'
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
+using System.Text.RegularExpressions;
+namespace JobsManagementLog {
+    public sealed class Span {
+        public string Text, Style;
+        public Span(string text, string style) { Text = text; Style = style; }
+    }
+    public sealed class Parsed {
+        public string Plain;
+        public Span[] Spans;
+    }
+    public static class Navigation {
+        public static bool IsInput(int message, int key) {
+            if (message == 0x20a || message == 0x20e || message == 0x24e || message == 0x24f || message == 0x119 || message == 0x115 || message == 0x114 || message == 0x201) return true;
+            return message == 0x100 && (key == 33 || key == 34 || key == 35 || key == 36 || key == 37 || key == 38 || key == 39 || key == 40);
+        }
+    }
+    public static class Palette {
+        public static int Background(bool dark) { return dark ? 0x101821 : 0xf4f7fa; }
+        public static string Level(string text) {
+            if (Regex.IsMatch(text ?? "", @"^\s*(?:\[\d{4}[^\]]*\]\s*)?(?:\[?(?:ERROR|FAILED|FAIL)\]?\b|错误[:：]|失败[:：]|✖|❌)", RegexOptions.IgnoreCase)) return "error";
+            if (Regex.IsMatch(text ?? "", @"^\s*[^\r\n]+(?:\(\d+(?:,\d+)?\)|:\d+(?::\d+)?)\s*:\s*warning\b", RegexOptions.IgnoreCase)) return "warning";
+            if (Regex.IsMatch(text ?? "", @"^\s*(?:\[?(?:WARN|WARNING)\]?\b|警告[:：]|⚠)", RegexOptions.IgnoreCase)) return "warning";
+            if (Regex.IsMatch(text ?? "", @"^\s*(?:\[?(?:SUCCESS|PASS|OK)\]?\b|成功[:：]|已完成|全部处理完成|✅|✔)", RegexOptions.IgnoreCase)) return "success";
+            if (Regex.IsMatch(text ?? "", @"^\s*(?:\[?INFO\]?\b|信息[:：]|来源[:：]|➤|ℹ)", RegexOptions.IgnoreCase)) return "info";
+            return "normal";
+        }
+        private static double Channel(int value) { double n = value / 255.0; return n <= .04045 ? n / 12.92 : Math.Pow((n + .055) / 1.055, 2.4); }
+        private static double Luminance(int rgb) { return .2126 * Channel((rgb >> 16) & 255) + .7152 * Channel((rgb >> 8) & 255) + .0722 * Channel(rgb & 255); }
+        public static double Contrast(int a, int b) { double x = Luminance(a), y = Luminance(b); return (Math.Max(x,y) + .05) / (Math.Min(x,y) + .05); }
+        public static int Color(string style, bool dark) {
+            int rgb = dark ? 0xdfe7f1 : 0x243244;
+            switch (style) {
+                case "error": rgb = dark ? 0xffa39b : 0xa51f19; break;
+                case "warning": rgb = dark ? 0xf7cf7b : 0x805600; break;
+                case "success": rgb = dark ? 0x8cdeb0 : 0x14643a; break;
+                case "info": rgb = dark ? 0x94c9ff : 0x155991; break;
+                case "accent": rgb = dark ? 0xdcb5f6 : 0x7d3591; break;
+                case "cyan": rgb = dark ? 0x85d8df : 0x006574; break;
+                default:
+                    int parsed;
+                    if (style != null && style.StartsWith("rgb:", StringComparison.Ordinal) && style.Length == 10 && int.TryParse(style.Substring(4), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out parsed)) rgb = parsed;
+                    break;
+            }
+            int background = Background(dark);
+            while (Contrast(rgb, background) < 4.5) {
+                int r = (rgb >> 16) & 255, g = (rgb >> 8) & 255, b = rgb & 255;
+                if (dark) { r = Math.Min(255, r + 8); g = Math.Min(255, g + 8); b = Math.Min(255, b + 8); }
+                else { r = Math.Max(0, r - 8); g = Math.Max(0, g - 8); b = Math.Max(0, b - 8); }
+                int next = (r << 16) | (g << 8) | b;
+                if (next == rgb) break;
+                rgb = next;
+            }
+            return unchecked((int)0xff000000) | rgb;
+        }
+    }
+    public sealed class AnsiParser {
+        private int state;
+        private string foreground;
+        private readonly StringBuilder parameters = new StringBuilder();
+        private bool overflow;
+        private static readonly string[] Basic = { "normal", "error", "success", "warning", "info", "accent", "cyan", "normal" };
+        private static string Indexed(int n) {
+            if (n < 0 || n > 255) return null;
+            if (n < 16) return Basic[n % 8];
+            int r, g, b;
+            if (n >= 232) { r = g = b = 8 + (n - 232) * 10; }
+            else { int v = n - 16; int[] cube = { 0, 95, 135, 175, 215, 255 }; r = cube[v / 36]; g = cube[(v / 6) % 6]; b = cube[v % 6]; }
+            return "rgb:" + ((r << 16) | (g << 8) | b).ToString("x6", CultureInfo.InvariantCulture);
+        }
+        private void Sgr() {
+            if (overflow) return;
+            string[] parts = parameters.ToString().Split(';');
+            var values = new List<int>();
+            foreach (string p in parts) { int n; if (!int.TryParse(p.Length == 0 ? "0" : p, out n)) return; values.Add(n); }
+            for (int i = 0; i < values.Count; i++) {
+                int v = values[i];
+                if (v == 0 || v == 39) foreground = null;
+                else if (v >= 30 && v <= 37) foreground = Basic[v - 30];
+                else if (v >= 90 && v <= 97) foreground = Basic[v - 90];
+                else if (v == 38 || v == 48 || v == 58) {
+                    if (i + 2 < values.Count && values[i + 1] == 5) { if (v == 38) foreground = Indexed(values[i + 2]); i += 2; }
+                    else if (i + 4 < values.Count && values[i + 1] == 2) {
+                        int r = values[i + 2], g = values[i + 3], b = values[i + 4];
+                        if (v == 38 && r >= 0 && r <= 255 && g >= 0 && g <= 255 && b >= 0 && b <= 255) foreground = "rgb:" + ((r << 16) | (g << 8) | b).ToString("x6", CultureInfo.InvariantCulture);
+                        i += 4;
+                    } else return;
+                }
+            }
+        }
+        public Parsed Push(string text, string level) {
+            var spans = new List<Span>(); var plain = new StringBuilder(); var pending = new StringBuilder(); string style = null;
+            Action flush = delegate { if (pending.Length > 0) { spans.Add(new Span(pending.ToString(), style)); pending.Clear(); } };
+            foreach (char ch in text ?? "") {
+                if (state == 1) {
+                    if (ch == '[') { state = 2; parameters.Clear(); overflow = false; }
+                    else if (ch == ']') state = 3;
+                    else if (ch == 'P' || ch == '^' || ch == '_' || ch == 'X') state = 4;
+                    else state = 0;
+                    continue;
+                }
+                if (state == 2) {
+                    if (ch >= '@' && ch <= '~') { if (ch == 'm') Sgr(); state = 0; }
+                    else if (ch == 27) state = 1;
+                    else if (ch == '\r' || ch == '\n') state = 0;
+                    else { if (parameters.Length < 128) parameters.Append(ch); else overflow = true; continue; }
+                    if (ch != '\r' && ch != '\n') continue;
+                }
+                if (state == 3 || state == 4) {
+                    if (ch == '\u009c' || (state == 3 && ch == '\a')) state = 0;
+                    else if (ch == 27) state += 2;
+                    continue;
+                }
+                if (state == 5 || state == 6) { if (ch == '\\' || ch == '\u009c') state = 0; else if (ch != 27) state -= 2; continue; }
+                if (ch == 27) { state = 1; continue; }
+                if (ch == '\u009b') { state = 2; parameters.Clear(); overflow = false; continue; }
+                if (ch == '\u009d') { state = 3; continue; }
+                if (ch == '\u0090' || ch == '\u0098' || ch == '\u009e' || ch == '\u009f') { state = 4; continue; }
+                if ((ch < 32 && ch != '\r' && ch != '\n' && ch != '\t') || (ch >= 127 && ch <= 159)) continue;
+                string next = foreground ?? level;
+                if (style != next) { flush(); style = next; }
+                pending.Append(ch); plain.Append(ch);
+            }
+            flush(); return new Parsed { Plain = plain.ToString(), Spans = spans.ToArray() };
+        }
+    }
+    public sealed class Buffer {
+        private readonly List<Span> runs = new List<Span>();
+        private bool carriage;
+        public int Length { get; private set; }
+        public Span[] Runs { get { return runs.ToArray(); } }
+        public void Reset(string text) { runs.Clear(); Length = 0; carriage = false; if (!String.IsNullOrEmpty(text)) { runs.Add(new Span(text, "normal")); Length = text.Length; } }
+        public int Append(Span[] spans) {
+            foreach (Span span in spans) {
+                string text = span.Text;
+                if (carriage && text.StartsWith("\n", StringComparison.Ordinal)) text = text.Substring(1);
+                carriage = span.Text.EndsWith("\r", StringComparison.Ordinal);
+                text = text.Replace("\r\n", "\n").Replace('\r', '\n');
+                span.Text = text;
+                if (text.Length == 0) continue;
+                runs.Add(new Span(text, span.Style)); Length += text.Length;
+            }
+            int remove = Length > 1000000 ? Length - 700000 : 0;
+            int rest = remove;
+            while (rest > 0 && runs.Count > 0) {
+                Span first = runs[0];
+                if (rest >= first.Text.Length) { rest -= first.Text.Length; runs.RemoveAt(0); }
+                else { first.Text = first.Text.Substring(rest); rest = 0; }
+            }
+            Length -= remove; return remove;
+        }
+    }
+}
+'@
+    if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) {
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+        $source += @'
+namespace JobsManagementLog {
+    public sealed class View : System.Windows.Forms.RichTextBox {
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct Point { public int X, Y; }
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint="SendMessageW")]
+        private static extern System.IntPtr Send(System.IntPtr window, int message, System.IntPtr word, ref Point point);
+        [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint="SendMessageW")]
+        private static extern System.IntPtr Redraw(System.IntPtr window, int message, System.IntPtr word, System.IntPtr value);
+        private bool updating;
+        public event System.EventHandler UserNavigation;
+        protected override void WndProc(ref System.Windows.Forms.Message message) {
+            if (!updating && Navigation.IsInput(message.Msg, unchecked((int)message.WParam.ToInt64())) && UserNavigation != null) UserNavigation(this, System.EventArgs.Empty);
+            base.WndProc(ref message);
+        }
+        private Point Position() { var p = new Point(); if (IsHandleCreated) Send(Handle, 0x4dd, System.IntPtr.Zero, ref p); return p; }
+        private int FirstLine() { return IsHandleCreated ? Redraw(Handle, 0xce, System.IntPtr.Zero, System.IntPtr.Zero).ToInt32() : 0; }
+        private void Restore(Point position, int line) {
+            if (!IsHandleCreated) return;
+            Send(Handle, 0x4de, System.IntPtr.Zero, ref position);
+            // EM_GETSCROLLPOS reports 16-bit pixel values; a line anchor also protects long logs.
+            int difference = System.Math.Max(0, line) - FirstLine();
+            if (difference != 0) Redraw(Handle, 0xb6, System.IntPtr.Zero, new System.IntPtr(difference));
+        }
+        private void StartUpdate() { updating = true; if (IsHandleCreated) Redraw(Handle, 11, System.IntPtr.Zero, System.IntPtr.Zero); }
+        private void EndUpdate() { if (IsHandleCreated) { Redraw(Handle, 11, new System.IntPtr(1), System.IntPtr.Zero); Invalidate(); } updating = false; }
+        public void AppendColored(string[] text, int[] colors, int remove, bool follow) {
+            int start = SelectionStart, length = SelectionLength, line = FirstLine(); var position = Position();
+            StartUpdate();
+            try {
+                for (int i = 0; i < text.Length; i++) { Select(TextLength, 0); SelectionColor = System.Drawing.Color.FromArgb(colors[i]); AppendText(text[i]); }
+                remove = System.Math.Min(remove, TextLength);
+                if (remove > 0) { line = System.Math.Max(0, line - GetLineFromCharIndex(remove)); position.Y = System.Math.Max(0, position.Y - (GetPositionFromCharIndex(remove).Y - GetPositionFromCharIndex(0).Y)); Select(0, remove); SelectedText = ""; }
+                if (follow && length == 0) { Select(TextLength, 0); ScrollToCaret(); }
+                else { int a = System.Math.Min(TextLength, System.Math.Max(0, start - remove)); int b = System.Math.Min(TextLength, System.Math.Max(a, start + length - remove)); Select(a, b - a); Restore(position, line); }
+            } finally { EndUpdate(); }
+        }
+        public void Recolor(int[] lengths, int[] colors, int background, int foreground) {
+            int start = SelectionStart, length = SelectionLength, line = FirstLine(); var position = Position();
+            StartUpdate();
+            try {
+                BackColor = System.Drawing.Color.FromArgb(background); ForeColor = System.Drawing.Color.FromArgb(foreground);
+                int offset = 0;
+                for (int i = 0; i < lengths.Length; i++) { Select(offset, lengths[i]); SelectionColor = System.Drawing.Color.FromArgb(colors[i]); offset += lengths[i]; }
+                Select(System.Math.Min(start, TextLength), System.Math.Min(length, System.Math.Max(0, TextLength - start)));
+                Restore(position, line);
+            } finally { EndUpdate(); }
+        }
+        public void FollowTail() { updating = true; try { Select(TextLength, 0); ScrollToCaret(); } finally { updating = false; } }
+    }
+}
+'@
+        Add-Type -TypeDefinition $source -ReferencedAssemblies @('System.dll', 'System.Core.dll', 'System.Windows.Forms.dll', 'System.Drawing.dll')
+    } else { Add-Type -TypeDefinition $source }
+}
+# 兼容旧夹具或直接赋值的日志正文，保留其原文并按普通级别接管。
+function Get-JobsManagementLogBuffer {
+    param($State)
+    Initialize-JobsManagementLogFormat
+    if ($null -eq $State.PSObject.Properties['LogBuffer']) { $State | Add-Member NoteProperty LogBuffer (New-Object JobsManagementLog.Buffer) }
+    if ($null -eq $State.PSObject.Properties['LogParsers']) { $State | Add-Member NoteProperty LogParsers @{} }
+    if ($State.LogBuffer.Length -ne $State.LogView.TextLength) { $State.LogBuffer.Reset([string]$State.LogView.Text) }
+    return $State.LogBuffer
+}
+# 系统高对比度及其颜色一起作为外观签名，不改系统设置。
+function Get-JobsPanelContrastKey {
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT -or -not [Windows.Forms.SystemInformation]::HighContrast) { return 'normal' }
+    return ('high|{0}|{1}|{2}|{3}' -f [Drawing.SystemColors]::Window.ToArgb(), [Drawing.SystemColors]::WindowText.ToArgb(), [Drawing.SystemColors]::Control.ToArgb(), [Drawing.SystemColors]::ControlText.ToArgb())
+}
+# ANSI 前景色只作用于显示；高对比度采用系统正文色，其余按独立明暗日志底色校验对比度。
+function Get-JobsManagementLogColors {
+    param($State, [object[]]$Runs, $ContrastForeground = $null)
+    foreach ($run in $Runs) {
+        if ($null -ne $ContrastForeground) { [int]$ContrastForeground }
+        else { [JobsManagementLog.Palette]::Color([string]$run.Style, ($State.Theme -eq 'dark')) }
+    }
+}
+# 换主题只重着色现有分段，原生控件恢复原选区与像素滚动位置。
+function Set-JobsManagementLogTheme {
+    param($State, [string]$ContrastKey = '')
+    $buffer = Get-JobsManagementLogBuffer $State
+    $runs = @($buffer.Runs)
+    if (-not $ContrastKey) { $ContrastKey = Get-JobsPanelContrastKey }
+    $back = [JobsManagementLog.Palette]::Background(($State.Theme -eq 'dark')) -bor [int]::MinValue -bor 0x7f000000
+    $front = [JobsManagementLog.Palette]::Color('normal', ($State.Theme -eq 'dark'))
+    $contrastForeground = $null
+    if ($ContrastKey.StartsWith('high|')) { $parts = $ContrastKey.Split('|'); $back = [int]$parts[1]; $front = [int]$parts[2]; $contrastForeground = $front }
+    $State.LogView.Recolor([int[]]@($runs | ForEach-Object { $_.Text.Length }), [int[]]@(Get-JobsManagementLogColors $State $runs $contrastForeground), $back, $front)
+    $State | Add-Member NoteProperty LogContrastKey $ContrastKey -Force
+    $State | Add-Member NoteProperty LogContrastForeground $contrastForeground -Force
+}
+
 # 仅使用公开 DWM 和 UI 语言 API；旧系统不支持暗色标题栏时保留系统标题栏。
 function Initialize-JobsPanelNative {
     if ($null -ne ('JobsPanelNative' -as [type])) { return }
@@ -3511,6 +3871,7 @@ function Set-JobsPanelFeatureToolTip {
 # 对同一个控件树改色，失败链接/成功状态与清理按钮保留语义颜色。
 function Set-JobsPanelControlTheme {
     param($Control, $State)
+    if ([object]::ReferenceEquals($Control, $State.LogView)) { Set-JobsManagementLogTheme $State; return }
     $dark = $State.Theme -eq 'dark'
     $back = [Drawing.Color]::FromArgb(246, 247, 249)
     $front = [Drawing.Color]::FromArgb(30, 35, 42)
@@ -3881,8 +4242,10 @@ function Set-JobsPanelHeaderLayout {
         $box.DropDownWidth = $dropWidth
         $State.ToolTip.SetToolTip($box, $box.Text)
         $box.ItemHeight = [int][Math]::Max(20 * $scale, $State.Font.Height + 4 * $scale)
+        $box.Height = $box.PreferredHeight
     }
-    $controlHeight = [Math]::Max($State.ThemeBox.PreferredHeight, $State.LanguageBox.PreferredHeight)
+    # 原生下拉可能约束请求高度，布局以实际高度对齐标签。
+    $controlHeight = [Math]::Max($State.ThemeBox.Height, $State.LanguageBox.Height)
     # Label 的原生内边距与字体回退纳入实测，避免通用 TextRenderer 高度裁字。
     $title = $State.HeaderLabel.GetPreferredSize([Drawing.Size]::Empty)
     $layout = Get-JobsPanelHeaderLayout -Width $width -Padding $padding -Scale $scale -TitleWidth $title.Width -TitleHeight $title.Height -ThemeLabelWidth $themeWidth -LanguageLabelWidth $languageWidth -ChoiceWidth $choiceWidth -ControlHeight $controlHeight
@@ -3921,7 +4284,9 @@ function Update-JobsPanelPresentation {
     param($State, [switch]$Force)
     $language = Resolve-JobsPanelLanguage $State.Preferences.Language
     $theme = Resolve-JobsPanelTheme $State.Preferences.Theme
-    if (-not $Force -and $State.Language -ceq $language -and $State.Theme -ceq $theme) { return }
+    $contrastKey = Get-JobsPanelContrastKey
+    if (-not $Force -and $State.Language -ceq $language -and $State.Theme -ceq $theme -and $null -ne $State.PSObject.Properties['ContrastKey'] -and $State.ContrastKey -ceq $contrastKey) { return }
+    $State | Add-Member NoteProperty ContrastKey $contrastKey -Force
     $State.Language = $language; $State.Theme = $theme; $State.PreferenceUpdating = $true
     $State.Form.SuspendLayout()
     try {
@@ -4003,10 +4368,7 @@ function Update-JobsPanelPresentation {
         Set-JobsPanelControlTheme $State.Form $State
         $State.LogMenu.BackColor = $State.Form.BackColor; $State.LogMenu.ForeColor = $State.Form.ForeColor
         foreach ($item in $State.LogMenu.Items) { $item.BackColor = $State.Form.BackColor; $item.ForeColor = $State.Form.ForeColor }
-        # RichTextBox 的旧文字已有颜色，整段重着色并恢复选择，不清空已有日志。
-        $start = $State.LogView.SelectionStart; $length = $State.LogView.SelectionLength
-        $State.LogView.SelectAll(); $State.LogView.SelectionColor = $State.LogView.ForeColor
-        $State.LogView.Select($start, $length)
+        # 日志由独立明暗palette逐段重着色，递归改色时保留选区与原生视口。
         if ($State.Form.IsHandleCreated) {
             try { $value = [int]($theme -eq 'dark'); [void][JobsPanelNative]::DwmSetWindowAttribute($State.Form.Handle, 20, [ref]$value, 4) } catch { }
         }
@@ -4290,6 +4652,308 @@ function Get-JobsPanelActiveSelection {
     return @($State.Checks | Where-Object { $_.Checked -and $_.Enabled } | ForEach-Object { [string]$_.Tag })
 }
 
+# Running包含安装、卸载和清理；已完成后的Started不是后台任务。输出未排空时仍保全句柄。
+function Test-JobsPanelWorkActive {
+    param($State)
+    if ($State.Running) { return $true }
+    if ($null -ne $State.PSObject.Properties['Pump'] -and $null -ne $State.Pump) {
+        try { return (-not $State.Pump.Process.HasExited -or -not $State.Pump.Drained -or -not $State.Pump.Lines.IsEmpty) }
+        catch { return $true }
+    }
+    return $false
+}
+# 旧版NotifyIcon限63个UTF16字符，截断保留完整代理对；完整状态留在菜单提示和原窗口。
+function Get-JobsPanelTrayText {
+    param([string]$Text, [int]$Maximum = 63)
+    $value = [regex]::Replace($Text, '[\r\n\t]+', ' ')
+    if ($value.Length -le $Maximum) { return $value }
+    $length = $Maximum - 1
+    if ($length -gt 0 -and [char]::IsHighSurrogate($value[$length - 1])) { $length-- }
+    return $value.Substring(0, [Math]::Max(0, $length)) + '…'
+}
+# 托盘只显示当前状态；不启动、停止或重排任何后台计划。
+function Update-JobsPanelTray {
+    param($State)
+    if ($null -eq $State.PSObject.Properties['TrayIcon'] -or $null -eq $State.TrayIcon -or $State.TrayDisposed) { return }
+    $language = Get-JobsPanelLanguage $State
+    $status = [string]$State.StatusLabel.Text
+    $State.TrayRestore.Text = Get-JobsPanelText '显示管理面板' $language
+    $State.TrayExit.Text = Get-JobsPanelText '完全退出' $language
+    $State.TrayStatus.Text = ((Get-JobsPanelText '当前状态' $language) + ': ' + (Get-JobsPanelTrayText $status 160)).Replace('&','&&')
+    $State.TrayStatus.ToolTipText = $status
+    $busy = Test-JobsPanelWorkActive $State
+    $State.TrayExit.Enabled = -not $busy
+    $State.TrayExit.ToolTipText = ''
+    if ($busy) { $State.TrayExit.ToolTipText = Get-JobsPanelText '任务进行中，暂时不能完全退出；可恢复窗口查看日志。' $language }
+    $State.TrayIcon.Text = Get-JobsPanelTrayText ((Get-JobsPanelText '自定义Explorer右键菜单' $language) + ' — ' + $status)
+    $State.TrayMenu.BackColor = $State.Form.BackColor
+    $State.TrayMenu.ForeColor = $State.Form.ForeColor
+    foreach ($item in @($State.TrayRestore, $State.TrayStatus, $State.TrayExit)) { $item.BackColor = $State.Form.BackColor; $item.ForeColor = $State.Form.ForeColor }
+}
+# 复用当前窗口的应用图标；事件显式回到所属模块，避免GetNewClosure丢失私有函数。
+function Initialize-JobsPanelTray {
+    param($State)
+    $panelModule = $ExecutionContext.SessionState.Module
+    $menu = New-Object Windows.Forms.ContextMenuStrip
+    $icon = New-Object Windows.Forms.NotifyIcon
+    $ownedIcon = $null
+    try {
+        $ownedIcon = $State.Form.Icon.Clone()
+        $icon.Icon = $ownedIcon
+        $restore = New-Object Windows.Forms.ToolStripMenuItem
+        $status = New-Object Windows.Forms.ToolStripMenuItem
+        $status.Enabled = $false
+        $exit = New-Object Windows.Forms.ToolStripMenuItem
+        $menu.ShowItemToolTips = $true
+        [void]$menu.Items.Add($restore); [void]$menu.Items.Add($status); [void]$menu.Items.Add($exit)
+        $icon.ContextMenuStrip = $menu
+        $State.TrayIcon = $icon; $State.TrayMenu = $menu; $State.TrayRestore = $restore; $State.TrayStatus = $status; $State.TrayExit = $exit; $State.TrayOwnedIcon = $ownedIcon
+        $restore.Add_Click({ & $panelModule { param($s) Show-JobsPanelFromTray $s } $State }.GetNewClosure())
+        $exit.Add_Click({ & $panelModule { param($s) Request-JobsPanelClose $s -Exit } $State }.GetNewClosure())
+        $icon.Add_MouseDoubleClick({ param($sender,$e) if ($e.Button -eq [Windows.Forms.MouseButtons]::Left) { & $panelModule { param($s) Show-JobsPanelFromTray $s } $State } }.GetNewClosure())
+        $menu.Add_Opening({ & $panelModule { param($s) Update-JobsPanelTray $s } $State }.GetNewClosure())
+        Update-JobsPanelTray $State
+    } catch {
+        $icon.Dispose(); $menu.Dispose()
+        if ($null -ne $ownedIcon) { $ownedIcon.Dispose() }
+        $State.TrayIcon = $null; $State.TrayMenu = $null; $State.TrayOwnedIcon = $null
+        $State.TrayError = $_.Exception.Message
+    }
+}
+# 隐藏只改变窗口与托盘可见性；Timer、输出泵和后台工作进程继续运行。
+function Hide-JobsPanelToTray {
+    param($State)
+    try {
+        if ($null -eq $State.TrayIcon -or $State.TrayDisposed) { throw 'NotifyIcon unavailable' }
+        Update-JobsPanelTray $State
+        $State.TrayIcon.Visible = $true
+        if (-not $State.TrayHidden) { $State.TrayWindowState = [string]$State.Form.WindowState }
+        $State.Form.ShowInTaskbar = $false
+        $State.Form.Hide()
+        $State.TrayHidden = $true
+        return $true
+    } catch {
+        $State.TrayError = $_.Exception.Message
+        $State.Form.ShowInTaskbar = $true
+        $State.Form.Show()
+        $State.TrayHidden = $false
+        Set-JobsFeatureStatusText $State '无法显示系统托盘，窗口保持打开。'
+        return $false
+    }
+}
+# 恢复原窗口及其选区/勾选/日志，不重新构造管理器或执行计划。
+function Show-JobsPanelFromTray {
+    param($State)
+    if ($State.Form.IsDisposed) { return }
+    $State.Form.ShowInTaskbar = $true
+    $State.Form.Show()
+    $State.Form.WindowState = $(if ($State.TrayWindowState -eq 'Maximized') { 'Maximized' } else { 'Normal' })
+    $State.Form.Activate()
+    $State.Form.BringToFront()
+    $State.TrayHidden = $false
+    Update-JobsPanelTray $State
+}
+# 关闭选择框继承主面板主题/语言，系统跟随变化由自己的短周期UI计时器同步。
+function Update-JobsPanelCloseChoice {
+    param($Choice, $State)
+    $language = Get-JobsPanelLanguage $State
+    if ($null -eq $Choice.Font -or $Choice.Font.Name -cne $State.Font.Name -or $Choice.Font.SizeInPoints -ne $State.Font.SizeInPoints) {
+        $previous = $Choice.Font
+        $Choice.Font = $State.Font.Clone()
+        $Choice.Form.Font = $Choice.Font
+        if ($null -ne $previous) { $previous.Dispose() }
+    }
+    $Choice.Form.Text = Get-JobsPanelText '关闭管理面板' $language
+    $Choice.Label.Text = Get-JobsPanelText '面板空闲。请选择退到系统托盘继续保留窗口，或完全退出。' $language
+    $Choice.Tray.Text = Get-JobsPanelText '退到系统托盘' $language
+    $Choice.Exit.Text = Get-JobsPanelText '完全退出' $language
+    $Choice.Keep.Text = Get-JobsPanelText '保留窗口' $language
+    Set-JobsPanelControlTheme $Choice.Form $State
+}
+# 默认回车进入托盘，Esc/关闭选择框保留原窗；只有明确退出才结束会话。
+function Show-JobsPanelCloseChoice {
+    param($State)
+    $dialog = New-Object Windows.Forms.Form
+    $timer = New-Object Windows.Forms.Timer
+    $panelModule = $ExecutionContext.SessionState.Module
+    $choice = $null
+    try {
+        $dialog.StartPosition = 'CenterParent'; $dialog.FormBorderStyle = 'FixedDialog'; $dialog.AutoScaleMode = 'None'
+        $dialog.MaximizeBox = $false; $dialog.MinimizeBox = $false; $dialog.ShowInTaskbar = $false
+        $dialog.Icon = $State.Form.Icon
+        $dialog.AutoSize = $true; $dialog.AutoSizeMode = 'GrowAndShrink'
+        $layout = New-Object Windows.Forms.FlowLayoutPanel
+        $layout.FlowDirection = 'TopDown'; $layout.WrapContents = $false; $layout.AutoSize = $true; $layout.AutoSizeMode = 'GrowAndShrink'; $layout.Dock = 'Fill'
+        $layout.Padding = New-Object Windows.Forms.Padding(20)
+        $label = New-Object Windows.Forms.Label
+        $label.AutoSize = $true; $label.MaximumSize = New-Object Drawing.Size([int](480*$State.Scale),0)
+        $buttons = New-Object Windows.Forms.FlowLayoutPanel
+        $buttons.AutoSize = $true; $buttons.AutoSizeMode = 'GrowAndShrink'; $buttons.WrapContents = $true; $buttons.MaximumSize = New-Object Drawing.Size([int](500*$State.Scale),0)
+        $tray = New-Object Windows.Forms.Button; $exit = New-Object Windows.Forms.Button; $keep = New-Object Windows.Forms.Button
+        foreach ($button in @($tray,$exit,$keep)) { $button.AutoSize = $true; $button.Padding = New-Object Windows.Forms.Padding(10,6,10,6); [void]$buttons.Controls.Add($button) }
+        $tray.DialogResult = [Windows.Forms.DialogResult]::Yes
+        $exit.DialogResult = [Windows.Forms.DialogResult]::No
+        $keep.DialogResult = [Windows.Forms.DialogResult]::Cancel
+        $dialog.AcceptButton = $tray; $dialog.CancelButton = $keep
+        [void]$layout.Controls.Add($label); [void]$layout.Controls.Add($buttons); [void]$dialog.Controls.Add($layout)
+        $choice = [pscustomobject]@{Form=$dialog;Label=$label;Tray=$tray;Exit=$exit;Keep=$keep;Font=$null}
+        Update-JobsPanelCloseChoice $choice $State
+        $timer.Interval = 1000
+        $timer.Add_Tick({ & $panelModule { param($c,$s) Update-JobsPanelCloseChoice $c $s } $choice $State }.GetNewClosure())
+        $timer.Start()
+        $result = $dialog.ShowDialog($State.Form)
+        if ($result -eq [Windows.Forms.DialogResult]::Yes) { return 'Tray' }
+        if ($result -eq [Windows.Forms.DialogResult]::No) { return 'Exit' }
+        return 'Cancel'
+    } finally { $timer.Stop(); $timer.Dispose(); $dialog.Dispose(); if ($null -ne $choice -and $null -ne $choice.Font) { $choice.Font.Dispose() } }
+}
+# 红X、Escape/关闭按钮和托盘退出共用此门禁；忙碌优先于任何退出标记。
+function Request-JobsPanelClose {
+    param($State, $EventArgs = $null, [switch]$Exit)
+    if ($null -ne $EventArgs) { $EventArgs.Cancel = $true }
+    if (Test-JobsPanelWorkActive $State) {
+        $State.ExitRequested = $false
+        $State.Form.DialogResult = 'None'
+        [void](Hide-JobsPanelToTray $State)
+        return
+    }
+    if ($Exit -or $State.ExitRequested -or $State.SelectionAccepted) {
+        $State.ExitRequested = $true
+        if (-not $State.SelectionAccepted) { $State.Form.DialogResult = 'Cancel' }
+        if ($null -ne $EventArgs) { $EventArgs.Cancel = $false }
+        else { $State.Form.Close() }
+        return
+    }
+    if ($State.ClosePromptOpen) { return }
+    $State.ClosePromptOpen = $true
+    try { $choice = Show-JobsPanelCloseChoice $State }
+    finally { $State.ClosePromptOpen = $false }
+    # 模态选择框期间仍有消息循环，执行退出前再检查后台状态。
+    if (Test-JobsPanelWorkActive $State) { $State.Form.DialogResult = 'None'; [void](Hide-JobsPanelToTray $State); return }
+    if ($choice -eq 'Exit') {
+        $State.ExitRequested = $true
+        if (-not $State.SelectionAccepted) { $State.Form.DialogResult = 'Cancel' }
+        if ($null -ne $EventArgs) { $EventArgs.Cancel = $false }
+        else { $State.Form.Close() }
+    } else {
+        $State.Form.DialogResult = 'None'
+        if ($choice -eq 'Tray') { [void](Hide-JobsPanelToTray $State) }
+    }
+}
+# 只在真实窗口释放时移除通知图标；重复释放安全，图标克隆归本窗口所有。
+function Stop-JobsPanelTray {
+    param($State)
+    if ($null -eq $State.PSObject.Properties['TrayDisposed'] -or $State.TrayDisposed) { return }
+    $State.TrayDisposed = $true
+    foreach ($name in @('TrayIcon','TrayMenu','TrayOwnedIcon')) {
+        $resource = $State.PSObject.Properties[$name].Value
+        $State.PSObject.Properties[$name].Value = $null
+        if ($null -eq $resource) { continue }
+        try {
+            try { if ($name -eq 'TrayIcon') { $resource.Visible = $false } }
+            finally { $resource.Dispose() }
+        } catch { $State.TrayError = $_.Exception.Message }
+    }
+}
+
+# 控件均为GroupBox直接子项；按当前边界命中真实功能行，排除组头/组尾和独立动作。
+function Get-JobsFeatureRowHit {
+    param($State, $Group, $Source, $EventArgs)
+    $x = [int]$EventArgs.X; $y = [int]$EventArgs.Y
+    if (-not [object]::ReferenceEquals($Source, $Group.Box)) { $x += $Source.Left; $y += $Source.Top }
+    if ($x -lt 0 -or $x -ge $Group.Box.ClientSize.Width) { return $null }
+    foreach ($check in $Group.Checks) {
+        if ($y -lt $check.Top -or $y -ge $check.Bottom) { continue }
+        $id = [string]$check.Tag
+        $row = $State.FeatureRows[$id]
+        $status = $State.FeatureLabels[$id]
+        $ordinary = @($row.Icon, $row.Title, $status)
+        if (-not [object]::ReferenceEquals($Source, $Group.Box) -and $Source -notin $ordinary) { return $null }
+        $child = $Group.Box.GetChildAtPoint((New-Object Drawing.Point($x,$y)))
+        if ($null -ne $child -and $child -notin $ordinary) { return $null }
+        if (($Source -eq $status -or $child -eq $status) -and $status.LinkArea.Length -gt 0) { return $null }
+        return [pscustomobject]@{ Id=$id; Row=$row; X=$x; Y=$y }
+    }
+    return $null
+}
+# 只记住一次左键按下；原生CheckBox不经此通道，不改其AutoCheck/Tab/Space事件。
+function Start-JobsFeatureRowPointer {
+    param($State, $Group, $Source, $EventArgs)
+    $State.FeatureRowPress = $null
+    if ([string]$EventArgs.Button -cne 'Left' -or (Test-JobsPanelWorkActive $State) -or $State.GroupDragKey) { return }
+    $hit = Get-JobsFeatureRowHit $State $Group $Source $EventArgs
+    if ($null -eq $hit -or -not $hit.Row.Check.Enabled) { return }
+    $scroll = $State.ContentPanel.AutoScrollPosition
+    $State.FeatureRowPress = [pscustomobject]@{ Id=$hit.Id; Group=$Group; Source=$Source; X=$hit.X; Y=$hit.Y; ScrollX=$scroll.X; ScrollY=$scroll.Y }
+}
+# 移动超过DPI容差即取消，即使随后回到原点，也不把拖动/触控滑动当点击。
+function Move-JobsFeatureRowPointer {
+    param($State, $Group, $Source, $EventArgs)
+    $press = $State.FeatureRowPress
+    if ($null -eq $press) { return }
+    if ([string]$EventArgs.Button -cne 'Left' -or -not [object]::ReferenceEquals($press.Group,$Group) -or -not [object]::ReferenceEquals($press.Source,$Source)) { $State.FeatureRowPress=$null; return }
+    $hit = Get-JobsFeatureRowHit $State $Group $Source $EventArgs
+    $limit = [Math]::Max(4, 8*$State.Scale)
+    if ($null -eq $hit -or $hit.Id -cne $press.Id -or [Math]::Abs($hit.X-$press.X)+[Math]::Abs($hit.Y-$press.Y) -ge $limit) { $State.FeatureRowPress=$null }
+}
+# 先消费候选再触发原CheckedChanged，避免重复MouseUp、重入或父子控件双切换。
+function Complete-JobsFeatureRowPointer {
+    param($State, $Group, $Source, $EventArgs)
+    $press = $State.FeatureRowPress
+    $State.FeatureRowPress = $null
+    if ($null -eq $press -or [string]$EventArgs.Button -cne 'Left' -or (Test-JobsPanelWorkActive $State) -or $State.GroupDragKey) { return }
+    if (-not [object]::ReferenceEquals($press.Group,$Group) -or -not [object]::ReferenceEquals($press.Source,$Source)) { return }
+    $scroll = $State.ContentPanel.AutoScrollPosition
+    if ($scroll.X -ne $press.ScrollX -or $scroll.Y -ne $press.ScrollY) { return }
+    $hit = Get-JobsFeatureRowHit $State $Group $Source $EventArgs
+    $limit = [Math]::Max(4, 8*$State.Scale)
+    if ($null -eq $hit -or $hit.Id -cne $press.Id -or -not $hit.Row.Check.Enabled -or [Math]::Abs($hit.X-$press.X)+[Math]::Abs($hit.Y-$press.Y) -ge $limit) { return }
+    $hit.Row.Check.Checked = -not $hit.Row.Check.Checked
+    [void]$hit.Row.Check.Focus()
+}
+# 闭包回到所属模块调用私有控制器；不截获或改写原生滚动/触控消息。
+function New-JobsFeatureRowPointerCallback {
+    param($State, $Group, [string]$Phase)
+    $panelModule = $ExecutionContext.SessionState.Module
+    return {
+        param($sender,$eventArgs)
+        & $panelModule {
+            param($s,$g,$source,$e,$phaseName)
+            switch ($phaseName) {
+                'Down' { Start-JobsFeatureRowPointer $s $g $source $e }
+                'Move' { Move-JobsFeatureRowPointer $s $g $source $e }
+                'Up' { Complete-JobsFeatureRowPointer $s $g $source $e }
+                default { $s.FeatureRowPress=$null }
+            }
+        } $State $Group $sender $eventArgs $Phase
+    }.GetNewClosure()
+}
+# 仅给已知普通行区域装配命中；checkbox、日志链接和独立按钮保留自身动作。
+function Initialize-JobsFeatureRowSelection {
+    param($State)
+    $State | Add-Member NoteProperty FeatureRowPress $null -Force
+    $cancel = New-JobsFeatureRowPointerCallback $State $null 'Cancel'
+    $State.ContentPanel.Add_Scroll($cancel)
+    $State.ContentPanel.Add_MouseWheel($cancel)
+    $State.Form.Add_Deactivate($cancel)
+    foreach ($group in $State.Groups) {
+        $down = New-JobsFeatureRowPointerCallback $State $group 'Down'
+        $move = New-JobsFeatureRowPointerCallback $State $group 'Move'
+        $up = New-JobsFeatureRowPointerCallback $State $group 'Up'
+        $controls = @($group.Box)
+        foreach ($check in $group.Checks) {
+            $row = $State.FeatureRows[[string]$check.Tag]
+            $controls += @($row.Icon,$row.Title,$State.FeatureLabels[[string]$check.Tag])
+            $check.Add_MouseDown($cancel)
+            $check.Add_MouseWheel($cancel)
+        }
+        foreach ($control in $controls) {
+            $control.Add_MouseDown($down); $control.Add_MouseMove($move); $control.Add_MouseUp($up)
+            $control.Add_MouseLeave($cancel); $control.Add_MouseWheel($cancel)
+        }
+    }
+}
+
 function New-JobsFeatureSelectionForm {
     param(
         [object[]]$Packages,
@@ -4560,8 +5224,6 @@ function New-JobsFeatureSelectionForm {
             $row = [pscustomobject]@{ Check=$check; Icon=$icon; Title=$title; Source=[string]$feature.Label }
             $featureRows[$feature.Id] = $row
             $localRow = $row
-            $toggle = { if ($localRow.Check.Enabled) { $localRow.Check.Checked = -not $localRow.Check.Checked; [void]$localRow.Check.Focus() } }.GetNewClosure()
-            $icon.Add_Click($toggle); $title.Add_Click($toggle)
             $check.Add_EnabledChanged({ $localRow.Icon.Enabled=$localRow.Check.Enabled; $localRow.Title.Enabled=$localRow.Check.Enabled }.GetNewClosure())
             $toolTip.SetToolTip($icon, $toolTip.GetToolTip($check)); $toolTip.SetToolTip($title, $toolTip.GetToolTip($check))
             $group.Box.Controls.AddRange(@($icon, $title))
@@ -4655,7 +5317,8 @@ function New-JobsFeatureSelectionForm {
         $logToolbar.Controls.AddRange(@($logTitle, $copyLog, $followLog))
         $logToolbar.Size = $logToolbar.GetPreferredSize((New-Object Drawing.Size($layout.ClientWidth, 0)))
         $logPanel.Height = [int][Math]::Max($logPanel.Height, $logToolbar.Height + 80 * $scale)
-        $logView = New-Object System.Windows.Forms.RichTextBox
+        Initialize-JobsManagementLogFormat
+        $logView = New-Object JobsManagementLog.View
         $logView.Dock = 'Fill'
         $logView.ReadOnly = $true
         $logView.WordWrap = $false
@@ -4676,7 +5339,7 @@ function New-JobsFeatureSelectionForm {
         $logView.ContextMenuStrip = $logMenu
         $logPanel.Controls.Add($logView)
         $logPanel.Controls.Add($logToolbar)
-        $buttons[3].DialogResult = [System.Windows.Forms.DialogResult]::Cancel
+        $buttons[3].DialogResult = [System.Windows.Forms.DialogResult]::None
         $form.CancelButton = $buttons[3]
         $logSplit = New-Object System.Windows.Forms.SplitContainer
         $logSplit.Size = New-Object Drawing.Size($layout.ClientWidth, ($layout.ClientHeight - $header.Height))
@@ -4713,6 +5376,8 @@ function New-JobsFeatureSelectionForm {
             Packages = @($Packages); RouteBox = $routeBox; DeploymentRow = $deploymentRow; DeploymentRowLayout = $null; CleanupPanel = $cleanupPanel; AutoCleanup = $autoCleanup; CleanupButton = $cleanupButton
             DeploymentMode = $initialRoute; DeploymentLocked = $deploymentLocked; StopRequestPath = $null; StopRequested = $false; Stopped = $false
             BuildPlan = $BuildPlan; WorkerPath = $WorkerPath; Running = $false; Started = $false
+            ExitRequested = $false; SelectionAccepted = $false; ClosePromptOpen = $false; TrayHidden = $false; TrayWindowState = 'Normal'; TrayDisposed = $false; TrayError = ''
+            TrayIcon = $null; TrayMenu = $null; TrayRestore = $null; TrayStatus = $null; TrayExit = $null; TrayOwnedIcon = $null
             FeatureRows = $featureRows; FeatureLabels = $featureLabels; FeatureStates = @{}; FeatureOperations = @{}; Progress = $progress
             LogView = $logView; FollowLog = $followLog; CopyLogButton = $copyLog
             LogSplit = $logSplit; LogMenu = $logMenu; CopySelectionItem = $copySelection; SelectLogItem = $selectLog
@@ -4722,6 +5387,7 @@ function New-JobsFeatureSelectionForm {
             Preview = [bool]$Preview; OperationBox = $operationBox; Operation = $(if ($Mode -eq 'Manage') { 'Install' } else { $Mode }); Installed = @($Installed)
         }
         Initialize-JobsPanelGroupDrag $state
+        Initialize-JobsFeatureRowSelection $state
         Initialize-JobsPanelCenteredChoice $themeBox
         Initialize-JobsPanelCenteredChoice $languageBox
         # 闭包保留表单状态，事件不依赖已返回的构造函数局部作用域。
@@ -4767,10 +5433,11 @@ function New-JobsFeatureSelectionForm {
             }
             if ($state.BuildPlan -and -not $state.Preview) {
                 try { Start-JobsManagementRun $state $choice }
-                catch { Add-JobsManagementLog $state ('无法建立操作计划：' + $_.Exception.Message) }
+                catch { Add-JobsManagementLog $state ('无法建立操作计划：' + $_.Exception.Message) -Level error }
                 return
             }
             $state.Form.Tag = $choice
+            $state.SelectionAccepted = $true
             $state.Form.DialogResult = [System.Windows.Forms.DialogResult]::OK
             $state.Form.Close()
         }.GetNewClosure())
@@ -4807,16 +5474,15 @@ function New-JobsFeatureSelectionForm {
         }
         $state.Timer.Interval = 100
         $state.Timer.Add_Tick((New-JobsManagementTimerCallback $state))
-        $form.Add_FormClosing({
-            param($sender, $eventArgs)
-            if ($state.Running) {
-                $eventArgs.Cancel = $true
-                Set-JobsFeatureStatusText $state '操作正在执行，请等待事务完成后关闭；下方日志可随时复制。'
-            }
-        }.GetNewClosure())
-        $copySelection.Add_Click({ $state.LogView.Copy() }.GetNewClosure())
+        $panelModule = $ExecutionContext.SessionState.Module
+        $buttons[3].Add_Click({ $state.Form.Close() }.GetNewClosure())
+        $form.Add_FormClosing({ param($sender,$eventArgs) & $panelModule { param($s,$e) Request-JobsPanelClose $s $e } $state $eventArgs }.GetNewClosure())
+        $logView.Add_UserNavigation({ $state.FollowLog.Checked = $false }.GetNewClosure())
+        $followLog.Add_CheckedChanged({ if ($state.FollowLog.Checked) { $state.LogView.FollowTail() } }.GetNewClosure())
+        $copySelection.Add_Click({ if ($state.LogView.SelectionLength -gt 0) { [Windows.Forms.Clipboard]::SetText($state.LogView.SelectedText) } }.GetNewClosure())
         $selectLog.Add_Click({
             [void]$state.LogView.Focus()
+            $state.FollowLog.Checked = $false
             $state.LogView.SelectAll()
         }.GetNewClosure())
         $logMenu.Add_Opening({
@@ -4826,7 +5492,12 @@ function New-JobsFeatureSelectionForm {
         $logView.Add_KeyDown({
             param($sender, $eventArgs)
             if ($eventArgs.Control -and -not $eventArgs.Alt -and $eventArgs.KeyCode -eq [Windows.Forms.Keys]::A) {
+                $state.FollowLog.Checked = $false
                 $sender.SelectAll()
+                $eventArgs.Handled = $true
+                $eventArgs.SuppressKeyPress = $true
+            } elseif ($eventArgs.Control -and -not $eventArgs.Alt -and $eventArgs.KeyCode -eq [Windows.Forms.Keys]::C -and $sender.SelectionLength -gt 0) {
+                [Windows.Forms.Clipboard]::SetText($sender.SelectedText)
                 $eventArgs.Handled = $true
                 $eventArgs.SuppressKeyPress = $true
             }
@@ -4860,9 +5531,9 @@ function New-JobsFeatureSelectionForm {
         $themeBox.Add_SelectedIndexChanged($preferenceChanged)
         $languageBox.Add_SelectedIndexChanged($preferenceChanged)
         $state.PreferenceTimer.Interval = 1000
-        $state.PreferenceTimer.Add_Tick({ Update-JobsPanelPresentation $state }.GetNewClosure())
+        $state.PreferenceTimer.Add_Tick({ Update-JobsPanelPresentation $state; & $panelModule { param($s) Update-JobsPanelTray $s } $state }.GetNewClosure())
         $form.Add_Shown({ Update-JobsPanelPresentation $state -Force; $state.PreferenceTimer.Start() }.GetNewClosure())
-        $form.Add_Disposed({ $state.PreferenceTimer.Stop(); $state.PreferenceTimer.Dispose() }.GetNewClosure())
+        $form.Add_Disposed({ $state.PreferenceTimer.Stop(); $state.PreferenceTimer.Dispose(); & $panelModule { param($s) Stop-JobsPanelTray $s } $state }.GetNewClosure())
         $form.Add_ClientSizeChanged({
             if ($state.HeaderLayoutUpdating -or $state.Form.IsDisposed) { return }
             $state.HeaderLayoutUpdating = $true
@@ -4873,6 +5544,7 @@ function New-JobsFeatureSelectionForm {
             } finally { $state.HeaderLayoutUpdating = $false }
         }.GetNewClosure())
         Update-JobsPanelPresentation $state -Force
+        Initialize-JobsPanelTray $state
         if ($preferences.Error) { Set-JobsFeatureStatusText $state ('读取偏好失败：' + $preferences.Error) }
         return $state
     } catch {
@@ -4908,9 +5580,12 @@ function Show-JobsFeatureSelection {
     )
     $state = New-JobsFeatureSelectionForm -Packages $Packages -Selected $Selected -Installed $Installed -Mode $Mode -Preview:$Preview -BuildPlan $BuildPlan -WorkerPath $WorkerPath -PreferencesPath $PreferencesPath
     try {
-        if ($state.Form.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { return $null }
-        return $state.Form.Tag
+        [System.Windows.Forms.Application]::Run($state.Form)
+        if ($state.SelectionAccepted) { return $state.Form.Tag }
+        return $null
     } finally {
+        Stop-JobsPanelTray $state
+        if ($null -ne $state.Pump) { $state.Pump.Dispose(); $state.Pump = $null }
         $state.Timer.Dispose()
         $state.LogView.Font.Dispose()
         $state.LogMenu.Dispose()
@@ -4933,7 +5608,9 @@ namespace JobsManagement {
     public sealed class OutputChunk {
         public string Text;
         public bool IsEvent;
-        public OutputChunk(string text, bool isEvent) { Text = text; IsEvent = isEvent; }
+        public bool IsError;
+        public OutputChunk(string text, bool isEvent) : this(text, isEvent, false) { }
+        public OutputChunk(string text, bool isEvent, bool isError) { Text = text; IsEvent = isEvent; IsError = isError; }
     }
     public sealed class OutputPump : IDisposable {
         private const string Marker = "@@JOBS-MANAGER@@";
@@ -4956,19 +5633,19 @@ namespace JobsManagement {
                         if (marker && newline < 0) break;
                         if (newline >= 0) {
                             string line = pending.Substring(0, newline + 1);
-                            Lines.Enqueue(new OutputChunk(marker ? line.TrimEnd('\r', '\n') : line, marker));
+                            Lines.Enqueue(new OutputChunk(marker ? line.TrimEnd('\r', '\n') : line, marker, !events));
                             pending = pending.Substring(newline + 1);
                             atLineStart = true;
                         } else {
-                            Lines.Enqueue(new OutputChunk(pending, false));
+                            Lines.Enqueue(new OutputChunk(pending, false, !events));
                             pending = "";
                             atLineStart = false;
                         }
                     }
                 }
-                if (pending.Length > 0) Lines.Enqueue(new OutputChunk(pending, events && atLineStart && pending.StartsWith(Marker, StringComparison.Ordinal)));
+                if (pending.Length > 0) Lines.Enqueue(new OutputChunk(pending, events && atLineStart && pending.StartsWith(Marker, StringComparison.Ordinal), !events));
             } catch (Exception error) {
-                Lines.Enqueue(new OutputChunk("\n读取后台输出失败：" + error.Message + "\n", false));
+                Lines.Enqueue(new OutputChunk("\n读取后台输出失败：" + error.Message + "\n", false, true));
             } finally { Interlocked.Increment(ref closed); }
         }
         public void Start(ProcessStartInfo info) {
@@ -4992,25 +5669,38 @@ namespace JobsManagement {
 '@
 }
 
+# 仅根据真实步骤状态着色；无需卸载保持信息色，最终失败不能显示成功色。
+function Get-JobsManagementLogLevel {
+    param([string]$Status, [string]$Message, $FeatureStates)
+    switch ($Status) {
+        'Failed' { return 'error' }
+        'Succeeded' { return 'success' }
+        'Skipped' { return 'warning' }
+        'Stopped' { return 'warning' }
+        'Finished' {
+            if (@($FeatureStates.Values | Where-Object { $_ -eq 'Failed' }).Count -gt 0) { return 'error' }
+            if (@($FeatureStates.Values | Where-Object { $_ -eq 'Skipped' }).Count -gt 0) { return 'warning' }
+            return [JobsManagementLog.Palette]::Level($Message)
+        }
+        default { return 'info' }
+    }
+}
+
+# 后台原文仅过滤终端控制码；保存完整纯文本，再按级别及ANSI分段追加到彩色视图。
 function Add-JobsManagementLog {
-    param($State, [string]$Text, [switch]$NoNewline)
-    # 环形显示控制内存，完整输出追加到本次独立日志文件。
+    param($State, [string]$Text, [switch]$NoNewline, [ValidateSet('panel','output','error')][string]$Channel = 'panel', [string]$Level = '')
+    $buffer = Get-JobsManagementLogBuffer $State
+    $contrastKey = Get-JobsPanelContrastKey
+    if ($null -eq $State.PSObject.Properties['LogContrastKey'] -or $State.LogContrastKey -cne $contrastKey) { Set-JobsManagementLogTheme $State -ContrastKey $contrastKey }
+    if (-not $State.LogParsers.ContainsKey($Channel)) { $State.LogParsers[$Channel] = New-Object JobsManagementLog.AnsiParser }
+    if (-not $Level) { $Level = [JobsManagementLog.Palette]::Level($Text); if ($Level -eq 'normal' -and $Channel -eq 'error') { $Level = 'error' } }
     $ending = [Environment]::NewLine
     if ($NoNewline) { $ending = '' }
-    $clean = [regex]::Replace($Text, "\x1b\[[0-?]*[ -/]*[@-~]", '')
-    [IO.File]::AppendAllText($State.LogPath, $clean + $ending, (New-Object Text.UTF8Encoding($false)))
-    $view = $State.LogView
-    $start = $view.SelectionStart
-    $length = $view.SelectionLength
-    if ($view.TextLength -gt 1000000 -and $length -eq 0) { $view.Text = $view.Text.Substring($view.TextLength - 700000) }
-    $view.AppendText($clean + $ending)
-    if ($State.FollowLog.Checked -and $length -eq 0) {
-        $view.SelectionStart = $view.TextLength
-        $view.ScrollToCaret()
-    } else {
-        $view.SelectionStart = [Math]::Min($start, $view.TextLength)
-        $view.SelectionLength = [Math]::Min($length, $view.TextLength - $view.SelectionStart)
-    }
+    $parsed = $State.LogParsers[$Channel].Push($Text + $ending, $Level)
+    [IO.File]::AppendAllText($State.LogPath, $parsed.Plain, (New-Object Text.UTF8Encoding($false)))
+    $remove = $buffer.Append($parsed.Spans)
+    $runs = @($parsed.Spans)
+    $State.LogView.AppendColored([string[]]@($runs | ForEach-Object { $_.Text }), [int[]]@(Get-JobsManagementLogColors $State $runs $State.LogContrastForeground), $remove, [bool]$State.FollowLog.Checked)
 }
 
 # 路径与日志正文都只作为数据；新终端仅用 LiteralPath 读取完整会话文件。
@@ -5126,7 +5816,10 @@ function Complete-JobsManagementRun {
         & $State.Refresh
         Set-JobsFeatureStatusText $State $messageWithProgress
     }
-    Add-JobsManagementLog $State ($messageWithProgress + ' 日志：' + $State.LogPath)
+    $level = 'error'
+    if ($Success) { $level = 'success' }
+    if ($null -ne $State.PSObject.Properties['Stopped'] -and $State.Stopped) { $level = 'warning' }
+    Add-JobsManagementLog $State ($messageWithProgress + ' 日志：' + $State.LogPath) -Level $level
 }
 
 function Read-JobsManagementOutput {
@@ -5142,9 +5835,14 @@ function Read-JobsManagementOutput {
                     $event = $line.Substring(16) | ConvertFrom-Json
                     if ($event.State -eq 'Stopped') { $State.Stopped = $true; continue }
                     if ($event.State -ne 'Finished') { Set-JobsManagementFeatureState $State @($event.FeatureIds) $event.State $event.Message }
-                    Add-JobsManagementLog $State $event.Message
+                    $level = Get-JobsManagementLogLevel $event.State $event.Message $State.FeatureStates
+                    Add-JobsManagementLog $State $event.Message -Level $level
                 } catch { Add-JobsManagementLog $State $line }
-            } else { Add-JobsManagementLog $State $line -NoNewline }
+            } else {
+                $channel = 'output'
+                if ($null -ne $chunk.PSObject.Properties['IsError'] -and $chunk.IsError) { $channel = 'error' }
+                Add-JobsManagementLog $State $line -NoNewline -Channel $channel
+            }
         }
         if ($State.Pump.Process.HasExited -and $State.Pump.Drained -and $State.Pump.Lines.IsEmpty) {
             $success = $State.Pump.Process.ExitCode -eq 0 -and @($State.FeatureStates.Values | Where-Object { $_ -cnotin @('Succeeded', 'NotInstalled') }).Count -eq 0
@@ -5169,7 +5867,7 @@ function Request-JobsManagementStop {
     $State.StopRequested = $true
     $State.ConfirmButton.Enabled = $false
     $State.ConfirmButton.Text = Get-JobsPanelText '等待停止…' (Get-JobsPanelLanguage $State)
-    Add-JobsManagementLog $State '已请求停止安装；当前包事务继续完成，随后不再开始其它包。'
+    Add-JobsManagementLog $State '已请求停止安装；当前包事务继续完成，随后不再开始其它包。' -Level warning
     Update-JobsManagementProgress $State
 }
 # 当前路线独立读取状态，不能让 installed 的选择掩盖 build 路线。
@@ -5221,8 +5919,10 @@ function Start-JobsManagementRun {
     $State.Stopped = $false
     $State.Started = $true
     $State.Running = $true
-    $State.CancelButton.Enabled = $false
-    $State.Form.CancelButton = $null
+    $State.CancelButton.Enabled = $true
+    if ($null -ne $State.PSObject.Properties['CancelText']) { $State.CancelText = '退到系统托盘' }
+    $State.CancelButton.Text = Get-JobsPanelText '退到系统托盘' (Get-JobsPanelLanguage $State)
+    $State.Form.CancelButton = $State.CancelButton
     $State.Form.AcceptButton = $null
     $State.ConfirmButton.Enabled = $State.Operation -eq 'Install'
     if ($State.Operation -eq 'Install') { $State.ConfirmButton.Text = Get-JobsPanelText '停止安装' (Get-JobsPanelLanguage $State) }

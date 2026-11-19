@@ -52,4 +52,11 @@
 
 <!-- JOBS_TERMINAL_STYLE_V1:END -->
 
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [SdkDownloadOutput.ps1](./SdkDownloadOutput.ps1/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
+
+**代码生成必需依赖：** 计划与确认前只读，取消不准备 SDK 或生成工具。明确同意后复用所选项目 Flutter 与同源 Dart；精确 FVM 版本缺失时，Git／FVM 按需准备，FVM 官方独立 ZIP 核对发布摘要，在私有影子项目获取该版本并复检来源、缓存和真实配置 SHA，不执行 `fvm use` 或改写项目绑定。健康 custom SDK 保留；缺 SDK 又没有精确版本、未知 fork／channel 或来源冲突时要求先明确配置，不猜测任意最新版。只有计划确实包含 Protobuf 才准备当前用户 `Google.Protobuf` 和所选 Dart 的私有 `PUB_CACHE` 中的 `protoc_plugin`，通过明确 `--plugin` 路径及子进程环境使用，不覆盖全局插件／缓存。原生许可、系统权限仍由本人处理；网络失败沿当前流程重试，确定阻塞停止。Doctor 仍为只读检查，不因此安装工具。
+
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

@@ -1,6 +1,37 @@
 ﻿# PackageInstaller.psm1 | WindowsOS@Extension 独立功能包
 # Created by Jobs on 2026年10月18日，星期日.
 # 只管理传入功能包自己的文件、状态和菜单；导入模块不会修改系统。
+
+# 源包装与已发布 flat 布局共用路径，兼容旧收据且不跟随包装目录链接。
+function Resolve-JobsScriptLayoutPath {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    if ([IO.Path]::GetExtension($Path) -notin @('.ps1','.cmd','.vbs')) { return $Path }
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        $directory = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('脚本包装不能是链接：' + $Path) }
+        return Join-Path $Path $directory.Name
+    }
+    return $Path
+}
+# 仅新源码包装压平到原发布名称；原有 SDK 资源包与 README 布局保持原意。
+function Convert-JobsReleaseLayoutRelativePath {
+    param([string]$Package, [string]$Relative)
+    $parts = @($Relative -split '[\\/]')
+    if ($parts.Count -lt 2) { return $Relative }
+    $last = $parts[$parts.Count - 1]
+    $parent = $parts[$parts.Count - 2]
+    if ($last -ceq 'README.md' -and [IO.Path]::GetExtension($parent) -in @('.ps1','.cmd','.vbs')) {
+        $sibling = Join-Path (Join-Path $Package (($parts[0..($parts.Count-2)]) -join '/')) $parent
+        if ((Test-Path -LiteralPath $sibling -PathType Leaf) -and ([IO.File]::ReadAllText($sibling) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) { return $null }
+    }
+    if ($last -ceq $parent -and [IO.Path]::GetExtension($last) -in @('.ps1','.cmd','.vbs')) {
+        $source = Join-Path $Package $Relative
+        if ((Test-Path -LiteralPath $source -PathType Leaf) -and ([IO.File]::ReadAllText($source) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) {
+            return (($parts[0..($parts.Count-2)]) -join '/')
+        }
+    }
+    return $Relative
+}
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
@@ -152,7 +183,7 @@ function Clear-JobsPackageBuildArtifactsCore {
     if ($orphan -and -not [string]::IsNullOrWhiteSpace($BuildPath)) { throw '自动清理仍要求本轮正常安装，保留构建产物。' }
     if (-not $orphan) {
         if ([string]::IsNullOrWhiteSpace($state.ReleasePath) -or
-            -not (Test-Path -LiteralPath (Join-Path $state.ReleasePath 'Scripts/Invoke.ps1') -PathType Leaf)) { throw '本功能在默认程序位置尚无正常安装，保留构建产物。' }
+            -not (Test-Path -LiteralPath (Resolve-JobsScriptLayoutPath (Join-Path $state.ReleasePath 'Scripts/Invoke.ps1')) -PathType Leaf)) { throw '本功能在默认程序位置尚无正常安装，保留构建产物。' }
         $runtimeManifest = Get-JobsPackageManifest -PackagePath $state.ReleasePath
         if ($runtimeManifest.Id -cne $manifest.Id) { throw '已安装运行版本身份不一致，保留构建产物。' }
         foreach ($name in @('Common.psm1', 'Action.psm1', 'Invoke.ps1')) {
@@ -249,7 +280,7 @@ function Build-JobsPackageNativeRelease {
         $output = Join-Path $buildRoot ([guid]::NewGuid().ToString('N'))
     }
     $script:LastBuildPath = $output
-    & (Join-Path $ReleasePath 'Scripts/Build.ps1') -SourceRoot $ReleasePath -OutputRoot $output
+    & (Resolve-JobsScriptLayoutPath (Join-Path $ReleasePath 'Scripts/Build.ps1')) -SourceRoot $ReleasePath -OutputRoot $output
     $binaries = @(Get-ChildItem -LiteralPath $output -File | Where-Object { $_.Extension -in @('.dll', '.exe') })
     if (@($binaries | Where-Object { $_.Extension -eq '.dll' }).Count -eq 0) { throw '本轮编译没有产生原生 DLL。' }
     if ($manifest.Id -in @('flutter-run', 'flutter-tools') -and -not (Test-Path -LiteralPath (Join-Path $output 'JobsFlutterRunnerHost.exe') -PathType Leaf)) { throw 'Flutter 后台宿主 EXE 缺失，停止部署。' }
@@ -398,21 +429,29 @@ function New-JobsPackageRelease {
     if (-not $scriptsItem.PSIsContainer -or ($scriptsItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Scripts 必须是本包真实目录。' }
     $files = @('Extension.json')
     foreach ($name in @('Common.psm1', 'Action.psm1', 'Invoke.ps1', 'Manage.ps1', 'PackageInstaller.psm1')) {
-        if (-not (Test-Path -LiteralPath (Join-Path $scripts $name) -PathType Leaf)) { throw ('本包缺少运行文件：Scripts/' + $name) }
+        if (-not (Test-Path -LiteralPath (Resolve-JobsScriptLayoutPath (Join-Path $scripts $name)) -PathType Leaf)) { throw ('本包缺少运行文件：Scripts/' + $name) }
     }
     # 只取当前包的直属脚本；开发测试、日志及相邻功能从不进入 release。
-    foreach ($item in Get-ChildItem -LiteralPath $scripts -File -Force -ErrorAction Stop) {
+    foreach ($item in Get-ChildItem -LiteralPath $scripts -Force -ErrorAction Stop) {
+        if ($item.PSIsContainer) {
+            if ($item.Extension -eq '.ps1') {
+                $wrapped = Resolve-JobsScriptLayoutPath $item.FullName
+                if ((Test-Path -LiteralPath $wrapped -PathType Leaf) -and ([IO.File]::ReadAllText($wrapped) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) { $files += 'Scripts/' + $item.Name }
+            }
+            continue
+        }
         if ($item.Extension -in @('.ps1', '.psm1', '.dart', '.cs', '.cpp', '.h', '.def') -and $item.Name -notmatch '(?i)\.Tests?\.') {
             $files += 'Scripts/' + $item.Name
         }
     }
     foreach ($name in @('Manage.cmd', 'Manage.vbs', 'Run.cmd', 'README.md')) {
-        if (Test-Path -LiteralPath (Join-Path $package $name) -PathType Leaf) { $files += $name }
+        if (Test-Path -LiteralPath (Resolve-JobsScriptLayoutPath (Join-Path $package $name)) -PathType Leaf) { $files += $name }
     }
-    foreach ($relative in $files) { Assert-JobsPackageSourceFile -Path (Join-Path $package $relative) }
+    $files = @($files | ForEach-Object { Convert-JobsReleaseLayoutRelativePath $package $_ } | Where-Object { $null -ne $_ } | Select-Object -Unique)
+    foreach ($relative in $files) { Assert-JobsPackageSourceFile -Path (Resolve-JobsScriptLayoutPath (Join-Path $package $relative)) }
     [void][IO.Directory]::CreateDirectory((Join-Path $destinationPath 'Scripts'))
     foreach ($relative in $files) {
-        $source = Join-Path $package $relative
+        $source = Resolve-JobsScriptLayoutPath (Join-Path $package $relative)
         $target = Join-Path $destinationPath $relative
         Copy-Item -LiteralPath $source -Destination $target -ErrorAction Stop
         if ((Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash) {
@@ -537,7 +576,7 @@ function Set-JobsPackageUninstallShortcut {
         $shortcut = $shell.CreateShortcut($path)
         $shortcut.TargetPath = Join-Path $PSHOME 'powershell.exe'
         $shortcut.Arguments = '-NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File ' +
-            (ConvertTo-JobsPackageArgument (Join-Path $ReleasePath 'Scripts/Manage.ps1')) + ' -Mode Uninstall'
+            (ConvertTo-JobsPackageArgument (Resolve-JobsScriptLayoutPath (Join-Path $ReleasePath 'Scripts/Manage.ps1'))) + ' -Mode Uninstall'
         $shortcut.WorkingDirectory = $ReleasePath
         $shortcut.Description = '卸载 ' + $Manifest.Label + ' 右键菜单'
         $shortcut.Save()

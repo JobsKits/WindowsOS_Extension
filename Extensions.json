@@ -52,6 +52,14 @@
     "Name": "JobsFileHasher"
   },
   {
+    "Id": "file-visibility",
+    "Name": "JobsFileVisibility"
+  },
+  {
+    "Id": "permanent-delete",
+    "Name": "JobsPermanentDeleter"
+  },
+  {
     "Id": "file-volumes",
     "Name": "JobsFileVolumes"
   },
@@ -98,5 +106,9 @@
   {
     "Id": "clean-build-artifacts",
     "Name": "JobsBuildArtifactCleaner"
+  },
+  {
+    "Id": "disk-space-info",
+    "Name": "JobsDiskSpaceInfo"
   }
 ]

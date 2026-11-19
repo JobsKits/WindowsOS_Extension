@@ -20,6 +20,33 @@ namespace JobsFlutterRunner {
         private static Dictionary<string, object> state;
         private static readonly UTF8Encoding Utf8 = new UTF8Encoding(false);
 
+        public static string ValidateTarget(string project, string target) {
+            if (String.IsNullOrEmpty(target)) return "";
+            string root = Path.GetFullPath(project).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string entry = Path.GetFullPath(target);
+            if (!entry.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase) ||
+                !String.Equals(Path.GetExtension(entry), ".dart", StringComparison.OrdinalIgnoreCase) || !File.Exists(entry) ||
+                entry.IndexOfAny(new char[] { '"', '\r', '\n', '\0' }) >= 0 ||
+                (File.GetAttributes(entry) & (FileAttributes.Directory | FileAttributes.ReparsePoint)) != 0) {
+                throw new InvalidOperationException("Demo 必须是当前工程内的普通 .dart 文件。");
+            }
+            DirectoryInfo directory = new DirectoryInfo(Path.GetDirectoryName(entry));
+            bool reachedProject = false;
+            while (directory != null) {
+                if ((directory.Attributes & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("Demo 路径不能包含链接或目录联接。");
+                if (String.Equals(directory.FullName.TrimEnd(Path.DirectorySeparatorChar), root, StringComparison.OrdinalIgnoreCase)) reachedProject = true;
+                if (!reachedProject && (File.Exists(Path.Combine(directory.FullName, "pubspec.yaml")) || Directory.Exists(Path.Combine(directory.FullName, "pubspec.yaml")))) {
+                    throw new InvalidOperationException("Demo 属于嵌套包，请重新从目标文件启动。");
+                }
+                directory = directory.Parent;
+            }
+            if (!reachedProject) throw new InvalidOperationException("Demo 不属于当前工程。");
+            return entry;
+        }
+        public static string RunCommand(bool hasTarget) {
+            return "\"%JOBS_FLUTTER_RUNNER_EXECUTABLE%\" run --machine -d \"%JOBS_FLUTTER_RUNNER_DEVICE%\"" +
+                (hasTarget ? " -t \"%JOBS_FLUTTER_RUNNER_TARGET%\"" : "") + "\r\n";
+        }
         public static string Quote(string value) {
             StringBuilder output = new StringBuilder("\"");
             int slashes = 0;
@@ -105,6 +132,9 @@ namespace JobsFlutterRunner {
             string project = request["Project"];
             string flutterPath = request["Flutter"];
             string device = request["Device"];
+            string requestedTarget;
+            request.TryGetValue("Target", out requestedTarget);
+            string target = ValidateTarget(project, requestedTarget);
             if (!Directory.Exists(project) || !File.Exists(flutterPath) || String.IsNullOrWhiteSpace(device) ||
                 device.IndexOfAny(new char[] { '"', '\r', '\n', '\0' }) >= 0) throw new InvalidOperationException("无效的项目、Flutter 或设备。");
             // 文件锁在后台进程持有；终端退出不影响锁，重复右键只能重连。
@@ -112,12 +142,13 @@ namespace JobsFlutterRunner {
             using (var ownership = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
             using (Process owner = Process.GetCurrentProcess()) {
                 state = new Dictionary<string, object> {
-                    { "Project", project }, { "Flutter", flutterPath }, { "Device", device },
+                    { "Project", project }, { "Flutter", flutterPath }, { "Device", device }, { "Target", target },
                     { "WorkerPid", owner.Id }, { "WorkerStartUtc", owner.StartTime.ToUniversalTime().ToString("o") },
                     { "Status", "Starting" }, { "Session", session }, { "StartedUtc", DateTime.UtcNow.ToString("o") }
                 };
                 SaveState();
                 Log("项目：" + project + Environment.NewLine + "Flutter：" + flutterPath + Environment.NewLine + "设备：" + device);
+                if (!String.IsNullOrEmpty(target)) Log("Demo：" + target);
                 using (var child = new Process()) {
                     child.StartInfo.UseShellExecute = false;
                     child.StartInfo.CreateNoWindow = true;
@@ -130,10 +161,11 @@ namespace JobsFlutterRunner {
                     child.StartInfo.EnvironmentVariables["FLUTTER_SUPPRESS_ANALYTICS"] = "true";
                     child.StartInfo.EnvironmentVariables["DART_SUPPRESS_ANALYTICS"] = "true";
                     string gate = Path.Combine(session, "launch.cmd");
-                    File.WriteAllText(gate, "@echo off\r\nset /p \"JOBS_FLUTTER_RUNNER_GATE=\"\r\nif not \"%JOBS_FLUTTER_RUNNER_GATE%\"==\"START\" exit /b 2\r\n\"%JOBS_FLUTTER_RUNNER_EXECUTABLE%\" run --machine -d \"%JOBS_FLUTTER_RUNNER_DEVICE%\"\r\n", Encoding.ASCII);
+                    File.WriteAllText(gate, "@echo off\r\nset /p \"JOBS_FLUTTER_RUNNER_GATE=\"\r\nif not \"%JOBS_FLUTTER_RUNNER_GATE%\"==\"START\" exit /b 2\r\n" + RunCommand(!String.IsNullOrEmpty(target)), Encoding.ASCII);
                     child.StartInfo.FileName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "cmd.exe");
                     child.StartInfo.EnvironmentVariables["JOBS_FLUTTER_RUNNER_EXECUTABLE"] = flutterPath;
                     child.StartInfo.EnvironmentVariables["JOBS_FLUTTER_RUNNER_DEVICE"] = device;
+                    child.StartInfo.EnvironmentVariables["JOBS_FLUTTER_RUNNER_TARGET"] = target;
                     child.StartInfo.EnvironmentVariables["JOBS_FLUTTER_RUNNER_GATE_SCRIPT"] = gate;
                     child.StartInfo.EnvironmentVariables.Remove("JOBS_FLUTTER_RUNNER_GATE");
                     child.StartInfo.Arguments = "/d /v:off /s /c \"\"%JOBS_FLUTTER_RUNNER_GATE_SCRIPT%\"\"";

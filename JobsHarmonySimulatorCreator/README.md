@@ -18,7 +18,7 @@
 
 ---
 
-**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。任务开始前关闭或取消面板不会启动操作；卸载保留日志、备份、运行文件和工具。
 
 ## 🔥 <span id="前言">前言</span>
 
@@ -36,10 +36,14 @@
 
 **系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
 
-**本包依赖与测试范围：** 仅支持 AMD64（x64）Windows 10 / 11 物理机；Windows ARM、32 位系统及虚拟机不在 [DevEco 本地模拟器官方支持范围](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-emulator-requirements)。安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。`Run.cmd` 不要求编译菜单，但仍受相同宿主、SDK、镜像与硬件虚拟化限制。
+**本包依赖与测试范围：** 仅支持 AMD64（x64）Windows 10 / 11 物理机；Windows ARM、32 位系统及虚拟机不在 [DevEco 本地模拟器官方支持范围](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-emulator-requirements)。安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。`Run.cmd/Run.cmd` 不要求编译菜单，但仍受相同宿主、SDK、镜像与硬件虚拟化限制。
 
 
 **面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
+
+**管理面板关闭：** 空闲关闭时选择退到系统托盘或完全退出，默认回车为托盘、Esc 保留原窗；安装／卸载／构建清理进行中关闭直接后台，不询问、不终止任务。完工仍驻留，从托盘双击或“显示管理面板”恢复同一窗口；忙碌时不能完全退出。
+
+**整行选择：** 点击复选框、图标、功能文字、普通状态区或该功能行空白，仅切换该项一次，保留原 Tab／Space 复选框操作及勾选事件。任务执行中及不可用项禁止切换；失败日志链接和独立按钮优先执行自身动作，不连带勾选。组标题拖动、分组按钮和组尾空白不算功能行；移动、离开、滚动或触控滑动会取消本次点击候选，不接管原生滚动。选择本身不执行安装、卸载或清理，原默认空选、主题／语言切换保留勾选及持久化规则不变。
 
 **两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
 
@@ -73,33 +77,33 @@ Windows x64 使用 [CLT 6.1.1.280](https://libsdl.org/harmonyos-devtools/command
 | `-NoStart` | 创建并验证后结束，不询问启动。 |
 | `-Check` | 只读查询工具能力、已下载镜像及现有实例。 |
 
-双击 [Run.cmd](./Run.cmd) 也执行相同的新建流程，无需先注册菜单。需要精确参数时，在本目录使用已有 Windows PowerShell：
+双击 [Run.cmd](./Run.cmd/Run.cmd) 也执行相同的新建流程，无需先注册菜单。需要精确参数时，在本目录使用已有 Windows PowerShell：
 
 ```powershell
 powershell.exe `
   -NoProfile `
-  -File .\Scripts\CreateHarmonySimulator.ps1 `
+  -File Scripts\CreateHarmonySimulator.ps1\CreateHarmonySimulator.ps1 `
   -Check
 
 powershell.exe `
   -NoProfile `
-  -File .\Scripts\CreateHarmonySimulator.ps1 `
+  -File Scripts\CreateHarmonySimulator.ps1\CreateHarmonySimulator.ps1 `
   -Name JobsHarmonyDemo `
   -NoStart
 ```
 
-进入终端后，直接回车继续、任意非空输入取消；选择器优先使用健康的 [**fzf**](https://github.com/junegunn/fzf)，否则显示编号，回车默认第 1 项、`q` 取消，EOF 停止。选择器临时隔离用户 execute 配置并使用 UTF-8，退出后恢复。工具会查询镜像元数据，可能访问华为服务；缺少工具时安装 SDL 镜像依赖；缺镜像时通过官方 CLI 下载所选项；不配置代理或改 PATH。
+进入终端后，直接回车继续、任意非空输入取消；选择器复用健康的 [**fzf**](https://github.com/junegunn/fzf)，缺失或损坏才沿本流程准备；多项默认取消，取消或 EOF 停止。选择器临时隔离用户 execute 配置并使用 UTF-8，退出后恢复。工具会查询镜像元数据，可能访问华为服务；缺少工具时安装 SDL 镜像依赖；缺镜像时通过官方 CLI 下载所选项；不配置代理或持久 PATH，仅当前流程刷新工具搜索路径。
 
 ## 三、<span id="workflow">创建、验证与许可</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
 流程只使用官方公开命令，参数依据[通过命令行使用模拟器](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/ide-emulator-command-line)：
 
 - 先检查 `Emulator -help`，再通过 `-imageList -downloaded true` 获取可选择的已下载镜像，并通过 `-list -details` 读取现有实例。
-- 缺本地镜像时调用 `-imageList -downloaded false`，手机优先、数字版本降序；回车选首项并确认下载。展示 Emulator 随附 `agreement/` 中两份许可原文，用户在明确的“本人同意”提示下回车后才调用 `-license accept`。任意非空输入取消，每次任务最多确认一次。然后用 `-install -deviceType TYPE -osVersion VERSION -force` 下载；仅已确认的新镜像安装省略重复提示，创建与启动不用 `-force`。必须在本地清单验证到所选类型和版本才继续，返回 0 但未安装也视为失败，不无限复检。
+- 缺本地镜像时调用 `-imageList -downloaded false`，手机优先、数字版本降序；多项通过默认取消的键盘列表明确选择，许可仍单独确认。展示 Emulator 随附 `agreement/` 中两份许可原文，用户在明确的“本人同意”提示下回车后才调用 `-license accept`。任意非空输入取消，每次任务最多确认一次。然后用 `-install -deviceType TYPE -osVersion VERSION -force` 下载；仅已确认的新镜像安装省略重复提示，创建与启动不用 `-force`。必须在本地清单验证到所选类型和版本才继续，返回 0 但未安装也视为失败，不无限复检。
 - 选择镜像后生成唯一名称，显示计划并等待创建确认；调用 `-create NAME -deviceType TYPE -osVersion VERSION`。实例 / 镜像路径沿用 DevEco 已配置默认值，机型使用官方最新默认模板。
 - 确认后再次读取清单并复检重名，再执行创建；创建命令必须成功，且回读清单必须包含唯一、名称 / 产品类型 / 系统版本均匹配的新实例，才报告验证完成。不会覆盖或删除既有实例，也不传 `-force`。
 - 独立 CLT 创建完成后，若新实例缺少 SDK 字段，验证同包 `sdk/default/openharmony/toolchains/hdc.exe` 后补入该实例的 `sdkPath`；保留官方已有路径，不改全局环境或旧实例。
-- 创建后可回车启动，任意非空输入只保留实例并跳过；启动使用 `-start NAME`，保留原生控制台及官方额外交互；若本次尚未确认许可，先展示许可原文并本人回车同意。
+- 创建前默认取消，← 可返回镜像列表并保留查询；创建后启动独立默认取消，只保留实例时不会启动；启动使用 `-start NAME`，保留原生控制台及官方额外交互；若本次尚未确认许可，先展示许可原文并本人回车同意。
 
 官方镜像查询示例使用 JSON 数组；实例详情文档只给字段说明，未提供实际顶层样例。当前解析器接受数组或单个包含无控制字符的字符串 `name` 的 JSON 对象，拒绝重复或大小写冲突的名称，针对同版本 Mac CLI 实测的空结果，仅将退出码为 0 的精确 `No images matching the criteria were found.` / `[Empty]` 转为空数组；其它容器、非 JSON、缺字段或验证不匹配均停止。命令返回后无法验证时，会保留现场并提示去 Device Manager 核对，避免把日志文案或仅打开 IDE 当成成功。
 
@@ -120,11 +124,11 @@ JobsHarmonySimulatorCreator/
 
 macOS PowerShell 7.6.8 隔离验证基线：镜像流程 17、业务 64、SDL 依赖 36、总目录菜单 58 条断言均通过。
 
-[依赖安装回归](../Tests/HarmonySimulatorBootstrap.Tests.ps1)与[业务回归](../Tests/HarmonySimulatorCreator.Tests.ps1)与[镜像流程回归](../Tests/HarmonySimulatorImages.Tests.ps1)使用临时目录和假 Emulator，不联网安装、不注册菜单、不创建真实实例；[桌面门禁探针](../Tests/HarmonyDesktopProbe.cpp)核对纯路径范围。macOS PowerShell 7 只能证明可移植业务和夹具行为；Windows PowerShell 5.1、真实 `Emulator.exe` 输出结构、MSVC DLL、Explorer 菜单、硬件虚拟化、许可和真实创建 / 启动仍需 Windows 实机验收。
+[依赖安装回归](../Tests/HarmonySimulatorBootstrap.Tests.ps1)与[业务回归](../Tests/HarmonySimulatorCreator.Tests.ps1/HarmonySimulatorCreator.Tests.ps1)与[镜像流程回归](../Tests/HarmonySimulatorImages.Tests.ps1/HarmonySimulatorImages.Tests.ps1)使用临时目录和假 Emulator，不联网安装、不注册菜单、不创建真实实例；[桌面门禁探针](../Tests/HarmonyDesktopProbe.cpp)核对纯路径范围。macOS PowerShell 7 只能证明可移植业务和夹具行为；Windows PowerShell 5.1、真实 `Emulator.exe` 输出结构、MSVC DLL、Explorer 菜单、硬件虚拟化、许可和真实创建 / 启动仍需 Windows 实机验收。
 
 2026-10-23 验证：PowerShell 7.6.8 下依赖安装回归 36 断言、创建业务 64 断言、独立 Action 模块 168 断言、独立包架构 558 断言全部通过；桌面范围 C++ 探针 13 断言通过。Windows 完整 ZIP 的 CRC 全检和 102,433 条路径核查通过；下载函数已对 SDL 站点完成真实流式读取验证。Windows PowerShell 5.1、扩展路径在 Windows 上的解压、真实 Emulator.exe 与 Explorer 菜单仍待 Windows 实机验收。
 
-管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs/Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 **SDK 环境准备：** 已选择的 SDK／版本所需下载、安装及首次 Flutter／Dart 缓存补齐自动执行；网络失败或无进度超时后持续重试，间隔逐步增加并封顶 30 秒，没有次数和总时长上限，直到成功或本人 Ctrl+C／停止。仍在输出下载进度的传输不按总时长截断；成功后才进入后续业务。目标／版本选择、官方许可证与系统权限仍由本人处理；路径、权限、磁盘或明确不存在的版本会报告具体原因。每次尝试和真实进度追加到终端所示日志；同一 URL 有 ETag／Last-Modified 时安全续传，跨来源保留独立临时文件，不拼接不同来源。失败／取消保留下载现场；业务构建和配置写入不因网络重试而整体重放。
 
@@ -141,5 +145,12 @@ macOS PowerShell 7.6.8 隔离验证基线：镜像流程 17、业务 64、SDL �
 > 验证范围：已完成 PowerShell 语法、参数／退出与隔离生命周期核验；Windows 原生控制台的显示、按键与 `Ctrl+C` 实机验证尚未完成。
 
 <!-- JOBS_TERMINAL_STYLE_V1:END -->
+
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [Manage.vbs](./Manage.vbs/README.md)、[Run.cmd](./Run.cmd/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
+
+**键盘选择依赖：** 仅实际进入多项选择或最终执行确认时准备 fzf；健康路径、版本和真实选项探针通过就复用。缺失或损坏时沿当前流程调用当前用户 WinGet 安装／修复并刷新本进程 PATH；App Installer 缺失时仅打开一次官方界面并等待本流程复检，许可与系统权限由本人处理。网络失败持续重试至成功或 Ctrl+C；明确权限、磁盘、许可、版本阻塞停止。选择器不继承用户执行选项；默认取消，↑／↓／Tab 导航，← 返回真正上一层，Esc／Ctrl+C 取消。未进入选择、单一可复用目标、只读检查和管理 GUI 不因此安装依赖。
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

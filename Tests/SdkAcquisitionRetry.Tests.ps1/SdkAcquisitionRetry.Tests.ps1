@@ -1,9 +1,40 @@
 ﻿# SDK 获取隔离回归：假命令；不安装环境、不注册菜单。
 param([switch]$CancelProbe,[string]$ProbePath)
+# 源包装与已发布 flat 布局共用路径，兼容旧收据且不跟随包装目录链接。
+function Resolve-JobsScriptLayoutPath {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    if ([IO.Path]::GetExtension($Path) -notin @('.ps1','.cmd','.vbs')) { return $Path }
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        $directory = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('脚本包装不能是链接：' + $Path) }
+        return Join-Path $Path $directory.Name
+    }
+    return $Path
+}
+# 仅新源码包装压平到原发布名称；原有 SDK 资源包与 README 布局保持原意。
+function Convert-JobsReleaseLayoutRelativePath {
+    param([string]$Package, [string]$Relative)
+    $parts = @($Relative -split '[\\/]')
+    if ($parts.Count -lt 2) { return $Relative }
+    $last = $parts[$parts.Count - 1]
+    $parent = $parts[$parts.Count - 2]
+    if ($last -ceq 'README.md' -and [IO.Path]::GetExtension($parent) -in @('.ps1','.cmd','.vbs')) {
+        $sibling = Join-Path (Join-Path $Package (($parts[0..($parts.Count-2)]) -join '/')) $parent
+        if ((Test-Path -LiteralPath $sibling -PathType Leaf) -and ([IO.File]::ReadAllText($sibling) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) { return $null }
+    }
+    if ($last -ceq $parent -and [IO.Path]::GetExtension($last) -in @('.ps1','.cmd','.vbs')) {
+        $source = Join-Path $Package $Relative
+        if ((Test-Path -LiteralPath $source -PathType Leaf) -and ([IO.File]::ReadAllText($source) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) {
+            return (($parts[0..($parts.Count-2)]) -join '/')
+        }
+    }
+    return $Relative
+}
+
 Set-StrictMode -Version 2.0
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-. (Join-Path $root 'JobsFlutterTools/Scripts/SdkDownloadOutput.ps1')
+. (Resolve-JobsScriptLayoutPath (Join-Path $root 'JobsFlutterTools/Scripts/SdkDownloadOutput.ps1'))
 if ($CancelProbe) {
     [void](Invoke-JobsSdkAcquire -Operation {
         [IO.File]::AppendAllText($ProbePath,"attempt`n")
@@ -110,7 +141,7 @@ public sealed class JobsResumeFixture : IDisposable {
         Assert-Retry (@(Get-ChildItem -LiteralPath $temporary -Filter 'checksum-sdk.zip.invalid-*').Count -eq 1) '坏包独立保留，不污染续传缓存'
     }finally{$server.Dispose()}
     # 官方 Windows SDK 安装命令幂等重试，退出0仍须检查真实组件。
-    . (Join-Path $root 'JobsFlutterTools/Scripts/ProjectSetupToolchains.ps1')
+    . (Resolve-JobsScriptLayoutPath (Join-Path $root 'JobsFlutterTools/Scripts/ProjectSetupToolchains.ps1'))
     $savedProgramFiles=${env:ProgramFiles(x86)}
     ${env:ProgramFiles(x86)}=$temporary
     $installer=Join-Path $temporary 'Microsoft Visual Studio/Installer/setup.exe'
@@ -168,7 +199,7 @@ public sealed class JobsResumeFixture : IDisposable {
     }finally{Remove-Module $fvm}
     $machine=ConvertFrom-JobsSdkMachineOutput "Building {fixture}`n{`"frameworkVersion`":`"3.38.4`"}"
     Assert-Retry ($machine.frameworkVersion -ceq '3.38.4') 'SDK自举杂散输出不污染末尾机器版本响应'
-    $hash=(Get-FileHash -LiteralPath (Join-Path $root 'JobsFlutterTools/Scripts/SdkDownloadOutput.ps1') -Algorithm SHA256).Hash
+    $hash=(Get-FileHash -LiteralPath (Resolve-JobsScriptLayoutPath (Join-Path $root 'JobsFlutterTools/Scripts/SdkDownloadOutput.ps1')) -Algorithm SHA256).Hash
     foreach($copy in @(Get-ChildItem -LiteralPath $root -Filter SdkDownloadOutput.ps1 -Recurse -File)) {
         Assert-Retry ((Get-FileHash -LiteralPath $copy.FullName -Algorithm SHA256).Hash -ceq $hash) ('helper副本一致：'+$copy.FullName)
     }

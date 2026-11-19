@@ -1,4 +1,35 @@
 ﻿# 网络选路隔离回归；新探测传输入口全部由假响应替代，禁止真实网络。
+
+# 源包装与已发布 flat 布局共用路径，兼容旧收据且不跟随包装目录链接。
+function Resolve-JobsScriptLayoutPath {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    if ([IO.Path]::GetExtension($Path) -notin @('.ps1','.cmd','.vbs')) { return $Path }
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        $directory = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('脚本包装不能是链接：' + $Path) }
+        return Join-Path $Path $directory.Name
+    }
+    return $Path
+}
+# 仅新源码包装压平到原发布名称；原有 SDK 资源包与 README 布局保持原意。
+function Convert-JobsReleaseLayoutRelativePath {
+    param([string]$Package, [string]$Relative)
+    $parts = @($Relative -split '[\\/]')
+    if ($parts.Count -lt 2) { return $Relative }
+    $last = $parts[$parts.Count - 1]
+    $parent = $parts[$parts.Count - 2]
+    if ($last -ceq 'README.md' -and [IO.Path]::GetExtension($parent) -in @('.ps1','.cmd','.vbs')) {
+        $sibling = Join-Path (Join-Path $Package (($parts[0..($parts.Count-2)]) -join '/')) $parent
+        if ((Test-Path -LiteralPath $sibling -PathType Leaf) -and ([IO.File]::ReadAllText($sibling) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) { return $null }
+    }
+    if ($last -ceq $parent -and [IO.Path]::GetExtension($last) -in @('.ps1','.cmd','.vbs')) {
+        $source = Join-Path $Package $Relative
+        if ((Test-Path -LiteralPath $source -PathType Leaf) -and ([IO.File]::ReadAllText($source) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) {
+            return (($parts[0..($parts.Count-2)]) -join '/')
+        }
+    }
+    return $Relative
+}
 Set-StrictMode -Version 2.0
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -40,6 +71,8 @@ try{
     $route=Get-JobsFlutterSdkRoute $uri 'Flutter3.38.4 / engine-a / windows-x64' @{} -PublicObject $true
     Assert-Route ($route.Ready-and$route.Verified-and([Uri]$route.Uri).Host-ceq'storage.flutter-io.cn') '相同真实制品证据下选择更快CFUG'
     Assert-Route ($script:requests.Count-eq3-and$route.Environment['FLUTTER_STORAGE_BASE_URL']-ceq'https://storage.flutter-io.cn') '官方/CFUG及官方对象元数据并行参与'
+    $metadata=@($script:requests|Where-Object{$_.Kind-ceq'object-metadata'})
+    Assert-Route ($metadata.Count-eq1-and$metadata[0].Uri-ceq('https://storage.googleapis.com/storage/v1/b/flutter_infra_release/o/'+[Uri]::EscapeDataString('flutter/'+('a'*40)+'/dart-sdk-windows-x64.zip')+'?fields=size,md5Hash,contentType,generation')) 'Windows PowerShell 5.1兼容地拆分bucket与完整对象路径，保留对象内斜杠'
     Assert-Route (-not$route.Environment.Contains('PUB_HOSTED_URL')) '不依据SDK测速擅自改Pub源'
     [void](Get-JobsFlutterSdkRoute $uri 'Flutter3.38.4 / engine-a / windows-x64' @{} -PublicObject $true)
     Assert-Route ($script:batches-eq1) '同任务短期缓存避免每个小下载重测'
@@ -128,7 +161,7 @@ try{
     Assert-Route ($target.Uri-ceq'https://private.invalid/custom.git/info/refs?service=git-upload-pack') 'Harmony/用户fork只测原Git网络通道，不重写仓库地址'
     Assert-Route ((ConvertTo-JobsSdkRouteArgument 'C:\SDK path\')-ceq'"C:\SDK path\\"') 'Win32参数引用保留路径反斜杠与空格'
     # A小样本始终最快，但真正大下载失败；必须转B，不能invalidate后永远选回A。
-    . (Join-Path $root 'JobsFlutterTools/Scripts/SdkDownloadOutput.ps1')
+    . (Resolve-JobsScriptLayoutPath (Join-Path $root 'JobsFlutterTools/Scripts/SdkDownloadOutput.ps1'))
     $script:JobsSdkRetryLog=Join-Path $temporary 'acquisition.log'
     $script:actual=New-Object 'Collections.Generic.List[string]'
     $script:payload=[Text.Encoding]::UTF8.GetBytes(('Z'*32768))
@@ -151,7 +184,7 @@ try{
     $download=Join-Path $temporary 'download.zip'
     Receive-JobsSdkWebFile 'https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.38.4-stable.zip' $download 30 -ExpectedSha256 $sha
     Assert-Route (($script:actual-join'|')-ceq'A|B'-and(Get-FileHash -LiteralPath $download -Algorithm SHA256).Hash-ceq$sha) '真实下载失败的最快A降权后切B成功，不困在同一坏路线'
-    . (Join-Path $root 'JobsFlutterRunner/Scripts/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1')
+    . (Join-Path $root 'JobsFlutterTools/Scripts/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1')
     [IO.File]::WriteAllText((Join-Path $sdk '.git/config'),"[remote `"origin`"]`n    url = https://github.com/flutter/flutter.git`n")
     [IO.File]::WriteAllText((Join-Path $project '.fvmrc'),'{"flutter":"3.38.4"}')
     [IO.File]::WriteAllText((Join-Path $sdk 'bin/cache/engine-dart-sdk.stamp'),('a'*40))

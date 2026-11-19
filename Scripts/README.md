@@ -23,11 +23,17 @@
 本目录负责扩展包的组合选择、逐包编排、通用模板同步，以及 [**Markdown**](https://markdown.cn) 目录过滤器的兼容入口。首次使用先看[仓库总说明](../README.md)，安装菜单运行根目录的 `.cmd` 轻量入口，唤起同一 GUI 后立即结束启动脚本；各项右键功能的业务实现位于对应包的 `Scripts/Action.psm1`。
 
 
-**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。主题和语言按钮使用紧凑宽度、文字居中，展开列表显示完整选项；窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
+**面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。主题和语言按钮使用紧凑宽度、文字居中，展开列表显示完整选项；标签与下拉按控件实际高度对齐并垂直居中；窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
+
+**日志配色与滚动：** 日志使用独立的白天／黑夜背景、正文和错误／警告／成功／信息配色，ANSI 前景色按当前底色提高对比度；跟随系统采用对应一套。切换主题重配已有日志颜色，保留正文、选区和阅读位置。 Windows 高对比度开启、关闭或系统色变化时，已有日志和新输出同步采用对应底色与正文色，现有外观轮询同步面板。鼠标滚轮、触摸板、滚动条、方向／翻页键及选择正文暂停“自动滚动”，重新勾选才恢复追尾；后台继续接收日志。右键复制与 Ctrl+C 仅复制纯文本，可见区超过 100 万字符保留最后 70 万，原“复制全部日志”读取本次完整纯文本文件。追尾开关和阅读位置只保留当前窗口，不另存偏好。 日志文件仍为 `%TEMP%\JobsExtensionManager-<运行编号>.log`；过滤 ANSI 控制码，不执行 OSC、超链接或剪贴板控制。格式与追加隔离验证见[日志回归](../Tests/PanelLog.Tests.ps1/README.md)，Windows 原生控件、硬件滚动及系统主题实机仍需验收。
+
+**关闭与系统托盘：** 安装／卸载／构建清理进行中，点击窗口关闭、按 Esc 或使用底部关闭入口都直接退到系统托盘，后台任务和日志继续运行，不弹询问。任务完成后仍驻留，双击通知图标或选择“显示管理面板”恢复同一窗口、勾选与日志；托盘菜单显示当前状态。只有空闲关闭才询问“退到系统托盘／完全退出”，回车默认托盘，Esc 或“保留窗口”取消关闭选择；托盘的“完全退出”在任务中禁用并说明原因，执行出口再次检查任务，不能中途终止工作进程。真正退出才释放通知图标、菜单及计时器；托盘不可用时保留可见窗口。关闭选择不记忆，下次空闲关闭仍询问；托盘和隐藏状态仅属于本次进程。图标复用当前管理窗口的应用图标，无额外下载。 隔离验证见[托盘生命周期回归](../Tests/PanelTray.Tests.ps1/README.md)。
+
+**整行选择：** 点击复选框、图标、功能文字、普通状态区或该功能行空白，仅切换该项一次，保留原 Tab／Space 复选框操作及勾选事件。任务执行中及不可用项禁止切换；失败日志链接和独立按钮优先执行自身动作，不连带勾选。组标题拖动、分组按钮和组尾空白不算功能行；移动、离开、滚动或触控滑动会取消本次点击候选，不接管原生滚动。选择本身不执行安装、卸载或清理，原默认空选、主题／语言切换保留勾选及持久化规则不变。 验证及原生边界见[整行选择回归](../Tests/PanelRowSelection.Tests.ps1/README.md)。
 
 **两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
 
-**构建产物清理：** 安装位置选择、显示中的自动清理复选框与红色“🧹 清除构建产物”按钮排在同一行，垂直居中、间隔统一。英文或窄窗空间不足时，该行可水平滚动，文字保持完整，不拆成两行。仅默认安装位置路线显示默认关闭的“安装成功后清除此轮构建产物”和红底白字的“🧹 清除构建产物”独立按钮。自动清理仅处理本次成功安装产生的编译 GUID 子目录；独立按钮按当前选择清理本包 `work\JobsExtensionBuild` 专用编译工作区，不需要重新安装。临时路线隐藏清理控件。清理验证运行文件、标记与路径边界并持有事务锁，保留已经安装的 `.exe`、`.dll`、`.cmd`、`.ps1`、配置和注册表；自动清理失败明确显示“安装成功，清理失败”，独立清理失败正常报错。
+**构建产物清理：** 安装位置选择与显示中的自动清理复选框排在同一行，垂直居中、间隔统一；红色“🧹 清除构建产物”按钮位于底部主按钮右侧。英文或窄窗空间不足时，该行可水平滚动，文字保持完整，不拆成两行。仅默认安装位置路线显示默认关闭的“安装成功后清除此轮构建产物”和红底白字的“🧹 清除构建产物”独立按钮。自动清理仅处理本次成功安装产生的编译 GUID 子目录；独立按钮按当前选择清理本包 `work\JobsExtensionBuild` 专用编译工作区，不需要重新安装。临时路线隐藏清理控件。清理验证运行文件、标记与路径边界并持有事务锁，保留已经安装的 `.exe`、`.dll`、`.cmd`、`.ps1`、配置和注册表；自动清理失败明确显示“安装成功，清理失败”，独立清理失败正常报错。
 
 **停止安装：** 安装进行中原按钮变为“停止安装”。点击只写停止请求，等待当前包事务完整结束，再把后续包标记为“未执行”；不强杀安装器、编译进程或资源管理器，未执行项不计失败或完成百分比。完成后可在同一面板继续清理、重试或关闭。
 
@@ -39,14 +45,16 @@
 
 | 文件 | 负责什么 | 如何使用 |
 | --- | --- | --- |
-| [Manage.ps1](./Manage.ps1) | 读取清单和安装状态，打开组合面板，按默认 `Manage` 面板选择的安装 / 卸载操作编排各独立包。 | 优先通过根目录 `.vbs` 无控制台启动；需要 Windows 图形桌面和 `STA` 进程，`-Preview` 只在面板日志显示选择而不部署。 |
-| [ManagementWorker.ps1](./ManagementWorker.ps1) | 执行面板形成的逐包计划，流式输出日志和逐叶状态事件；单包失败后继续其它所选包，最后汇总结果。 | 内部隐藏后台入口，不直接双击；只调用选中包自己的安装器。 |
-| [Catalog.psm1](./Catalog.psm1) | 校验总清单与各包身份、文件完整性，生成操作计划，再调用各包自己的安装模块。 | 内部模块，由 `Manage.ps1` 导入；不直接执行右键业务。 |
+| [Manage.ps1](./Manage.ps1/Manage.ps1) | 读取清单和安装状态，打开组合面板，按默认 `Manage` 面板选择的安装 / 卸载操作编排各独立包。 | 优先通过根目录 `.vbs` 无控制台启动；需要 Windows 图形桌面和 `STA` 进程，`-Preview` 只在面板日志显示选择而不部署。 |
+| [ManagementWorker.ps1](./ManagementWorker.ps1/ManagementWorker.ps1) | 执行面板形成的逐包计划，流式输出日志和逐叶状态事件；单包失败后继续其它所选包，最后汇总结果。 | 内部隐藏后台入口，不直接双击；只调用选中包自己的安装器。 |
+| [Catalog.psm1](./Catalog.psm1) | 校验总清单与各包身份、文件完整性，生成操作计划，再调用各包自己的安装模块。 | 内部模块，由 `Manage.ps1/Manage.ps1` 导入；不直接执行右键业务。 |
 | [Installer.psm1](./Installer.psm1) | 按用途分组显示复选框，按字体与 DPI 测量全部计数、功能标题、状态及底部说明；宽度不足时减少列数或换行，保持文字完整且控件不重叠。功能内容可滚动，操作按钮始终可见，日志上沿可拖动调高；日志右键可复制 / 全选，支持 Ctrl+A / Ctrl+C。 | 界面与隐藏进程桥接模块；安装 / 卸载空选时禁用操作按钮与回车，点击后逐叶显示等待、执行中、成功、失败或未执行，实际注册仍由包安装器承担。 |
-| [Sync-PackageInfrastructure.ps1](./Sync-PackageInfrastructure.ps1) | 对照 `../Infrastructure/` 核对各包内嵌的六份通用模板，以及各管理目录的 `Manage.cmd` / `Manage.vbs` 启动模板。 | 默认只检查；显式传入 `-Write` 才覆盖对应模板副本。 |
+| [Sync-PackageInfrastructure.ps1](./Sync-PackageInfrastructure.ps1/Sync-PackageInfrastructure.ps1) | 对照 `../Infrastructure/` 核对各包内嵌的六份通用模板，以及各管理目录的 `Manage.cmd` / `Manage.vbs` 启动模板。 | 默认只检查；显式传入 `-Write` 才覆盖对应模板副本。 |
 | [MarkdownToc.mjs](./MarkdownToc.mjs) | 提供目录过滤器的同源码兼容入口。 | 正式过滤器统一从 `../.jobs-markdown-toc/` 运行，按[目录维护说明](#toc-maintenance)操作。 |
 
-总清单位于 [Extensions.json](../Extensions.json)，登记 25 个现行安装包，面板展开为 62 项可选功能，其中 Flutter 含 38 项叶动作（依据 Extensions.json 与 FeatureActions.psm1，2026-11-06）；磁盘保留的八个旧 Flutter 包不再各占一项面板入口；[Flutter SDK 安装/切换包](../JobsFlutterVersionMgr/README.md) 同样只由面板编排，其工具链体检、fzf 选版与项目绑定在本包终端内进行。包内的 `Extension.json` 声明功能身份与菜单信息；`PackageInstaller.psm1` 承担本包部署、注册、备份和回滚；`Invoke.ps1` 是已安装菜单的运行入口。[Git 拉取包](../JobsGitPuller/README.md) 同样独立处理上游拉取、改动快照与冲突恢复。[Flutter 第三方依赖提取包](../JobsFlutterDependencyExtractor/README.md) 通过本包健康 Dart 读取锁文件与解析记录，输出父目录空行默认系统桌面，不安装工具或自动获取依赖。[Flutter打包 包](../JobsFlutterPackager/README.md) 也独立编译 Flutter 根目录专属菜单，在 CMD 用 fzf 选择 Android / iOS / HarmonyOS 及 APK / AAB / HAP / APP；OpenHarmony 核对已有 ohos 平台、适配 SDK 和 DevEco 工具链，不自动安装或创建平台，Windows 选择 iOS 时提前停止。统一包另外提供[打包鸿蒙（HAP + APP）](../JobsFlutterTools/README.md#鸿蒙-hap--app-打包)独立叶，只有鸿蒙工程显示，固定项目 FVM 与 release，一次生成并验证两种非空产物。组合面板保持打开，隐藏后台按清单逐包执行，底部实时追加标准输出 / 错误并支持复制；日志区上沿的分隔条可上下拖动，调节结果在当前窗口保留；上下限为功能行、操作按钮和日志工具栏留出空间。日志正文右键可“复制”或“全选”，也支持 Ctrl+A / Ctrl+C；全选仅针对当前可见缓冲区，完整输出使用“复制全部日志”。单包失败后继续其它所选包；已完成的包保持结果，失败包由自己的安装器回滚。
+总清单位于 [Extensions.json](../Extensions.json)，登记 26 个现行安装包，面板展开为 63 项可选功能，其中 Flutter 含 38 项叶动作（依据 Extensions.json 与 FeatureActions.psm1，2026-11-15）；磁盘保留的八个旧 Flutter 包不再各占一项面板入口；[Flutter SDK 安装/切换包](../JobsFlutterVersionMgr/README.md) 同样只由面板编排，其工具链体检、fzf 选版与项目绑定在本包终端内进行。包内的 `Extension.json` 声明功能身份与菜单信息；`PackageInstaller.psm1` 承担本包部署、注册、备份和回滚；`Invoke.ps1` 是已安装菜单的运行入口。[Git 拉取包](../JobsGitPuller/README.md) 同样独立处理上游拉取、改动快照与冲突恢复。[Flutter 第三方依赖提取包](../JobsFlutterDependencyExtractor/README.md) 通过本包健康 Dart 读取锁文件与解析记录，输出父目录空行默认系统桌面，不安装工具或自动获取依赖。[Flutter打包 包](../JobsFlutterPackager/README.md) 也独立编译 Flutter 根目录专属菜单，在 CMD 用 fzf 选择 Android / iOS / HarmonyOS 及 APK / AAB / HAP / APP；OpenHarmony 核对已有 ohos 平台、适配 SDK 和 DevEco 工具链，不自动安装或创建平台，Windows 选择 iOS 时提前停止。统一包另外提供[打包鸿蒙（HAP + APP）](../JobsFlutterTools/README.md#鸿蒙-hap--app-打包)独立叶，只有鸿蒙工程显示，固定项目 FVM 与 release，一次生成并验证两种非空产物。组合面板保持打开，隐藏后台按清单逐包执行，底部实时追加标准输出 / 错误并支持复制；日志区上沿的分隔条可上下拖动，调节结果在当前窗口保留；上下限为功能行、操作按钮和日志工具栏留出空间。日志正文右键可“复制”或“全选”，也支持 Ctrl+A / Ctrl+C；全选仅针对当前可见缓冲区，完整输出使用“复制全部日志”。单包失败后继续其它所选包；已完成的包保持结果，失败包由自己的安装器回滚。
+
+[磁盘空间描述包](../JobsDiskSpaceInfo/README.md) 从 `disk-space-info` 映射到 `JobsDiskSpaceInfo`，统一向文件、文件夹、磁盘、目录背景和桌面背景的经典菜单注册动态容量行。菜单打开时汇总本机可读写挂载卷，GUID 去重、百分比两位小数；点击才定位本包自包含 Clean.ps1，在独立终端先分组选择、复核范围并确认后执行；不注册静态 shell 命令。Windows 10 1809+ 的实际容量 API 失败时显示不可用。安装仍经总面板或独立包确认，缺少 MSVC / Windows SDK 时停止注册。
 
 [Flutter 项目体检包](../JobsFlutterDoctor/README.md)与[Flutter 代码生成包](../JobsFlutterCodegen/README.md)同样独立构建根目录动态菜单；前者只运行版本与 doctor，后者经确认执行 pub get 和已配置的生成器。二者各自的 `Scripts/Check.ps1 -Target` 只读打印计划，不调用 SDK；FVM 已声明但项目 SDK 缺失时停止。
 
@@ -66,7 +74,7 @@
 
 运行根目录 [【Windows】🧩管理资源管理器扩展.cmd](../【Windows】🧩管理资源管理器扩展.cmd)。同一窗口上方选择安装 / 更新或卸载，默认空选；切换安装 / 更新与卸载保留原勾选；卸载时未安装项置灰并排除执行，切回安装仍保留选择。分组和底部均可全选 / 全不选，空选、取消、关闭不执行。Flutter 展开 38 个叶动作，卸载按已安装白名单减去所选动作，最后一项移除时注销包；其它动作保留。
 
-勾选后点击安装 / 更新或卸载即在同一面板后台执行，不再要求终端回车或 YES。每包独立备份和回滚，单包失败后继续其它所选包并汇总各项结果；全局运行条件或管理计划无效时停止。独立功能目录使用 `Manage.cmd` 唤起同一面板后立即结束启动脚本，也可直接使用 `Manage.vbs`，不依赖总调度；每包携带同字节 `SelectionPanel.psm1` 和 `ManagementWorker.ps1`。总进度按已处理项 / 本次所选项显示计数和百分比；成功、未安装无需卸载与失败计入已处理，等待中、执行中和未执行项不计入；“未安装，无需卸载”单独显示且不算成功，最终分别汇总成功、无需卸载、失败与未执行数量。100% 仅表示本轮全部处理完毕。安装 / 更新和卸载分别计时；点击时只清零并启动当前操作计时，后台全部结束或启动失败时只冻结当前耗时。每秒刷新 `HH:mm:ss`（小时可超过 24），执行时显示“安装用时 / 卸载用时”，结束显示“安装总用时 / 卸载总用时”。两份耗时只在当前面板会话内独立保留。安装成功显示绿色“✅ 安装成功”。
+勾选后点击安装 / 更新或卸载即在同一面板后台执行，不再要求终端回车或 YES。每包独立备份和回滚，单包失败后继续其它所选包并汇总各项结果；全局运行条件或管理计划无效时停止。独立功能目录使用 `Manage.cmd` 唤起同一面板后立即结束启动脚本，也可直接使用 `Manage.vbs`，不依赖总调度；每包携带同字节 `SelectionPanel.psm1` 和 `ManagementWorker.ps1/ManagementWorker.ps1`。总进度按已处理项 / 本次所选项显示计数和百分比；成功、未安装无需卸载与失败计入已处理，等待中、执行中和未执行项不计入；“未安装，无需卸载”单独显示且不算成功，最终分别汇总成功、无需卸载、失败与未执行数量。100% 仅表示本轮全部处理完毕。安装 / 更新和卸载分别计时；点击时只清零并启动当前操作计时，后台全部结束或启动失败时只冻结当前耗时。每秒刷新 `HH:mm:ss`（小时可超过 24），执行时显示“安装用时 / 卸载用时”，结束显示“安装总用时 / 卸载总用时”。两份耗时只在当前面板会话内独立保留。安装成功显示绿色“✅ 安装成功”。
 
 失败项显示红色“失败，见日志”，点击后新开 PowerShell 窗口，用 `Get-Content -LiteralPath` 只读显示本次完整会话日志；提示包含实际日志位置。其它状态不可点击，日志缺失、不可读或终端无法启动时在面板显示具体原因；不影响当前后台任务，也不执行日志正文。
 
@@ -80,7 +88,7 @@ powershell.exe `
   -NoProfile `
   -STA `
   -ExecutionPolicy Bypass `
-  -File .\Manage.ps1 `
+  -File Manage.ps1\Manage.ps1 `
   -Mode Manage `
   -Preview
 ```
@@ -89,7 +97,7 @@ powershell.exe `
 
 ## 三、<span id="template-sync">通用模板检查与同步</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-维护模板位于 `../Infrastructure/`。六份 PowerShell 同步范围为 `Common.psm1`、`Invoke.ps1`、`Manage.ps1`、`PackageInstaller.psm1`、`SelectionPanel.psm1`、`ManagementWorker.ps1`，目标为总清单登记的各包 `Scripts/` 副本；同时核对所有管理目录（包括旧 Flutter 包）根层的 `Manage.cmd` / `Manage.vbs` 启动模板，不会覆盖 `Action.psm1`、`Extension.json` 或功能业务配置。“用 Sourcetree 打开”已从 `Extensions.json` 移除；`JobsSourcetreeOpener/` 只保留旧安装卸载与兼容源码，其原生菜单不再插入叶子。原生 Flutter、Android / Harmony 模拟器、单文件权限 / 内容查看和 Sourcetree 打开包声明仅覆盖 `PackageInstaller.psm1`，同步器对这项明确白名单跳过；本包原生构建与 COM 安装事务独立维护。各包运行时使用自己内嵌的副本，不依赖模板目录。
+维护模板位于 `../Infrastructure/`。六份 PowerShell 同步范围为 `Common.psm1`、`Invoke.ps1`、`Manage.ps1/Manage.ps1`、`PackageInstaller.psm1`、`SelectionPanel.psm1`、`ManagementWorker.ps1/ManagementWorker.ps1`，目标为总清单登记的各包 `Scripts/` 副本；同时核对所有管理目录（包括旧 Flutter 包）根层的 `Manage.cmd` / `Manage.vbs` 启动模板，不会覆盖 `Action.psm1`、`Extension.json` 或功能业务配置。“用 Sourcetree 打开”已从 `Extensions.json` 移除；`JobsSourcetreeOpener/` 只保留旧安装卸载与兼容源码，其原生菜单不再插入叶子。原生 Flutter、Android / Harmony 模拟器、单文件权限 / 内容查看和 Sourcetree 打开包声明仅覆盖 `PackageInstaller.psm1`，同步器对这项明确白名单跳过；本包原生构建与 COM 安装事务独立维护。各包运行时使用自己内嵌的副本，不依赖模板目录。
 
 在本目录只读检查，一致时输出成功信息，发现差异时返回失败：
 
@@ -97,7 +105,7 @@ powershell.exe `
 powershell.exe `
   -NoProfile `
   -ExecutionPolicy Bypass `
-  -File .\Sync-PackageInfrastructure.ps1
+  -File Sync-PackageInfrastructure.ps1\Sync-PackageInfrastructure.ps1
 ```
 
 确认模板是预期版本后，显式写入各包副本：
@@ -106,11 +114,11 @@ powershell.exe `
 powershell.exe `
   -NoProfile `
   -ExecutionPolicy Bypass `
-  -File .\Sync-PackageInfrastructure.ps1 `
+  -File Sync-PackageInfrastructure.ps1\Sync-PackageInfrastructure.ps1 `
   -Write
 ```
 
-`-Write` 会覆盖上述六类副本，执行前先保存包内需要保留的修改。同步完成后运行[仓库回归](../README.md#verification)，检查模板一致性及各包行为。
+`-Write` 会覆盖上述六类中未声明合法白名单的副本，执行前先保存包内需要保留的修改。[Git 远程地址包](../JobsGitRemoteOpener/README.md)仅将 `Invoke.ps1` 登记为专用入口，保留 `-SelectRemote` 的多远端选择；同步器同时核对包 ID、名称及精确覆盖名单，其它模板仍须一致。同步完成后运行[仓库回归](../README.md#verification)，检查模板一致性及各包行为。
 
 ## 四、<span id="toc-maintenance">本地动态目录与远端折叠目录</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
@@ -151,7 +159,7 @@ node ../.jobs-markdown-toc/MarkdownToc.mjs uninstall
 
 过滤器的安装、验证、预览与卸载均不暂存文件、不创建提交、不推送，也不改全局 Git 配置或 hooks。恢复记录位于本仓实际 Git 元数据目录的 `jobs-markdown-toc.json`；终端报告配置与错误，`preview` 的标准输出只有发布版文档。发布块、标题锚点的生成和还原属于同一受控转换，不能手工删除其中一半。
 
-隔离回归位于 [MarkdownToc.Tests.mjs](../Tests/MarkdownToc.Tests.mjs)。网页折叠语法见 [**GitHub 官方说明**](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-collapsed-sections)与 [**GitLab 官方说明**](https://docs.gitlab.com/user/markdown/#collapsible-section)；[**Gitee**](https://gitee.com)及自建服务须以各自实际渲染效果验收，不能用本地预览代替远端验证。
+隔离回归位于 [MarkdownToc.Tests.mjs](../Tests/MarkdownToc.Tests.mjs/MarkdownToc.Tests.mjs)。网页折叠语法见 [**GitHub 官方说明**](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/organizing-information-with-collapsed-sections)与 [**GitLab 官方说明**](https://docs.gitlab.com/user/markdown/#collapsible-section)；[**Gitee**](https://gitee.com)及自建服务须以各自实际渲染效果验收，不能用本地预览代替远端验证。
 
 
 
@@ -165,9 +173,14 @@ node ../.jobs-markdown-toc/MarkdownToc.mjs uninstall
 
 <!-- JOBS_TERMINAL_STYLE_V1:END -->
 
-**面板标题与对齐：** 主标题为“自定义Explorer右键菜单”；原有图标和功能名分别放入固定图标列、文字列，逐行对齐，长文字按可用空间换行。点击图标或文字均切换对应勾选，主题及语言切换继续保留窗口、勾选与运行状态。未安装项在卸载操作下保留勾选但禁用，不进入卸载计划；本人全不选仍可清空选择。
+**面板标题与对齐：** 主标题为“自定义Explorer右键菜单”；原有图标和功能名分别放入固定图标列、文字列，逐行对齐，长文字按可用空间换行。点击复选框、图标、文字、普通状态区和行内空白均仅切换对应项一次，失败日志链接保留原动作，主题及语言切换继续保留窗口、勾选与运行状态。未安装项在卸载操作下保留勾选但禁用，不进入卸载计划；本人全不选仍可清空选择。
 
 **卡片布局：** 默认 Flutter 分组放右侧，其余功能放左侧。按住分组标题拖动，可在蓝色插入线处松开，同列排序或跨列移动；高卡片可在标题上半区之前、下半区之后插入，无需滚到卡片底部。拖到列表边缘会继续滚动。布局按面板范围自动保存，窄屏折为一列，切换操作、语言或执行任务时均保留勾选与状态。红色“清除构建产物”入口在安装／更新和卸载主按钮右侧；自动清理复选框紧邻部署位置选择。
+
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [Manage.ps1](./Manage.ps1/README.md)、[ManagementWorker.ps1](./ManagementWorker.ps1/README.md)、[Sync-PackageInfrastructure.ps1](./Sync-PackageInfrastructure.ps1/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>
 

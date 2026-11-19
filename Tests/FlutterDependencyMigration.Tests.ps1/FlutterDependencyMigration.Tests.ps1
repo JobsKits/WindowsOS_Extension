@@ -304,7 +304,7 @@ if ($Mode -ceq 'streams') {
 }
 if ($Mode -ceq 'plain') { Start-Sleep -Milliseconds 10200; exit 0 }
 if ($Mode -ceq 'quiet') { Start-Sleep -Milliseconds 2200; [Console]::Out.Write('JOBS_MIGRATION_PLAN=fixture'); exit 0 }
-Start-Sleep -Seconds 30
+Start-Sleep -Seconds 120
 '@, (New-Object Text.UTF8Encoding($true)))
     $waitLog = Join-Path $temp 'wait-progress.log'
     &$module {
@@ -316,11 +316,17 @@ Start-Sleep -Seconds 30
         function script:Write-Host {param($Object,[switch]$NoNewline)$script:waitDisplay.Add([pscustomobject]@{Text=[string]$Object;NoNewline=[bool]$NoNewline})}
     } $waitLog
     Assert ((&$module {Format-JobsMigrationElapsed ([TimeSpan]::FromMinutes(2970))}) -ceq '49:30:00') '累计耗时超过一天仍保留完整小时'
+    $waitClock = [Diagnostics.Stopwatch]::StartNew()
     $waitResult = &$module {param($r,$f,$p)Invoke-JobsMigrationProcess $r @('-NoProfile','-File',$f,'quiet') $p '扫描并校验导入计划'} $runtime $waitWorker $project
+    $waitClock.Stop()
     $display = @(&$module {$script:waitDisplay.ToArray()})
     Assert ($waitResult.ExitCode-eq0 -and $waitResult.StdOut-ceq'JOBS_MIGRATION_PLAN=fixture') '静默进程完成后保持退出码和原始计划输出，计时不混入返回值'
     Assert ($display[0].Text-like'*已耗时 00:00:00*' -and @($display|Where-Object {$_.NoNewline-and$_.Text-like'*已耗时 00:00:0[12]*'}).Count-ge2) '交互阶段立即提示且静默期间逐秒刷新真实耗时'
-    Assert ($display[-1].Text-like'*完成*总用时 00:00:0[23]') '完成后独立换行汇总耗时，不留活动计时行'
+    $completion = [regex]::Match($display[-1].Text, '完成.*总用时 (?<hours>\d{2,}):(?<minutes>[0-5]\d):(?<seconds>[0-5]\d)$')
+    Assert ($completion.Success -and -not $display[-1].NoNewline) '完成后独立换行汇总耗时，不留活动计时行'
+    $reportedSeconds = [long]$completion.Groups['hours'].Value * 3600 + [int]$completion.Groups['minutes'].Value * 60 + [int]$completion.Groups['seconds'].Value
+    # 子PowerShell启动也计入真实阶段耗时；按外层时钟验值，不把固定秒数当作机器性能要求。
+    Assert ($reportedSeconds -ge 2 -and $reportedSeconds -le $waitClock.Elapsed.TotalSeconds -and $waitClock.Elapsed.TotalSeconds - $reportedSeconds -lt 2) '完成汇总按真实阶段计时，包含子进程启动且仅舍去秒的小数部分'
     $displayCount=$display.Count
     Start-Sleep -Milliseconds 1100
     Assert ((&$module {$script:waitDisplay.Count})-eq$displayCount) '阶段结束后不再有后台计时输出'
@@ -333,7 +339,14 @@ Start-Sleep -Seconds 30
     Assert ($display.Count-eq3-and$display[1].Text-like'*已耗时 00:00:10*') '非交互阶段开始、十秒心跳和完成各输出完整行'
     Assert (@($display|Where-Object {$_.NoNewline-or$_.Text.Contains("`r")-or$_.Text.Contains([string][char]27)}).Count-eq0) '纯文本和重定向不输出原位刷新或ANSI控制'
     $timeoutMarker = Join-Path $temp 'timed-out.pid'
-    Assert-Throws {&$module {param($r,$f,$p,$m)Invoke-JobsMigrationProcess $r @('-NoProfile','-File',$f,'sleep',$m) $p '超时扫描夹具' 2} $runtime $waitWorker $project $timeoutMarker} '超时传播失败并清理本轮进程'
+    # 按刚测得的子宿主启动耗时留出启动窗口，确保验证的是活进程回收而非解释器尚未执行。
+    $timeoutLimit = [int][Math]::Max(5, [Math]::Ceiling($waitClock.Elapsed.TotalSeconds) + 2)
+    $timeoutClock = [Diagnostics.Stopwatch]::StartNew()
+    $timeoutFailure = $null
+    try { &$module {param($r,$f,$p,$m,$limit)Invoke-JobsMigrationProcess $r @('-NoProfile','-File',$f,'sleep',$m) $p '超时扫描夹具' $limit} $runtime $waitWorker $project $timeoutMarker $timeoutLimit } catch { $timeoutFailure = $_.Exception.GetBaseException() }
+    $timeoutClock.Stop()
+    Assert ($timeoutFailure -is [TimeoutException] -and $timeoutClock.Elapsed.TotalSeconds -ge $timeoutLimit -and $timeoutClock.Elapsed.TotalSeconds -lt $timeoutLimit + 15) '真实超时在配置期限后传播，进程树清理有界完成'
+    Assert ([IO.File]::Exists($timeoutMarker)) '超时夹具已进入脚本，随后验证该真实子进程被回收'
     $timedOutPid=[int][IO.File]::ReadAllText($timeoutMarker)
     Assert ($null-eq(Get-Process -Id $timedOutPid -ErrorAction SilentlyContinue)) '超时后实际进程已经停止'
     Assert-Throws {&$module {param($p)Invoke-JobsMigrationProcess (Join-Path $p 'missing-runtime') @() $p '启动失败夹具'} $project} '无法启动时仍结束计时并传播原失败'
@@ -502,7 +515,12 @@ Start-Sleep -Seconds 30
     &$router {
         param($Migration)
         $script:fixtureMigration=$Migration
-        function script:Import-Module {param($Name,[switch]$PassThru,[switch]$DisableNameChecking)if($Name-notlike'*FlutterDependencyMigration.psm1/FlutterDependencyMigration.psm1'){throw '实际菜单未分发到迁移模块'};return $script:fixtureMigration}
+        function script:Import-Module {
+            param($Name,[switch]$PassThru,[switch]$DisableNameChecking)
+            $normalized = ([string]$Name).Replace('\','/')
+            if($normalized-notlike'*FlutterDependencyMigration.psm1/FlutterDependencyMigration.psm1'){throw '实际菜单未分发到迁移模块'}
+            return $script:fixtureMigration
+        }
     } $module
     &$module {param($s)$script:calls.Clear();foreach($a in @('',$s,'2','YES')){$script:answers.Enqueue($a)}} $raw
     &$router {param($p)Invoke-JobsFeature -Target $p -Action import-all-dependencies} $project
@@ -547,6 +565,7 @@ Start-Sleep -Seconds 30
     &$module {
         param($exe,$t)
         $script:fixtureNative=$exe
+        $script:fixture=$t
         $script:probeCalls=New-Object 'Collections.Generic.List[string]'
         function script:Get-Command {
             param($Name,$CommandType,[switch]$All,$ErrorAction)
@@ -554,7 +573,8 @@ Start-Sleep -Seconds 30
         }
     } $native $temp
     $candidates=@(&$module {Get-JobsMigrationSystemDartCandidates})
-    Assert ($candidates.Count-eq2 -and $candidates[0].EndsWith('cache/dart-sdk/bin/dart.exe')-and$candidates[1]-ceq$native) '系统Dart候选只取原生exe或Flutter shim旁原生文件，不执行bat'
+    $shimNative = Join-Path $temp 'flutter/bin/cache/dart-sdk/bin/dart.exe'
+    Assert ($candidates.Count-eq2 -and $candidates[0]-ceq$shimNative-and$candidates[1]-ceq$native) ('系统Dart候选只取原生exe或Flutter shim旁原生文件，不执行bat；actual='+($candidates-join' | '))
     &$module {
         function script:Get-JobsMigrationSystemDartCandidates {$script:fixtureNative}
         function script:Invoke-JobsProcess {

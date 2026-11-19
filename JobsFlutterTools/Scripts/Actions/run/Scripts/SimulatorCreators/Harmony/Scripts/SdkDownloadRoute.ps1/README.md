@@ -8,6 +8,8 @@
 - 优先用官方相同对象样本或官方对象元数据（总长及 MD5／HTTP ETag）核验 CFUG。Google 完全不可达时，允许已授权 CFUG 精确目标路径的 Range、总长、ETag 与制品结构自证，并明确“官方摘要未取得”；不冒称官方 hash 核验。完整归档仍按已取得的可信发布 SHA 或对象 MD5 验证。
 - Windows 原生 SDK 的 PowerShell／BITS 通道按实际 WinINET 代理和绕过规则比较来源；PAC 无法有界解析时保留原通道并明确未测速。不把另一条 curl 代理路线冒称已套用到 BITS。
 - 下载诊断及来源、版本、路由理由均脱敏；测试只使用假传输与临时元数据，不接触用户 SDK 或真实会话。
+- 下载重试统一按本次异常链识别取消、权限及其它确定错误；Windows PowerShell 5.1 在前置取消之后遇到新的传输错误，仍应进入可取消的退避重试，不沿用此前取消的分类。
+- `precache --universal` 按当前 engine 的通用缓存、宿主工具与 Pub 配置检查就绪状态；健康缓存不强制联网，缺失时探测实际通用制品，不误用 Android 制品。对象元数据路径解析兼容 Windows PowerShell 5.1。
 
 FVM 使用只读 `api context` 的生效 Git URL 和缓存位置，原始 JSON 不落盘／不写日志；支持时使用 `install --no-setup`，Git 与 Dart 自举分阶段。请求 channel 或 upgrade 时先用发布清单 `current_release` 解析所请求的新版本归档，并在相同子进程环境中预检原 Git 来源；不把已安装旧 SDK 的版本当升级目标。所有选择仅写入请求或子进程环境，取消后不会留下全局代理设置。
 

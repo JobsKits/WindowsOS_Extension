@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "featureId": "permanent-delete",
+  "generatedAt": "2026-11-18T15:53:02.524Z",
+  "compiler": {
+    "name": "Zig",
+    "version": "0.15.2",
+    "source": "https://github.com/ziglang/zig-pypi",
+    "distributionSha256": "acae2a9ce67ed249ad68d42c21bc73b5f9d51a33ba5ea42f609f78683e8d9bb7"
+  },
+  "nativeSources": {
+    "Scripts/ContextMenu.cpp": "b38947bbed8a7ac4a6b8f65cd145935273160557930efab04f92c6e8ea74f7b6",
+    "Scripts/ContextMenu.def": "e2aff086669a81acd561f159fd9addf55e81fddc55437e0e712f3f43d8e9283a",
+    "Scripts/PermanentDelete.h": "569fe9fe1cae55023b0014dc7e6a6c6b8ed1d1332c8d0f32adcd53ebd1a2d4c7",
+    "Scripts/DeleteDialog.h": "2b69a4399fe8d3e251e1bff95646dff03d8b8dc7aaded6a3c3cc7581159ca018",
+    "Scripts/DeleteText.h": "a00fe77ed9258f4ba671d6db4e7a87f9b4348eba238d5679a888322a1cd15210"
+  },
+  "binaries": {
+    "x64": {
+      "path": "Dist/x64/JobsPermanentDeleter.dll",
+      "sha256": "6a1bfb165abe71adc0f72db795d61a60ac759d9acb1ee3b8bfdeda2a824d11bc"
+    },
+    "arm64": {
+      "path": "Dist/arm64/JobsPermanentDeleter.dll",
+      "sha256": "a4f4c34d7274787e189696e68c894c8ba7630da4db7e3cd34630c5a3c20201d3"
+    }
+  },
+  "windowsExecuted": false,
+  "registered": false,
+  "compileArguments": [
+    "c++",
+    "-target",
+    "<x86_64-windows-gnu|aarch64-windows-gnu>",
+    "-std=c++14",
+    "-shared",
+    "-O2",
+    "-DUNICODE",
+    "-D_UNICODE",
+    "Scripts/ContextMenu.cpp",
+    "Scripts/ContextMenu.def",
+    "-lshell32",
+    "-lshlwapi",
+    "-lole32",
+    "-luuid",
+    "-luser32",
+    "-ladvapi32",
+    "-lgdi32",
+    "-o",
+    "Dist/<x64|arm64>/JobsPermanentDeleter.dll"
+  ]
+}

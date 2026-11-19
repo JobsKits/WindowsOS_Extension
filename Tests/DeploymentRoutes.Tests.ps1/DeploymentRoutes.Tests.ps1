@@ -3,6 +3,37 @@
 # 全部文件位于临时目录；系统登记、通知和快捷方式通过临时模块内假实现阻断。
 [CmdletBinding()]
 param()
+# 源包装与已发布 flat 布局共用路径，兼容旧收据且不跟随包装目录链接。
+function Resolve-JobsScriptLayoutPath {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    if ([IO.Path]::GetExtension($Path) -notin @('.ps1','.cmd','.vbs')) { return $Path }
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        $directory = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('脚本包装不能是链接：' + $Path) }
+        return Join-Path $Path $directory.Name
+    }
+    return $Path
+}
+# 仅新源码包装压平到原发布名称；原有 SDK 资源包与 README 布局保持原意。
+function Convert-JobsReleaseLayoutRelativePath {
+    param([string]$Package, [string]$Relative)
+    $parts = @($Relative -split '[\\/]')
+    if ($parts.Count -lt 2) { return $Relative }
+    $last = $parts[$parts.Count - 1]
+    $parent = $parts[$parts.Count - 2]
+    if ($last -ceq 'README.md' -and [IO.Path]::GetExtension($parent) -in @('.ps1','.cmd','.vbs')) {
+        $sibling = Join-Path (Join-Path $Package (($parts[0..($parts.Count-2)]) -join '/')) $parent
+        if ((Test-Path -LiteralPath $sibling -PathType Leaf) -and ([IO.File]::ReadAllText($sibling) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) { return $null }
+    }
+    if ($last -ceq $parent -and [IO.Path]::GetExtension($last) -in @('.ps1','.cmd','.vbs')) {
+        $source = Join-Path $Package $Relative
+        if ((Test-Path -LiteralPath $source -PathType Leaf) -and ([IO.File]::ReadAllText($source) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) {
+            return (($parts[0..($parts.Count-2)]) -join '/')
+        }
+    }
+    return $Relative
+}
+
 # BEGIN JOBS_TERMINAL_STYLE_V1 - session-only colors; no profile or registry changes.
 function New-JobsTerminalStyleState {
     if ($PSVersionTable.PSVersion.Major -lt 5) { return @{ JobsTerminalPlainFallback = $true; Before = @{} } }
@@ -280,7 +311,7 @@ try {
     Write-Fixture (Join-Path $package 'Extension.json') '{"Id":"fixture-route","Name":"JobsFixture","Label":"测试","Description":"隔离","DirectoryOnly":false,"Console":false}'
     foreach ($name in @('Invoke.ps1', 'Action.psm1', 'Manage.ps1')) { Write-Fixture (Join-Path $package ('Scripts/' + $name)) '# isolated' }
     Copy-Item -LiteralPath (Join-Path $root 'Infrastructure/Common.psm1') -Destination (Join-Path $package 'Scripts/Common.psm1')
-    Write-Fixture (Join-Path $package 'Scripts/Build.ps1') @'
+    Write-Fixture (Resolve-JobsScriptLayoutPath (Join-Path $package 'Scripts/Build.ps1')) @'
 param($SourceRoot, $OutputRoot)
 [void][IO.Directory]::CreateDirectory($OutputRoot)
 [IO.File]::WriteAllText((Join-Path $OutputRoot 'JobsFileVolumesContextMenu.dll'), 'runtime-dll')
@@ -381,9 +412,9 @@ param($SourceRoot, $OutputRoot)
     }
     Clear-JobsPackageBuildArtifacts -PackagePath $package
     Assert-Route (-not (Test-Path (Join-Path $package 'work/JobsExtensionBuild'))) '独立清理删除专用编译工作区'
-    Assert-Route (Test-Path (Join-Path $build.ReleasePath 'Scripts/Invoke.ps1')) '独立清理保留临时路线既有 release 与脚本'
+    Assert-Route (Test-Path (Resolve-JobsScriptLayoutPath (Join-Path $build.ReleasePath 'Scripts/Invoke.ps1'))) '独立清理保留临时路线既有 release 与脚本'
     Assert-Route (Test-Path (Join-Path $installed.Root 'settings.json')) '清理保留已安装状态配置'
-    Assert-Route (Test-Path (Join-Path $package 'Scripts/Build.ps1')) '清理保留源码与安装管理入口'
+    Assert-Route (Test-Path (Resolve-JobsScriptLayoutPath (Join-Path $package 'Scripts/Build.ps1'))) '清理保留源码与安装管理入口'
 
     # 两条路线均卸载后的残留使用真实清理函数，登记和进程查询仅由夹具提供。
     & $module { param($Path, $Release) Build-JobsPackageNativeRelease -PackagePath $Path -ReleasePath $Release -DeploymentMode installed } $package $installed.ReleasePath
@@ -501,10 +532,10 @@ param($SourceRoot, $OutputRoot)
     Assert-Route (-not (Test-Path -LiteralPath $buildRoot)) '完整卸载后可独立清理专用构建残留'
     Assert-Route ([IO.File]::ReadAllText($siblingSentinel) -ceq 'other-build') '卸载残留清理保留同前缀兄弟工作区'
     Assert-Route ([Convert]::ToBase64String([IO.File]::ReadAllBytes($installedSettingsPath)) -ceq [Convert]::ToBase64String($uninstalledSettingsBytes)) '残留清理不改卸载墓碑配置'
-    Assert-Route ((Test-Path -LiteralPath (Join-Path $installed.ReleasePath 'Scripts/Invoke.ps1')) -and (Test-Path -LiteralPath (Join-Path $build.ReleasePath 'Scripts/Invoke.ps1'))) '残留清理保留两条路线的既有运行文件'
+    Assert-Route ((Test-Path -LiteralPath (Resolve-JobsScriptLayoutPath (Join-Path $installed.ReleasePath 'Scripts/Invoke.ps1'))) -and (Test-Path -LiteralPath (Resolve-JobsScriptLayoutPath (Join-Path $build.ReleasePath 'Scripts/Invoke.ps1')))) '残留清理保留两条路线的既有运行文件'
     Assert-Route ((Get-FileHash -LiteralPath (Join-Path $installed.ReleasePath 'bin/JobsFileVolumesContextMenu.dll')).Hash -eq $dllHash) '卸载后的清理不改运行 DLL'
 
-    $worker = Join-Path $root 'Scripts/ManagementWorker.ps1'
+    $worker = Resolve-JobsScriptLayoutPath (Join-Path $root 'Scripts/ManagementWorker.ps1')
     $fake = @'
 function Invoke-JobsPackageChange {
     param($PackagePath, $Mode, $DeploymentMode)
@@ -534,8 +565,14 @@ Export-ModuleMember -Function Invoke-JobsPackageChange, Clear-JobsPackageBuildAr
         param([string]$Route, [bool]$Cleanup, [string]$StopPath)
         $requestPath = Join-Path $temp ('request-' + [guid]::NewGuid().ToString('N') + '.json')
         Write-Fixture $requestPath (ConvertTo-Json -InputObject @{ Plan = $plan; DeploymentMode = $Route; AutoCleanup = $Cleanup; StopRequestPath = $StopPath } -Depth 8)
-        $lines = @(& (Get-Process -Id $PID).Path -NoLogo -NoProfile -NonInteractive -File $worker -RequestPath $requestPath 2>&1)
-        return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Text = (($lines | ForEach-Object { [string]$_ }) -join "`n") }
+        $previous = $ErrorActionPreference
+        try {
+            # 预期的失败诊断须先完整捕获，再由退出码与事件断言判定，不能被 PS5.1 的 stderr 转换提前中断。
+            $ErrorActionPreference = 'Continue'
+            $lines = @(& (Get-Process -Id $PID).Path -NoLogo -NoProfile -NonInteractive -File $worker -RequestPath $requestPath 2>&1)
+            $code = $LASTEXITCODE
+        } finally { $ErrorActionPreference = $previous }
+        return [pscustomobject]@{ ExitCode = $code; Text = (($lines | ForEach-Object { [string]$_ }) -join "`n") }
     }
     $run = Invoke-IsolatedWorker build $true ''
     Assert-Route ($run.ExitCode -eq 0 -and (Get-Content (Join-Path $temp 'worker-one/called') -Raw).Contains('Install:build')) 'worker 显式把 build 路线传至安装器'

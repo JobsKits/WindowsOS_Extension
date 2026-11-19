@@ -297,7 +297,11 @@ function New-GroupFixture {
             return [pscustomobject]@{ Kind = 'Selected'; Index = [int]$value }
         }
         function script:New-JobsRunnerSimulator { param($Platform) $script:Calls.Add('create:' + $Platform); return [pscustomobject]@{ Platform = $Platform; Id = 'emulator-5554' } }
-        function script:Start-JobsRunnerExistingAndroid { $script:Calls.Add('start-existing');return [pscustomobject]@{Kind='Back'} }
+        function script:Initialize-JobsRunnerVirtualAndroid { return '/fixture/sdk' }
+        function script:Get-JobsRunnerAvds { return @() }
+        function script:Initialize-JobsRunnerVirtualHarmony { return [pscustomobject]@{ Module='fixture'; Tools=[pscustomobject]@{Root='/fixture/harmony'}; Emulator='fixture-emulator' } }
+        function script:Invoke-JobsRunnerHarmonyCore { return @() }
+        function script:Get-JobsRunnerVirtualEnvironment { return @{} }
     } $Selections $Devices
     return $module
 }
@@ -311,10 +315,27 @@ try {
         $selected = & $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project
         Assert-Group ($selected -ceq 'phone-1') '已有组返回明确选择的真实设备 ID'
         $menus = @(& $module { $script:Menus.ToArray() })
-        Assert-Group (($menus[0].Items -join '|') -ceq '目前已有的设备|启动虚拟设备|新建设备|重新加载设备列表|取消本轮') '根菜单将已有、启动虚拟设备与新建分组'
-        Assert-Group ($menus[1].Back -and $menus[1].Items[0] -like 'Pixel*android*') '已有子层提供真实设备与返回绑定'
+        Assert-Group (($menus[0].Items -join '|') -ceq '目前已有的真实设备|虚拟设备|其他运行目标（桌面 / Web）|重新加载设备列表') '根菜单区分真实、虚拟及其它目标，去掉冗余取消项'
+        Assert-Group ($menus[1].Back -and $menus[1].Items[0] -ceq 'Pixel') '已有子层提供真实设备与返回绑定'
         Assert-Group (($menus[1].Items -join '|') -notmatch 'Harmony|iPhone|初始化|新建') '已有列表按当前工程能力过滤，且不混入创建动作'
         Assert-Group ((& $module { $script:Calls.Count }) -eq 0) '已有设备直接运行不触发创建或启动其它设备'
+        Remove-Module $module
+
+        $module = New-GroupFixture $path @('0','1') '[{"id":"phone-first-hidden","name":"Same Phone","targetPlatform":"android"},{"id":"phone-second-hidden","name":"Same Phone","targetPlatform":"android"}]'
+        $selected=&$module {param($Project)Select-JobsRunnerDevice 'flutter' $Project} $project
+        $menus=@(&$module {$script:Menus.ToArray()})
+        Assert-Group ($selected-ceq'phone-second-hidden'-and$menus[1].Items[0]-ceq'Same Phone'-and$menus[1].Items[1]-ceq'Same Phone') '同名真实设备只显示名称，选第二项仍返回第二个精确ID'
+        Assert-Group (($menus[1].Items-join'|')-notmatch'phone-first-hidden|phone-second-hidden|android') '设备可见行不拼接内部ID或平台字段'
+        Remove-Module $module
+
+        $module=Import-Module $path -Force -PassThru -DisableNameChecking
+        &$module {
+            function script:Test-JobsRunnerInteractiveMenu {return $true}
+            function script:Select-JobsFzfItems {param($Title,$Items,[switch]$Child)$script:VisibleNames=@($Items|ForEach-Object{[string]$_});return [pscustomobject]@{Action='selected';Items=@($Items[1])}}
+            $env:JOBS_FLUTTER_RUNNER_FZF=$null
+        }
+        $choice=&$module {Select-JobsRunnerChoice 'names' @('同名设备','同名设备') -Back}
+        Assert-Group ($choice.Index-eq1-and(@(&$module {$script:VisibleNames})-join'|')-ceq'同名设备|同名设备') '通用选择器以对象索引处理重名，传给fzf的可见文字不带索引或内部key'
         Remove-Module $module
 
         $module = New-GroupFixture $path @('0', '1') $deviceJson
@@ -340,38 +361,38 @@ try {
         Assert-Group ((@(& $module { $script:Calls.ToArray() }) -join '|') -ceq 'prepare-cancel') '取消不创建模拟器或启动应用'
         Remove-Module $module
 
-        $module = New-GroupFixture $path @('2', '1', '0', '0') $deviceJson
-        $selected = & $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project
-        $menus = @(& $module { $script:Menus.ToArray() })
-        Assert-Group ($menus[1].Items[1] -ceq '新建 Harmony 模拟器（鸿蒙）') '没有 ohos 目录也显示本机鸿蒙创建入口'
-        Assert-Group ((@(& $module { $script:Calls.ToArray() }) -join '|') -ceq 'create:Harmony') '只调用所选桌面创建器一次'
-        Assert-Group ($selected -ceq 'phone-1' -and $menus[2].Title -ceq '选择 Flutter 运行设备') '创建工程不支持的鸿蒙目标后保留实例，再由本人选择其它目标'
-        Remove-Module $module
-
         foreach($platform in @('Android','Harmony')) {
             $index=if($platform-ceq'Android'){'0'}else{'1'}
             $module=New-GroupFixture $path @('1',$index) $deviceJson
             &$module {
-                function script:Start-JobsRunnerExistingAndroid {$script:Calls.Add('start:Android');return [pscustomobject]@{Kind='Ready';Id='emulator-5568';Platform='android';Sdk='selected-sdk';Environment=@{}}}
-                function script:Start-JobsRunnerExistingHarmony {$script:Calls.Add('start:Harmony');return [pscustomobject]@{Kind='Ready';Id='127.0.0.1:15555';Platform='ohos-arm64';Environment=@{}}}
+                function script:Start-JobsRunnerExistingAndroid { param($Flutter,$Project,[switch]$AllowCreate) if(-not$AllowCreate){throw 'missing merged menu'}; $script:Calls.Add('start:Android');return [pscustomobject]@{Kind='Ready';Id='emulator-5568';Platform='android';Sdk='selected-sdk';Environment=@{}} }
+                function script:Start-JobsRunnerExistingHarmony { param($Flutter,$Project,[switch]$AllowCreate) if(-not$AllowCreate){throw 'missing merged menu'}; $script:Calls.Add('start:Harmony');return [pscustomobject]@{Kind='Ready';Id='127.0.0.1:15555';Platform='ohos-arm64';Environment=@{}} }
             }
             $selected=&$module {param($Project)Select-JobsRunnerDevice 'flutter' $Project} $project
             $menus=@(&$module {$script:Menus.ToArray()})
-            Assert-Group (($menus[1].Items-join'|')-ceq'启动Android模拟器|启动鸿蒙模拟器|返回上一层') 'Windows启动虚拟设备二级只含Android/鸿蒙与返回，不含iOS'
-            Assert-Group (($platform-ceq'Android'-and$selected-ceq'emulator-5568')-or($platform-ceq'Harmony'-and$selected-ceq'127.0.0.1:15555')) '启动分支精确承接本次目标，不重新选择其它已有设备'
-            Assert-Group ((@(&$module {$script:Calls.ToArray()})-join'|')-ceq('start:'+$platform)-and$menus.Count-eq2) '启动与新建分支隔离，目标成功后不重复弹菜单'
+            Assert-Group (($menus[1].Items-join'|')-ceq'Android 虚拟设备|Harmony 虚拟设备') 'Windows虚拟设备只含Android/Harmony，不含iOS或独立新建组'
+            Assert-Group (($platform-ceq'Android'-and$selected-ceq'emulator-5568')-or($platform-ceq'Harmony'-and$selected-ceq'127.0.0.1:15555')) '已有虚拟设备精确承接目标，不重新选择其它设备'
+            Assert-Group ((@(&$module {$script:Calls.ToArray()})-join'|')-ceq('start:'+$platform)-and$menus.Count-eq2) '启动成功不重复弹菜单或新建设备'
             Remove-Module $module
         }
 
-        $createdJson = '[{"id":"emulator-5554","name":"Created Pixel","targetPlatform":"android"},{"id":"other-phone","name":"Other","targetPlatform":"android"}]'
-        $module = New-GroupFixture $path @('2', '0') $createdJson
+        $createdJson = '[{"id":"emulator-5554","name":"Created Pixel","targetPlatform":"android","emulator":true},{"id":"other-phone","name":"Other","targetPlatform":"android"}]'
+        $module = New-GroupFixture $path @('1', '0', '0') $createdJson
         $selected = & $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project
-        Assert-Group ($selected -ceq 'emulator-5554') '新建Android成功后返回精确设备，不再要求第二次选择'
-        Assert-Group ((& $module { $script:Menus.Count }) -eq 2) '创建后只等待就绪，不再弹根菜单或已有设备选择'
+        $menus = @(& $module { $script:Menus.ToArray() })
+        Assert-Group ($selected -ceq 'emulator-5554') '空Android清单的新建成功后精确承接目标'
+        Assert-Group ($menus.Count -eq 3 -and $menus[2].Items.Count -eq 1 -and $menus[2].Items[-1] -ceq '新建 Android 虚拟设备') '空清单仍显示唯一新建入口，且新建位于末尾'
         Assert-Group ((@(& $module { $script:Calls.ToArray() }) -join '|') -ceq 'create:Android') '创建只执行一次'
         Remove-Module $module
 
-        $module = New-GroupFixture $path @('2', '0') $createdJson
+        $module = New-GroupFixture $path @('1','1','0','Back','0','0') $deviceJson
+        $selected = & $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project
+        $menus = @(& $module { $script:Menus.ToArray() })
+        Assert-Group ($menus[2].Items[-1] -ceq '新建 Harmony 虚拟设备') '无ohos目录仍在Harmony清单提供新建入口'
+        Assert-Group ($selected -ceq 'phone-1' -and (@(& $module {$script:Calls.ToArray()}) -join '|') -ceq 'create:Harmony') '不支持的新建目标保留实例并返回本人选择，不自动改设备'
+        Remove-Module $module
+
+        $module = New-GroupFixture $path @('1', '0', '0') $createdJson
         & $module {
             $script:Runs = 0
             function script:Assert-JobsFlutterProject { }
@@ -387,13 +408,43 @@ try {
             function script:Show-JobsRunnerLog { }
         }
         & $module { param($Project) Invoke-JobsFlutterRunAction $Project } $project
-        Assert-Group ((& $module { $script:Runs }) -eq 1 -and (@(& $module { $script:Calls.ToArray() }) -join '|') -ceq 'create:Android') '完整新建分支只创建一次并把精确目标交给Flutter运行一次'
+        Assert-Group ((& $module { $script:Runs }) -eq 1 -and (@(& $module { $script:Calls.ToArray() }) -join '|') -ceq 'create:Android') '完整新建分支只创建一次并运行精确目标一次'
         Remove-Module $module
 
-        $module = New-GroupFixture $path @('2', '0', '4') $createdJson
+        $module = New-GroupFixture $path @('1', '0', '0', 'Cancel') $createdJson
         & $module { function script:New-JobsRunnerSimulator { return $null }; function script:Wait-JobsRunnerSelectedDevice { throw '取消不得等待或运行设备' } }
-        Assert-Group ($null -eq (& $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project)) '创建取消且无结果时不把其它已有设备作为目标'
+        Assert-Group ($null -eq (& $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project)) '创建取消后不将其它已有设备作为目标'
         Remove-Module $module
+
+        $module = New-GroupFixture $path @('0','0') '[{"id":"emulator-5554","name":"Android emulator","targetPlatform":"android"},{"id":"other-virtual","name":"Virtual flag","targetPlatform":"android","emulator":true},{"id":"phone","name":"Phone","targetPlatform":"android"}]'
+        Assert-Group ((& $module {param($Project) Select-JobsRunnerDevice 'flutter' $Project} $project) -ceq 'phone') '真实设备清单同时排除模拟器标记和emulator序列号'
+        $menus=@(&$module {$script:Menus.ToArray()})
+        Assert-Group (($menus[1].Items -join '|') -notmatch 'emulator|Virtual flag') '真实设备文案与实际过滤一致'
+        Remove-Module $module
+
+        [void][IO.Directory]::CreateDirectory((Join-Path $project 'windows'))
+        [void][IO.Directory]::CreateDirectory((Join-Path $project 'web'))
+        $module=New-GroupFixture $path @('2','0') '[{"id":"windows","name":"Windows","targetPlatform":"windows-x64"},{"id":"chrome","name":"Chrome","targetPlatform":"web-javascript"}]'
+        Assert-Group ((& $module {param($Project) Select-JobsRunnerDevice 'flutter' $Project} $project) -ceq 'windows') '桌面与Web保留在其他运行目标组'
+        $menus=@(&$module {$script:Menus.ToArray()})
+        Assert-Group (($menus[1].Items -join '|') -match 'Windows.*Chrome') '其他运行目标同时包含桌面和Web'
+        Remove-Module $module
+
+        foreach ($platform in @('Android','Harmony')) {
+            $index=if($platform-ceq'Android'){'0'}else{'1'}
+            $module=New-GroupFixture $path @('1',$index,'Cancel') $deviceJson
+            & $module {
+                function script:Get-JobsRunnerAvds { return @('Known Android 1','Known Android 2') }
+                function script:Get-JobsRunnerAndroidAvdIdentity { return [pscustomobject]@{Path='fixture'} }
+                function script:Invoke-JobsRunnerHarmonyCore { return @([pscustomobject]@{name='Known Harmony 1'},[pscustomobject]@{name='Known Harmony 2'}) }
+                function script:Get-JobsRunnerHarmonyInstanceIdentity { return [pscustomobject]@{Path='fixture'} }
+            }
+            Assert-Group ($null -eq (& $module {param($Project) Select-JobsRunnerDevice 'flutter' $Project} $project)) '平台清单Esc不触发启动或创建'
+            $menus=@(&$module {$script:Menus.ToArray()})
+            Assert-Group ($menus[2].Items.Count -eq 3 -and $menus[2].Items[0] -ceq ('Known '+$platform+' 1') -and $menus[2].Items[1] -ceq ('Known '+$platform+' 2') -and $menus[2].Items[-1] -ceq ('新建 '+$platform+' 虚拟设备')) '真实平台清单先列已有实例，最后才是对应系统新建入口'
+            Assert-Group (($menus[2].Items -join '|') -notmatch '返回|取消' -and $menus[2].Back) '平台清单用左键返回，末尾不插入冗余行'
+            Remove-Module $module
+        }
 
         $module = Import-Module $path -Force -PassThru -DisableNameChecking
         & $module {
@@ -413,22 +464,22 @@ try {
         Assert-Group $failed '目标发现超时明确失败，未运行其它设备'
         Remove-Module $module
 
-        $module = New-GroupFixture $path @('2', 'Back', '0', 'Back', '4')
-        Assert-Group ($null -eq (& $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project)) '已有和新建子层左键返回根层，可显式取消'
+        $module = New-GroupFixture $path @('1', 'Back', '0', 'Back', 'Cancel')
+        Assert-Group ($null -eq (& $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project)) '真实和虚拟子层左键返回根层，Esc取消'
         Assert-Group ((& $module { $script:Calls.Count }) -eq 0) '返回与取消没有模拟器业务'
         Remove-Module $module
 
-        $module = New-GroupFixture $path @('2', 'Cancel')
+        $module = New-GroupFixture $path @('1', 'Cancel')
         Assert-Group ($null -eq (& $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project)) '新建组 Esc 取消整个选择'
         Assert-Group ((& $module { $script:Calls.Count }) -eq 0) '新建组取消不创建任何设备'
         Remove-Module $module
 
-        $module = New-GroupFixture $path @('1', '0', 'Back', '4')
+        $module = New-GroupFixture $path @('1', '0', 'Back', 'Back', 'Cancel')
         Assert-Group ($null -eq (& $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project)) '无设备仍可启动已有 Android，再刷新/返回/取消'
-        Assert-Group ((@(& $module { $script:Calls.ToArray() }) -join '|') -ceq 'start-existing') '已有 Android 动作不转入新建流程'
+        Assert-Group ((& $module { $script:Calls.Count }) -eq 0) '虚拟设备清单返回不执行新建'
         Remove-Module $module
 
-        $module = New-GroupFixture $path @('0', '0', 'Back', '4')
+        $module = New-GroupFixture $path @('0', '0', 'Back', 'Cancel')
         Assert-Group ($null -eq (& $module { param($Project) Select-JobsRunnerDevice 'flutter' $Project } $project)) '空设备重新加载后仍可返回取消'
         Assert-Group ((& $module { $script:Calls.Count }) -eq 0) '重新加载不创建或启动设备'
         Remove-Module $module
@@ -471,13 +522,15 @@ try {
         foreach ($file in @('AndroidRuntime.ps1', 'RunPreflight.ps1/RunPreflight.ps1', 'RunPreflight.ps1/DoctorScope.dart', 'RunPreflight.ps1/README.md')) {
             $copy = Join-Path $release ($scriptsRelative + '/' + $file)
             Assert-Group (Test-Path -LiteralPath $copy -PathType Leaf) ('独立 release 包含运行前体检资源：' + $file)
-            $sourcePreflight = Join-Path $root ($relative.Replace('/Action.psm1', '') + '/' + $file)
+            $sourcePreflight = & $installer { param($Path) Resolve-JobsScriptLayoutPath $Path } (Join-Path $root ($relative.Replace('/Action.psm1', '') + '/' + $file))
             Assert-Group ((Get-FileHash -LiteralPath $sourcePreflight).Hash -ceq (Get-FileHash -LiteralPath $copy).Hash) ('运行前体检资源逐字节一致：' + $file)
         }
         $sourceHealth=Join-Path $root ($relative.Replace('/Action.psm1','')+'/RunPreflight.ps1')
         foreach($resource in Get-ChildItem -LiteralPath $sourceHealth -File -Recurse){
             $suffix=$resource.FullName.Substring($sourceHealth.Length+1)
-            $copy=Join-Path $release ($scriptsRelative+'/RunPreflight.ps1/'+$suffix)
+            $releaseRelative=&$installer {param($Package,$Relative)Convert-JobsReleaseLayoutRelativePath $Package $Relative} (Join-Path $root $package) ($scriptsRelative+'/RunPreflight.ps1/'+$suffix)
+            if($null-eq$releaseRelative){continue}
+            $copy=Join-Path $release $releaseRelative
             Assert-Group ([IO.File]::Exists($copy)-and(Get-FileHash $copy).Hash-ceq(Get-FileHash $resource.FullName).Hash) ('移植release包含同字节鸿蒙自动准备依赖：'+$suffix)
         }
         $privateSdk=Import-Module (Join-Path $release ($scriptsRelative+'/RunPreflight.ps1/PrepareHarmonyRun.ps1/Core/HarmonySdk.psm1')) -PassThru -DisableNameChecking
@@ -491,7 +544,8 @@ try {
             foreach ($file in $required) {
                 $copy = Join-Path $payload $file
                 Assert-Group (Test-Path -LiteralPath $copy -PathType Leaf) ('独立 release 包含创建依赖：' + $file)
-                Assert-Group ((Get-FileHash -LiteralPath (Join-Path $origin $file)).Hash -ceq (Get-FileHash -LiteralPath $copy).Hash) ('逐字节复用原桌面创建器：' + $file)
+                $sourceFile=&$installer {param($Path)Resolve-JobsScriptLayoutPath $Path} (Join-Path $origin $file)
+                Assert-Group ((Get-FileHash -LiteralPath $sourceFile).Hash -ceq (Get-FileHash -LiteralPath $copy).Hash) ('逐字节复用原桌面创建器：' + $file)
             }
         }
         # 复制的 release 中替换唯一创建入口为假脚本，验证真实子进程参数和退出传播。

@@ -2,6 +2,13 @@
 # Created by Jobs on 2026年11月10日，星期二.
 # 当前运行流程准备所选鸿蒙设备；下载可重试，项目发布与业务命令不整体重放。
 
+# 单独加载准备库时保留原生输出，运行器内复用统一展示层。
+function Write-JobsPrepareDisplay {
+    param([Parameter(Position=0)]$Object,[ConsoleColor]$ForegroundColor)
+    if(Get-Command Write-JobsRunnerDisplayText -CommandType Function -ErrorAction SilentlyContinue){Write-JobsRunnerDisplayText @PSBoundParameters}
+    else{Write-Host @PSBoundParameters}
+}
+
 function Get-JobsPrepareEnvironmentSnapshot {
     return Get-JobsRunnerTaskEnvironmentSnapshot @('PATH','JAVA_HOME','FLUTTER_ROOT','TOOL_HOME','DEVECO_STUDIO_HOME','DEVECO_SDK_HOME','OHOS_SDK_HOME','FVM_CACHE_PATH','FVM_FLUTTER_URL','FVM_USE_GIT_CACHE')
 }
@@ -56,7 +63,7 @@ function Initialize-JobsPrepareSdk {
     $git=Find-JobsExecutable 'git.exe' @('git')
     if (-not $git) { throw '当前环境缺少 Git，无法验证正式 SDK 来源；本轮停止，未切换全局 SDK。' }
     return & $module {
-        param($Git,$CurrentFlutter,$Project,$Compatibility,$CurrentReady,$CurrentRevision)
+        param($Git,$CurrentFlutter,$Project,$Compatibility,$CurrentReady,$CurrentRevision,$Display)
         Assert-JobsHarmonyBindingPaths $Project
         $cache=Get-JobsHarmonyCache
         $root=&$script:HarmonyManager {Get-JobsInstallRoot}
@@ -72,8 +79,8 @@ function Initialize-JobsPrepareSdk {
                 if(-not$base.compatible){continue}
                 $refs=Invoke-JobsHarmonyGit $Git @('ls-remote',$script:HarmonyRepository,('refs/tags/'+$choice.Ref),('refs/tags/'+$choice.Ref+'^{}'),('refs/heads/'+$choice.Ref)) $Project
                 if((Resolve-JobsHarmonyCommit $refs $choice.Ref)-cne$choice.Commit){throw '正式 tag 在准备期间变化，未发布 SDK。'}
-                Write-Host ('自动选择兼容正式候选：'+$choice.Ref+'；来源：'+$script:HarmonyRepository+'；commit：'+$choice.Commit)
-                Write-Host '目标 Dart 将在对应 engine 自举后核验；此时尚不宣称版本兼容。'
+                & $Display ('自动选择兼容正式候选：'+$choice.Ref+'；来源：'+$script:HarmonyRepository+'；commit：'+$choice.Commit)
+                & $Display '目标 Dart 将在对应 engine 自举后核验；此时尚不宣称版本兼容。'
                 if($CurrentReady-and$choice.Commit-ceq$CurrentRevision){return [pscustomobject]@{Flutter=$CurrentFlutter;ProjectName=$base.projectName}}
                 $sdk=Install-JobsHarmonySdk $Git $choice $cache $Project
                 $candidate=Join-Path $sdk 'bin/flutter.bat'
@@ -81,7 +88,7 @@ function Initialize-JobsPrepareSdk {
                 $actual=&$Compatibility $candidate $Project '' '' 'bootstrap'
                 if($actual.frameworkRevision-cne$choice.Commit){throw 'SDK 实际版本提交与锁定 tag 不一致，未发布项目绑定。'}
                 $ok=&$Compatibility $CurrentFlutter $Project $actual.frameworkVersion $actual.dartSdkVersion 'sdk'
-                if(-not$ok.compatible){Write-Host ('候选与工程约束不符，缓存保留：'+$ok.reason);continue}
+                if(-not$ok.compatible){& $Display ('候选与工程约束不符，缓存保留：'+$ok.reason);continue}
                 Assert-JobsHarmonySdk $Git $sdk $choice.Commit $Project
                 $config=&$script:HarmonyManager {param($Path)Get-JobsProjectFvmConfig $Path} $Project
                 foreach($pair in @(@('flutter',$choice.Version),@('cachePath',$cache),@('flutterUrl',$script:HarmonyRepository),@('updateMelosSettings',$false),@('useGitCache',$false))){$config|Add-Member -NotePropertyName $pair[0] -NotePropertyValue $pair[1] -Force}
@@ -90,7 +97,7 @@ function Initialize-JobsPrepareSdk {
             }
             throw '没有满足工程 Flutter / Dart 约束的正式鸿蒙 SDK；未绑定预览版或修改全局版本。'
         }finally{if($lock){$lock.Dispose()}}
-    } $git $Flutter $Project ${function:Invoke-JobsPrepareCompatibilityBridge} ($compat.compatible-and$help-match'(?m)^\s*hap\s') $version.frameworkRevision
+    } $git $Flutter $Project ${function:Invoke-JobsPrepareCompatibilityBridge} ($compat.compatible-and$help-match'(?m)^\s*hap\s') $version.frameworkRevision ${function:Write-JobsPrepareDisplay}
 }
 
 function Invoke-JobsPrepareCompatibilityBridge {
@@ -121,7 +128,7 @@ function New-JobsPrepareOhosPlatform {
         if(Test-Path -LiteralPath $target){throw '准备期间已有 ohos 出现，未覆盖并发变更。'}
         [IO.Directory]::Move((Join-Path $stage 'ohos'),$target)
         [IO.Directory]::Delete($stage,$true)
-    }catch{Write-Host ('鸿蒙生成现场保留：'+$stage);throw}
+    }catch{Write-JobsPrepareDisplay ('鸿蒙生成现场保留：'+$stage);throw}
 }
 
 function Install-JobsPrepareJava17 {
@@ -132,7 +139,7 @@ function Install-JobsPrepareJava17 {
     [void][IO.Directory]::CreateDirectory($stage)
     $metadata=Join-Path $stage 'assets.json'
     $url='https://api.adoptium.net/v3/assets/latest/17/hotspot?architecture=x64&image_type=jdk&os=windows&vendor=eclipse'
-    Write-Host ('当前流程获取 JDK 17；来源：'+$url+'；安装到独立用户缓存，不改全局 Java。')
+    Write-JobsPrepareDisplay ('当前流程获取 JDK 17；来源：'+$url+'；安装到独立用户缓存，不改全局 Java。')
     Receive-JobsSdkWebFile $url $metadata 60
     $assets=Get-Content -LiteralPath $metadata -Raw -Encoding UTF8|ConvertFrom-Json
     $selected=@($assets|Where-Object{$_.version.major-eq17-and$_.binary.os-ceq'windows'-and$_.binary.architecture-ceq'x64'-and$_.binary.image_type-ceq'jdk'})
@@ -154,7 +161,7 @@ function Initialize-JobsPrepareTools {
     try{$root=Get-JobsRunnerHarmonyRoot}catch{}
     $emulator=$null
     if(-not(Test-JobsPrepareToolFiles $root)){
-        if($root){Write-Host '现有鸿蒙工具缺少组件；保留原安装，自动获取完整 CLT 到独立用户缓存。'}
+        if($root){Write-JobsPrepareDisplay '现有鸿蒙工具缺少组件；保留原安装，自动获取完整 CLT 到独立用户缓存。'}
         $emulator=&$script:JobsPrepareCore.Tools {Install-JobsHarmonyTools}
         $root=Split-Path -Parent (Split-Path -Parent $emulator)
     }
@@ -225,18 +232,19 @@ function Wait-JobsPreparedHarmonyDevice {
             if($devices.Count-gt1){throw 'Flutter 返回重复原设备标识，未运行其它设备。'}
             if($devices.Count-eq1){return $devices[0]}
         }
-        Write-Host ('等待原鸿蒙设备就绪与本机调试授权：'+$Identity+'；Ctrl+C 可取消。')
+        Write-JobsPrepareDisplay ('等待原鸿蒙设备就绪与本机调试授权：'+$Identity+'；Ctrl+C 可取消。')
         Start-Sleep -Seconds 2
     }
     throw ('环境已准备，但未确认原设备 '+$Identity+' 可运行；未改跑其它设备。')
 }
 
 function Invoke-JobsPrepareHarmonyPipeline {
-    param([string]$Flutter,[string]$Project,[string]$DiagnosticKey,[switch]$RefreshCompatible)
+    param([string]$Flutter,[string]$Project,[string]$DiagnosticKey,[switch]$RefreshCompatible,[switch]$EnvironmentOnly)
     $snapshot=Get-JobsPrepareEnvironmentSnapshot
     try{
-        Write-Host '正在当前运行流程准备鸿蒙环境：隔离正式 SDK、CLT 工具、项目平台与依赖；不下载模拟器镜像，不修改已有业务源码。' -ForegroundColor Cyan
-        $identity=Get-JobsPrepareOriginalIdentity $DiagnosticKey -AllowUnknown
+        Write-JobsPrepareDisplay '正在当前运行流程准备鸿蒙环境：隔离正式 SDK、CLT 工具、项目平台与依赖；不下载模拟器镜像，不修改已有业务源码。' -ForegroundColor Cyan
+        $identity=$null
+        if(-not$EnvironmentOnly){$identity=Get-JobsPrepareOriginalIdentity $DiagnosticKey -AllowUnknown}
         $script:JobsPrepareCore=Import-JobsPrepareCore
         $selected=Initialize-JobsPrepareSdk $Flutter $Project -RefreshCompatible:$RefreshCompatible
         $flutter=$selected.Flutter
@@ -245,7 +253,7 @@ function Invoke-JobsPrepareHarmonyPipeline {
         New-JobsPrepareOhosPlatform $flutter $Project $selected.ProjectName
         [void](Invoke-JobsRunnerTool $flutter @('precache','--ohos') $Project 1800)
         [void](Invoke-JobsPrepareProcess $flutter @('pub','get') $Project 900)
-        Assert-JobsRunnerProjectPackages $Project -Harmony
+        Assert-JobsRunnerProjectPackages $Project -Harmony -Flutter $flutter
         $directory=Join-Path $Project 'ohos'
         $wrapper=$null
         foreach($name in @('hvigorw.bat','hvigorw.cmd')){$path=Join-Path $directory $name;if([IO.File]::Exists($path)){$wrapper=$path;break}}
@@ -253,8 +261,13 @@ function Invoke-JobsPrepareHarmonyPipeline {
         [void](Invoke-JobsPrepareProcess $tools.Ohpm @('install') $directory 1800)
         [void](Invoke-JobsPrepareProcess $wrapper @('--sync') $directory 1800)
         $report=Get-JobsRunnerPreflight $flutter $Project
-        Write-JobsRunnerPreflight $report
+        Write-JobsRunnerPreflight $report $flutter $Project
         Assert-JobsRunnerPreflight $report 'ohos-arm64'
+        if($EnvironmentOnly){
+            $environment=@{}
+            foreach($key in @('PATH','JAVA_HOME','TOOL_HOME','DEVECO_STUDIO_HOME','DEVECO_SDK_HOME','OHOS_SDK_HOME')){$environment[$key]=[Environment]::GetEnvironmentVariable($key,'Process')}
+            return [pscustomobject]@{Flutter=$flutter;Environment=$environment;DeviceId='';DevicePlatform='ohos-arm64'}
+        }
         if(-not$identity){$identity=Get-JobsPrepareOriginalIdentity $DiagnosticKey}
         $device=Wait-JobsPreparedHarmonyDevice $flutter $Project $identity
         if([string]$device.id-cne$identity-or[string]$device.targetPlatform-notmatch'(?i)^(?:ohos|openharmony)(?:-|$)'){throw '准备结果没有精确匹配原鸿蒙设备，未启动应用。'}

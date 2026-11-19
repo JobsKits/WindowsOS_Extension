@@ -19,7 +19,7 @@
 
 **SDK 获取策略：** Java、Android Command-Line Tools、SDK 组件和模拟器系统镜像的下载／远程清单获取失败后持续自动重试，直到成功或按 Ctrl+C／停止主动结束，无须确认重试；等待逐步延长且最多 30 秒。实时显示真实输出，重试日志追加到系统临时目录的 `JobsSdkAcquisition-进程号.log`。归档校验失败仅重取本次私有文件；成功后清理本次暂存，失败／取消保留未提交暂存并显示位置，不删除已有健康 SDK。许可证、架构／参数／权限等确定的本地问题单独处理；创建和启动 AVD 不在重试循环中。
 
-**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。任务开始前关闭或取消面板不会启动操作；卸载保留日志、备份、运行文件和工具。
 
 ## 🔥 <span id="前言">前言</span>
 
@@ -31,15 +31,19 @@
 | --- | --- |
 | `Manage.cmd` | 为当前用户构建并注册独立原生菜单。 |
 | `Manage.cmd` | 只移除此功能菜单，保留 SDK、AVD、日志及备份。 |
-| `Run.cmd` | 无须先安装右键菜单，直接进入同一创建 / 启动流程。 |
-| `Scripts/CreateAndroidSimulator.ps1 -Check` | 只读检查宿主、Java、SDK 命令行工具及硬件加速，不下载或创建。 |
+| `Run.cmd/Run.cmd` | 无须先安装右键菜单，直接进入同一创建 / 启动流程。 |
+| `Scripts/CreateAndroidSimulator.ps1/CreateAndroidSimulator.ps1 -Check` | 只读检查宿主、Java、SDK 命令行工具及硬件加速，不下载或创建。 |
 
 **系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
 
-**本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。创建 / 启动 Android Emulator 仅面向 AMD64（x64）Windows 10 / 11，Windows ARM / 32 位不支持；需要 BIOS 虚拟化与 WHPX 等加速。菜单可在虚拟机检查，模拟器业务须在符合官方要求的物理机验收；虚拟机 / 嵌套虚拟化中的结果不作为受支持结论。`Run.cmd` 无须菜单编译器。
+**本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。创建 / 启动 Android Emulator 仅面向 AMD64（x64）Windows 10 / 11，Windows ARM / 32 位不支持；需要 BIOS 虚拟化与 WHPX 等加速。菜单可在虚拟机检查，模拟器业务须在符合官方要求的物理机验收；虚拟机 / 嵌套虚拟化中的结果不作为受支持结论。`Run.cmd/Run.cmd` 无须菜单编译器。
 
 
 **面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
+
+**管理面板关闭：** 空闲关闭时选择退到系统托盘或完全退出，默认回车为托盘、Esc 保留原窗；安装／卸载／构建清理进行中关闭直接后台，不询问、不终止任务。完工仍驻留，从托盘双击或“显示管理面板”恢复同一窗口；忙碌时不能完全退出。
+
+**整行选择：** 点击复选框、图标、功能文字、普通状态区或该功能行空白，仅切换该项一次，保留原 Tab／Space 复选框操作及勾选事件。任务执行中及不可用项禁止切换；失败日志链接和独立按钮优先执行自身动作，不连带勾选。组标题拖动、分组按钮和组尾空白不算功能行；移动、离开、滚动或触控滑动会取消本次点击候选，不接管原生滚动。选择本身不执行安装、卸载或清理，原默认空选、主题／语言切换保留勾选及持久化规则不变。
 
 **两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
 
@@ -49,7 +53,7 @@
 
 ## 一、<span id="installation">安装与运行前提</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-使用系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1` Desktop、x64 Windows 10 / 11 和图形桌面。原生菜单安装需要已经安装 [**Visual Studio Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的 MSVC、Windows SDK 和对应宿主架构工具；缺失时在注册前停止，不自动安装编译器。`Run.cmd` 不需要菜单编译器。
+使用系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1` Desktop、x64 Windows 10 / 11 和图形桌面。原生菜单安装需要已经安装 [**Visual Studio Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的 MSVC、Windows SDK 和对应宿主架构工具；缺失时在注册前停止，不自动安装编译器。`Run.cmd/Run.cmd` 不需要菜单编译器。
 
 Android Emulator 官方目前[不支持 Windows ARM CPU](https://developer.android.com/studio/install#windows)，本包明确停止，避免下载不兼容镜像。x64 使用 `x86_64` 手机 / 平板镜像。BIOS 虚拟化及 [**WHPX**](https://developer.android.com/studio/run/emulator-acceleration) 必须可用；脚本运行 `emulator -accel-check`，失败时给出诊断，不自动改系统功能或安装驱动。
 
@@ -57,9 +61,9 @@ SDK 按 `ANDROID_HOME`、`ANDROID_SDK_ROOT`、当前用户 `LOCALAPPDATA/Android
 
 ## 二、<span id="workflow">创建与启动流程</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-1、从桌面空白右键或 `Run.cmd` 进入 CMD，首屏说明来源、目标、依赖自动下载 / 修复和数据保留边界。直接回车开始，任意非空输入取消；随后自动体检并补齐 SDK 根目录、Java、Command-Line Tools、Emulator 与 ADB，健康工具复用。
+1、从桌面空白右键或 `Run.cmd/Run.cmd` 进入 CMD，首屏说明来源、目标、依赖自动下载 / 修复和数据保留边界。直接回车开始，任意非空输入取消；随后自动体检并补齐 SDK 根目录、Java、Command-Line Tools、Emulator 与 ADB，健康工具复用。
 
-2、桌面右键直接进入新建流程；独立 `Run.cmd` 可以选择“新建 Android 模拟器”或“启动已有 Android 模拟器”。编号列表回车采用第一项，`q` 取消。EOF 会停止，不能被当作默认回车。
+2、桌面右键直接进入新建流程；独立 `Run.cmd/Run.cmd` 可以选择“新建 Android 模拟器”或“启动已有 Android 模拟器”。编号列表回车采用第一项，`q` 取消。EOF 会停止，不能被当作默认回车。
 
 3、新建优先选择已安装、匹配宿主的稳定系统镜像，再选择 SDK 自带的设备型号。镜像按 API 从新到旧，Google APIs 优先；兼容 `36.1` 及 `36-extN` 稳定 API，不把代号预览、TV 或其它 CPU 架构混入手机镜像。
 
@@ -97,9 +101,9 @@ flowchart TD
 
 数据位于当前用户 `LOCALAPPDATA/Jobs/WindowsExtension/extensions/android-simulator-create/`；`logs/` 保存安装记录及每个启动会话的 `.stdout.log` / `.stderr.log`。菜单安装不下载 SDK；进入创建 / 启动流程后，首屏回车即自动补齐缺失组件，SDK 许可仍由官方工具本人确认。卸载保留 SDK、AVD、运行版本、日志和备份，方便排障。
 
-隔离测试位于 [`AndroidSimulatorCreator.Tests.ps1`](../Tests/AndroidSimulatorCreator.Tests.ps1)，覆盖桌面专用注册、单包 release、架构筛选、镜像 / 型号解析、唯一命名、首屏门禁与自动镜像安装、特殊路径、创建与已有设备分支、失败传播及环境恢复。修复和 SDK 同卷 stage 由 [`AndroidSimulatorRepair.Tests.ps1`](../Tests/AndroidSimulatorRepair.Tests.ps1) 的本地归档及进程夹具覆盖；只读体检共用相同健康检查，并明确禁用安装 / 卸载。Java 官方 ZIP 校验、版本解析、只读禁安装、首屏取消及用户目录同卷安装另见 [`AndroidSimulatorBootstrap.Tests.ps1`](../Tests/AndroidSimulatorBootstrap.Tests.ps1)。原生桌面规则另由 [`AndroidDesktopProbe.cpp`](../Tests/AndroidDesktopProbe.cpp) 验证。macOS 上的 PowerShell / C++ 回归不等于 Windows PowerShell 5.1、MSVC 编译、Explorer 加载、真实 SDK 下载与 AVD 启动已经实机通过。
+隔离测试位于 [`AndroidSimulatorCreator.Tests.ps1`](../Tests/AndroidSimulatorCreator.Tests.ps1/AndroidSimulatorCreator.Tests.ps1)，覆盖桌面专用注册、单包 release、架构筛选、镜像 / 型号解析、唯一命名、首屏门禁与自动镜像安装、特殊路径、创建与已有设备分支、失败传播及环境恢复。修复和 SDK 同卷 stage 由 [`AndroidSimulatorRepair.Tests.ps1`](../Tests/AndroidSimulatorRepair.Tests.ps1/AndroidSimulatorRepair.Tests.ps1) 的本地归档及进程夹具覆盖；只读体检共用相同健康检查，并明确禁用安装 / 卸载。Java 官方 ZIP 校验、版本解析、只读禁安装、首屏取消及用户目录同卷安装另见 [`AndroidSimulatorBootstrap.Tests.ps1`](../Tests/AndroidSimulatorBootstrap.Tests.ps1/AndroidSimulatorBootstrap.Tests.ps1)。原生桌面规则另由 [`AndroidDesktopProbe.cpp`](../Tests/AndroidDesktopProbe.cpp) 验证。macOS 上的 PowerShell / C++ 回归不等于 Windows PowerShell 5.1、MSVC 编译、Explorer 加载、真实 SDK 下载与 AVD 启动已经实机通过。
 
-管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs/Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 
 
@@ -114,5 +118,10 @@ flowchart TD
 > 验证范围：已完成 PowerShell 语法、参数／退出与隔离生命周期核验；Windows 原生控制台的显示、按键与 `Ctrl+C` 实机验证尚未完成。
 
 <!-- JOBS_TERMINAL_STYLE_V1:END -->
+
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [Manage.vbs](./Manage.vbs/README.md)、[Run.cmd](./Run.cmd/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

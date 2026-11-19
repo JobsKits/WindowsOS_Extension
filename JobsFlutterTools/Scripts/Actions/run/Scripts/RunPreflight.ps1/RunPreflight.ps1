@@ -51,7 +51,7 @@ function Restore-JobsRunnerTaskEnvironment {
 }
 
 function Get-JobsRunnerTaskEnvironment {
-    return Get-JobsRunnerTaskEnvironmentSnapshot @('PATH','JAVA_HOME','TOOL_HOME','DEVECO_STUDIO_HOME','DEVECO_SDK_HOME','OHOS_SDK_HOME')
+    return Get-JobsRunnerTaskEnvironmentSnapshot @('PATH','JAVA_HOME','ANDROID_HOME','ANDROID_SDK_ROOT','TOOL_HOME','DEVECO_STUDIO_HOME','DEVECO_SDK_HOME','OHOS_SDK_HOME')
 }
 
 function Set-JobsRunnerTaskEnvironment {
@@ -86,7 +86,7 @@ function Get-JobsRunnerHdcExecutable {
         if([IO.Directory]::Exists($cache)) {
             try { $roots+=@(Get-ChildItem -LiteralPath $cache -Directory -Filter 'clt-*'|ForEach-Object{$_.FullName}) }
             catch [Management.Automation.PipelineStoppedException] { throw }
-            catch { Write-Host ('部分HDC工具目录不可读取：'+$_.Exception.Message) -ForegroundColor Yellow }
+            catch { Write-JobsRunnerDisplayText ('部分HDC工具目录不可读取：'+$_.Exception.Message) -ForegroundColor Yellow }
         }
     }
     foreach($root in $roots){foreach($relative in @('sdk/default/openharmony/toolchains/hdc.exe','sdk/openharmony/toolchains/hdc.exe','tools/hdc/hdc.exe')){$candidates+=Join-Path $root $relative}}
@@ -137,17 +137,17 @@ function Get-JobsRunnerHarmonyDiagnostics {
                 $id = $line.Trim()
                 $status=''
                 if($id-match'(?i)^([A-Za-z0-9][A-Za-z0-9_.:@/-]*)\s+(unauthorized|offline|notready|unauth)\b'){$id=$Matches[1];$status=$Matches[2]}
-                if($line-match'(?i)unauthorized|offline|notready|unauth|\[(?:fail|error)\]'){Write-Host ('HDC 状态：'+$line.Trim()+'；请解锁设备、确认本机调试授权后重新加载。') -ForegroundColor Yellow}
+                if($line-match'(?i)unauthorized|offline|notready|unauth|\[(?:fail|error)\]'){Write-JobsRunnerDisplayText ('HDC 状态：'+$line.Trim()+'；请解锁设备、确认本机调试授权后重新加载。') -ForegroundColor Yellow}
                 if ($id -cnotmatch '^[A-Za-z0-9][A-Za-z0-9_.:@/-]*$' -or $id -cin @('Empty','None','OK','Success','Fail','Unauthorized','Offline','NotReady','Unauth')) { continue }
                 if (-not $targets.Add($id) -or $runnable.Contains($id)) { continue }
-                $rows += [pscustomobject]@{ Kind='HarmonyDiagnostic'; Id=$id; Name=('鸿蒙设备（HDC）—已连接，环境未就绪 · '+$id); Detail=('HDC 已发现目标'+$(if($status){'，状态：'+$status}else{''})+'，但当前 Flutter 没有将它列为本工程可运行设备；请核对 SDK 支持、工程鸿蒙适配和手机调试授权。') }
+                $rows += [pscustomobject]@{ Kind='HarmonyDiagnostic'; Id=$id; Name='鸿蒙设备（HDC）—已连接，环境未就绪'; Detail=('HDC 已发现目标'+$(if($status){'，状态：'+$status}else{''})+'，但当前 Flutter 没有将它列为本工程可运行设备；请核对 SDK 支持、工程鸿蒙适配和手机调试授权。') }
             }
         } catch [Management.Automation.PipelineStoppedException] { throw }
-        catch { $hdcFailure = $_.Exception.Message; Write-Host ('HDC 查询未完成：'+$hdcFailure+'；可重新加载设备列表。') -ForegroundColor Yellow }
+        catch { $hdcFailure = $_.Exception.Message; Write-JobsRunnerDisplayText ('HDC 查询未完成：'+$hdcFailure+'；可重新加载设备列表。') -ForegroundColor Yellow }
     }
     try { $usb = @(ConvertFrom-JobsRunnerHarmonyUsb @(Get-JobsRunnerUsbInventory)) }
     catch [Management.Automation.PipelineStoppedException] { throw }
-    catch { $usb=@(); Write-Host ('USB 设备查询未完成，可重新加载：'+$_.Exception.Message) -ForegroundColor Yellow }
+    catch { $usb=@(); Write-JobsRunnerDisplayText ('USB 设备查询未完成，可重新加载：'+$_.Exception.Message) -ForegroundColor Yellow }
     $seen = New-Object 'Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
     foreach ($device in $usb) {
         if (-not $seen.Add($device.Id) -or $runnable.Contains($device.Serial) -or $targets.Contains($device.Serial)) { continue }
@@ -163,9 +163,9 @@ function Get-JobsRunnerHarmonyDiagnostics {
 
 function Show-JobsRunnerHarmonyDiagnostic {
     param($Device)
-    Write-Host $Device.Name -ForegroundColor Yellow
-    Write-Host $Device.Detail
-    Write-Host '选择此设备后将在当前运行流程准备兼容 SDK、工具链与项目依赖；不改选其它设备，不绕过缺失插件或官方许可。'
+    Write-JobsRunnerDisplayText $Device.Name -ForegroundColor Yellow
+    Write-JobsRunnerDisplayText $Device.Detail
+    Write-JobsRunnerDisplayText '选择此设备后将在当前运行流程准备兼容 SDK、工具链与项目依赖；不改选其它设备，不绕过缺失插件或官方许可。'
 }
 
 # 直接运行已存在的同源 Dart/snapshot，避开 Flutter shim 的自举获取入口。
@@ -202,7 +202,7 @@ function Invoke-JobsRunnerReadOnlyTool {
         $stderr = $process.StandardError.ReadToEndAsync()
         while (-not $process.WaitForExit(100)) {
             if ($clock.Elapsed.TotalSeconds -ge $TimeoutSeconds) { throw '本地环境体检超时；未启动 Flutter 应用。' }
-            if ($clock.Elapsed.TotalSeconds -ge $nextNotice) { Write-Host '本地环境体检仍在进行，等待工具返回完整结果…'; $nextNotice += 10 }
+            if ($clock.Elapsed.TotalSeconds -ge $nextNotice) { Write-JobsRunnerDisplayText '本地环境体检仍在进行，等待工具返回完整结果…'; $nextNotice += 10 }
         }
         if (-not $stdout.Wait(5000) -or -not $stderr.Wait(5000)) { throw '本地体检输出未完整结束。' }
         $result = [pscustomobject]@{ ExitCode = $process.ExitCode; StdOut = $stdout.Result; StdErr = $stderr.Result }
@@ -269,13 +269,54 @@ function Get-JobsRunnerPreflightAndroidPaths {
     return & $module { param($Detected) $sdk = if ($Detected) { $Detected } else { Get-JobsAndroidSdk }; [pscustomobject]@{ Sdk = $sdk; Tools = (Get-JobsAndroidTools $sdk) } } $detected
 }
 
+# 逐级解析SDK目录中的junction/symlink，允许FVM入口与真实包路径指向同一SDK。
+function Resolve-JobsRunnerPackageDirectory {
+    param([string]$Path)
+    $full=[IO.Path]::GetFullPath($Path)
+    for($hop=0;$hop-lt16;$hop++){
+        $current=$full;$resolved=$false
+        while($current){
+            $item=Get-Item -LiteralPath $current -Force -ErrorAction Stop
+            if(($item.Attributes-band[IO.FileAttributes]::ReparsePoint)-ne0){
+                if($null-eq$item.PSObject.Properties['Target']){throw '无法解析SDK目录链接，未将未知目录判为相同SDK。'}
+                $targets=@($item.Target)
+                if($targets.Count-ne1-or[string]::IsNullOrWhiteSpace([string]$targets[0])){throw 'SDK目录链接目标不唯一。'}
+                $target=[string]$targets[0]
+                if(-not[IO.Path]::IsPathRooted($target)){$target=Join-Path ([IO.Path]::GetDirectoryName($current)) $target}
+                $suffix=$full.Substring($current.Length).TrimStart([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
+                $full=if($suffix){[IO.Path]::GetFullPath((Join-Path $target $suffix))}else{[IO.Path]::GetFullPath($target)}
+                $resolved=$true;break
+            }
+            $parent=[IO.Path]::GetDirectoryName($current)
+            if($parent-ceq$current){break}
+            $current=$parent
+        }
+        if(-not$resolved){return $full.TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)}
+    }
+    throw 'SDK目录链接层数过多或循环，未通过依赖索引校验。'
+}
 function Assert-JobsRunnerProjectPackages {
-    param([string]$Project, [switch]$Harmony)
+    param([string]$Project, [switch]$Harmony, [string]$Flutter)
     $path = Join-Path $Project '.dart_tool/package_config.json'
     if (-not [IO.File]::Exists($path)) { throw '缺少 .dart_tool/package_config.json；请先解析工程依赖。' }
     $config = [IO.File]::ReadAllText($path) | ConvertFrom-Json -ErrorAction Stop
     if ($config.configVersion -ne 2 -or @($config.packages).Count -eq 0) { throw '工程依赖索引无效。' }
     $baseUri = [Uri]::new([IO.Path]::GetFullPath($path))
+    if (-not [string]::IsNullOrWhiteSpace($Flutter)) {
+        $sdk = Split-Path -Parent (Split-Path -Parent ([IO.Path]::GetFullPath($Flutter)))
+        $flutterPackages = @($config.packages | Where-Object { $_.name -ceq 'flutter' })
+        if ($flutterPackages.Count -ne 1) { throw '工程依赖索引缺少唯一 Flutter SDK 包；需使用本次所选 SDK 重新解析。' }
+        foreach ($package in @($config.packages | Where-Object { $_.name -in @('flutter','flutter_test','flutter_web_plugins','sky_engine') })) {
+            $relative = if ($package.name -ceq 'sky_engine') { 'bin/cache/pkg/sky_engine' } else { 'packages/' + $package.name }
+            $expected = Join-Path $sdk $relative
+            $actual = [Uri]::new($baseUri, [string]$package.rootUri)
+            if (-not $actual.IsFile -or -not [IO.Directory]::Exists($expected)) { throw ('工程依赖索引未指向本次所选 Flutter SDK：' + $package.name) }
+            $expected = Resolve-JobsRunnerPackageDirectory $expected
+            $actualPath = Resolve-JobsRunnerPackageDirectory $actual.LocalPath
+            $comparison = if ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+            if (-not [string]::Equals($actualPath, $expected, $comparison)) { throw ('工程依赖索引未指向本次所选 Flutter SDK：' + $package.name + '；先使用所选 SDK 执行 pub get。') }
+        }
+    }
     $unsupported = @()
     foreach ($package in $config.packages) {
         $uri = [Uri]::new($baseUri, [string]$package.rootUri)
@@ -343,12 +384,12 @@ function Assert-JobsRunnerHarmonyTools {
         if (-not [IO.File]::Exists((Join-Path $Project $name))) { throw ('工程缺少 ' + $name + '；需要先适配鸿蒙，体检不会生成平台目录。') }
     }
     if (-not [IO.File]::Exists((Join-Path $Project 'ohos/hvigorfile.ts')) -and -not [IO.File]::Exists((Join-Path $Project 'ohos/hvigorfile.js'))) { throw '工程缺少 ohos/hvigorfile。' }
-    Assert-JobsRunnerProjectPackages $Project -Harmony
+    Assert-JobsRunnerProjectPackages $Project -Harmony -Flutter $Flutter
 }
 
 function Get-JobsRunnerPreflight {
     param([string]$Flutter, [string]$Project)
-    Write-Host '正在检查本地 SDK、工程依赖和各平台工具链…' -ForegroundColor Cyan
+    Write-JobsRunnerDisplayText '正在检查本地 SDK、工程依赖和各平台工具链…' -ForegroundColor Cyan
     $report = @{}
     $report.ios = New-JobsRunnerPreflightStatus 'iOS' 'not-applicable' 'Windows 不支持本地 iOS 编译运行，请在 macOS 检查。'
     $sections = @{}
@@ -372,7 +413,7 @@ function Get-JobsRunnerPreflight {
             $expected = $Matches[1]
             if (-not $context.FlutterVersion -or $context.FlutterVersion -notmatch ('^v?' + [regex]::Escape($expected) + '(?:$|[-+])') -or $version.frameworkVersion -notmatch ('^v?' + [regex]::Escape($expected) + '(?:$|[-+])')) { throw ('FVM 声明 ' + $context.DeclaredFlutter + '，本地 SDK 版本 ' + $context.FlutterVersion + '；请先核对绑定和实际运行版本。') }
         }
-        Assert-JobsRunnerProjectPackages $Project
+        Assert-JobsRunnerProjectPackages $Project -Flutter $Flutter
         $report.base = New-JobsRunnerPreflightStatus 'Flutter / 工程依赖' 'ready' ('Flutter ' + $version.frameworkVersion + '；依赖索引与本地路径有效。')
     } catch { $report.base = New-JobsRunnerPreflightStatus 'Flutter / 工程依赖' 'failed' $_.Exception.Message }
     foreach ($platform in @('android', 'ohos', 'windows', 'web')) {
@@ -398,15 +439,73 @@ function Get-JobsRunnerPreflight {
     return $report
 }
 
+# 每轮运行重置展示快照；健康检查及运行门禁不使用该快照。
+function Reset-JobsRunnerPreflightDisplay {
+    $script:RunnerPreflightDisplaySnapshot=$null
+}
+# 用本工程与绑定SDK的本地身份划分展示作用域，不执行工具或网络探测。
+function Get-JobsRunnerPreflightDisplayScope {
+    param([string]$Flutter,[string]$Project)
+    if([string]::IsNullOrWhiteSpace($Flutter)-or[string]::IsNullOrWhiteSpace($Project)){return ''}
+    try{
+        $projectPath=[IO.Path]::GetFullPath($Project)
+        $flutterPath=[IO.Path]::GetFullPath($Flutter)
+        $sdk=Split-Path -Parent (Split-Path -Parent $flutterPath)
+        for($index=0;$index-lt8;$index++){
+            try{
+                $item=Get-Item -LiteralPath $sdk -Force -ErrorAction Stop
+                if(-not($item.Attributes-band[IO.FileAttributes]::ReparsePoint)-or$null-eq$item.PSObject.Properties['Target']){break}
+                $targets=@($item.Target)
+                if($targets.Count-ne1-or-not$targets[0]){break}
+                $next=[string]$targets[0]
+                if(-not[IO.Path]::IsPathRooted($next)){$next=Join-Path (Split-Path -Parent $sdk) $next}
+                $next=[IO.Path]::GetFullPath($next)
+                if($next-ceq$sdk){break}
+                $sdk=$next
+            }catch{break}
+        }
+        $identity=@($projectPath,$flutterPath,$sdk)
+        if([Environment]::OSVersion.Platform-eq[PlatformID]::Win32NT){$identity=@($identity|ForEach-Object{$_.ToUpperInvariant()})}
+        foreach($path in @((Join-Path $projectPath '.fvmrc'),(Join-Path $projectPath '.fvm/fvm_config.json'),(Join-Path $sdk 'version'),(Join-Path $sdk 'bin/internal/engine.version'),(Join-Path $sdk 'bin/cache/flutter.version.json'),(Join-Path $sdk '.git/HEAD'))){
+            $value='<missing>'
+            try{$file=Get-Item -LiteralPath $path -Force -ErrorAction Stop;if(-not$file.PSIsContainer-and$file.Length-le65536){$value=[IO.File]::ReadAllText($file.FullName)}}catch{}
+            $identity += $value
+        }
+        $hash=[Security.Cryptography.SHA256]::Create()
+        try{return [BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes(($identity|ConvertTo-Json -Compress)))).Replace('-','')}
+        finally{$hash.Dispose()}
+    }catch{return ''}
+}
+# 初次全量，后续只展示同工程和SDK下有变化的项；每轮仍使用完整真实报告作门禁。
 function Write-JobsRunnerPreflight {
-    param([hashtable]$Report)
-    Write-Host '运行前环境体检（只检查，不安装、切换 SDK 或生成平台文件）' -ForegroundColor Cyan
-    foreach ($key in @('base', 'ios', 'android', 'ohos', 'windows', 'web')) {
-        $entry = $Report[$key]
-        $label = if ($entry.State -ceq 'ready') { '通过' } elseif ($entry.State -ceq 'not-applicable') { '不适用' } else { '未通过' }
-        $color = if ($entry.State -ceq 'ready') { 'Green' } elseif ($entry.State -ceq 'not-applicable') { 'DarkGray' } else { 'Yellow' }
-        Write-Host ('[' + $label + '] ' + $entry.Name + '：' + $entry.Detail) -ForegroundColor $color
+    param([hashtable]$Report,[string]$Flutter,[string]$Project)
+    $scope=Get-JobsRunnerPreflightDisplayScope $Flutter $Project
+    $saved=Get-Variable RunnerPreflightDisplaySnapshot -Scope Script -ErrorAction SilentlyContinue
+    $previous=if($null-ne$saved){$saved.Value}else{$null}
+    $sameScope=(-not[string]::IsNullOrWhiteSpace($scope)-and$null-ne$previous-and$previous.Scope-ceq$scope)
+    $entries=@{};$snapshot=@{};$changed=@()
+    foreach($key in @('base','ios','android','ohos','windows','web')){
+        if($Report.ContainsKey($key)){$entry=$Report[$key]}
+        elseif($sameScope-and$previous.Entries.ContainsKey($key)){$entry=New-JobsRunnerPreflightStatus $previous.Entries[$key].Name 'failed' '缺少有效检查结果。'}
+        else{continue}
+        $entries[$key]=$entry
+        $signature=[string]$entry.Name+[char]0+[string]$entry.State+[char]0+[string]$entry.Detail
+        $snapshot[$key]=@{Name=[string]$entry.Name;Signature=$signature}
+        if(-not$sameScope-or-not$previous.Entries.ContainsKey($key)-or$previous.Entries[$key].Signature-cne$signature){$changed += $key}
     }
+    $title=if(-not$sameScope){'运行前环境体检（只检查，不安装、切换 SDK 或生成平台文件）'}elseif($changed.Count){'运行前环境复检（仅显示变化项）'}else{'运行前环境复检：结果无变化。'}
+    if(Get-Command Write-JobsRunnerMilestone -CommandType Function -ErrorAction SilentlyContinue){Write-JobsRunnerMilestone $title}
+    else{Write-JobsRunnerDisplayText $title -ForegroundColor Red}
+    foreach($key in $changed){
+        $entry=$entries[$key]
+        $symbol=if($entry.State-ceq'ready'){'✅'}elseif($entry.State-ceq'not-applicable'){'—'}else{'❌'}
+        $color=if($entry.State-ceq'ready'){'Green'}elseif($entry.State-ceq'not-applicable'){'DarkGray'}else{'Red'}
+        foreach($detail in @([string]$entry.Detail-split'(?:\r?\n|；)'|Where-Object{-not[string]::IsNullOrWhiteSpace($_)})){
+            Write-JobsRunnerDisplayText ($symbol+' '+$entry.Name+'：'+$detail.Trim()) -ForegroundColor $color
+        }
+    }
+    if([string]::IsNullOrWhiteSpace($scope)){$script:RunnerPreflightDisplaySnapshot=$null}
+    else{$script:RunnerPreflightDisplaySnapshot=[pscustomobject]@{Scope=$scope;Entries=$snapshot}}
 }
 
 function Assert-JobsRunnerPreflight {

@@ -34,4 +34,8 @@ pwsh -NoProfile -File ./FlutterRunnerPreflight.Tests.ps1
 
 跨平台隔离测试不代表 Windows PowerShell 5.1、原生控制台、Explorer 菜单和真实设备已验收；SDK 自身诊断行为、构建及签名仍须目标环境核对。
 
+所选平台准备与后台隔离夹具覆盖：Android / Harmony 缺项直接准备、其它缺失平台仅回车启动私有后台任务、非空输入跳过、工程与 SDK 副本及私有 Pub / Gradle / Android / FVM 缓存、原文件保全、重复任务锁及待应用说明。展示夹具覆盖逐条✅／❌、错误正文颜色、URL绿色下划线与尾部标点、结构标签图标、纯文本无ANSI及分块输出。外部安装与后台进程边界使用隔离函数，不启动真实下载、安装或业务。
+
+报告展示夹具覆盖首份全量、相同结果静默、同一对象的插件详情变化、失败恢复、SDK原路径身份变化、FVM声明变化、工程与SDK切换、新一轮重置及无scope调用。展示去重后仍把完整报告交给原运行门禁，失败平台继续阻断；这些用例只读取临时元数据，不执行Flutter／SDK／设备或安装。
+
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

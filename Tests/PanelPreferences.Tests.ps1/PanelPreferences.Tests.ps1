@@ -337,7 +337,7 @@ try {
     Assert-Panel ($resources.Names[2]-ceq'བོད་ཡིག'-and$resources.Names[5]-ceq'Français'-and$resources.Names[8]-ceq'Русский') '语言名称使用自称，不随当前语言翻译'
     foreach($locale in @('bo','ja','fr','es','de','ru','ko')) {
         $table=$resources.Catalog[$locale]
-        Assert-Panel ($table.Count-eq355) '共享词库每语含355项完整正文和动态模板'
+        Assert-Panel ($table.Count-eq366) '共享词库每语含366项完整正文和动态模板'
         foreach($english in $resources.English){Assert-Panel ($table.ContainsKey([string]$english)-and-not[string]::IsNullOrWhiteSpace($table[[string]$english])) ('Windows当前全部文案有译文：'+$locale+': '+$english)}
         foreach($key in $table.Keys){
             $expected=@([regex]::Matches($key,'\{\d+\}')|ForEach-Object Value|Sort-Object)-join'|'
@@ -527,8 +527,7 @@ try {
                     Assert-Panel ($state.ThemeBox.Height -eq $state.LanguageBox.Height -and $state.ThemeLabel.Height -eq $state.ThemeBox.Height -and $state.LanguageLabel.Height -eq $state.LanguageBox.Height) '主题语言标签与下拉同高并垂直居中'
                     $routeCenter = $state.RouteBox.Top + $state.RouteBox.Height / 2.0
                     $autoCenter = $state.CleanupPanel.Top + $state.AutoCleanup.Top + $state.AutoCleanup.Height / 2.0
-                    $buttonCenter = $state.CleanupPanel.Top + $state.CleanupButton.Top + $state.CleanupButton.Height / 2.0
-                    Assert-Panel ([Math]::Abs($routeCenter - $autoCenter) -le 1 -and [Math]::Abs($routeCenter - $buttonCenter) -le 1) '原生十语言位置自动清理与独立按钮同排垂直居中'
+                    Assert-Panel ([Math]::Abs($routeCenter - $autoCenter) -le 1) '原生十语言顶部位置下拉与自动清理同排垂直居中'
                     Assert-Panel ([object]::ReferenceEquals($state.RouteBox.Parent, $state.DeploymentRow) -and [object]::ReferenceEquals($state.CleanupPanel.Parent, $state.DeploymentRow)) '位置和清理控件共用同一部署行'
                     Assert-Panel ($state.CleanupPanel.Left -ge $state.RouteBox.Right + [int](12 * $state.Scale)) '原生位置下拉不覆盖清理控件'
                     Assert-Panel ([object]::ReferenceEquals($state.CleanupButton.Parent, $state.Footer) -and $state.CleanupButton.Left -ge $state.ConfirmButton.Right + [int](10*$state.Scale)) '红色清理按钮位于底部主执行按钮右侧'

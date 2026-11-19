@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 #include "DesktopScope.h"
+#include "DesktopMenuOrder.h"
 
 const CLSID CLSID_JobsHarmonySimulatorRepairer = {0xc91a8f93,0xca7b,0x4f28,{0xb7,0x05,0xa0,0xac,0x90,0xc5,0xf2,0x31}};
 static HMODULE moduleHandle;
@@ -74,7 +75,7 @@ public:
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
         if ((flags & CMF_DEFAULTONLY) || first > last || !IsDesktop(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
-        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING, first, L"🧰 Harmony 模拟器检测与修复")) return HRESULT_FROM_WIN32(GetLastError());
+        if (!JobsDesktopMenuOrder::Insert(menu, position, first, JobsDesktopMenuOrder::Rank::RepairHarmony, L"🧰 Harmony 模拟器检测与修复")) return HRESULT_FROM_WIN32(GetLastError());
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
     }
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {

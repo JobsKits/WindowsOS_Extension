@@ -1,0 +1,11 @@
+{
+  "Id": "disk-space-info",
+  "Name": "JobsDiskSpaceInfo",
+  "Label": "💽 磁盘剩余空间",
+  "Description": "显示本机磁盘总剩余 / 总容量和两位小数百分比；点击在独立终端选择清理，确认后才执行。",
+  "DirectoryOnly": false,
+  "Console": true,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1"
+  ]
+}

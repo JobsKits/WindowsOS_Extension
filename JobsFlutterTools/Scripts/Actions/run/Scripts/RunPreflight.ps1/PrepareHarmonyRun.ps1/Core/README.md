@@ -20,4 +20,9 @@
 
 只调用正式 tag / commit、缓存安装、精确备份与绑定发布函数，不调用 SDK 管理器交互总入口或全局版本切换。CLT 复用现有校验下载逻辑，仅准备工具，不执行模拟器镜像、AVD 创建或启动。
 
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [HarmonyTools.ps1](./HarmonyTools.ps1/README.md)、[SdkDownloadOutput.ps1](./SdkDownloadOutput.ps1/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
+
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

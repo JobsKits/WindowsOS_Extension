@@ -35,6 +35,18 @@ try {
             Assert-Context (-not $context.DartVersion) '旧缓存和dart-sdk.old不能冒充目标Dart'
             & $module {
                 $script:Events=New-Object 'Collections.Generic.List[string]'
+                $script:OfficialFailure=$false
+                function script:Invoke-JobsRunnerOfficialMetadata {
+                    param($Url,$TimeoutSeconds)
+                    if($script:OfficialFailure){throw 'fixture official timeout'}
+                    if($Url -like '*releases_windows.json*'){
+                        return '{"current_release":{"stable":"cccccccccccccccccccccccccccccccccccccccc"},"releases":[{"hash":"cccccccccccccccccccccccccccccccccccccccc","channel":"stable","version":"3.50.0","dart_sdk_version":"3.13.0","dart_sdk_arch":"x64","release_date":"2026-11-12T12:00:00Z"},{"hash":"cccccccccccccccccccccccccccccccccccccccc","channel":"stable","version":"3.50.0","dart_sdk_version":"3.13.0","dart_sdk_arch":"arm64","release_date":"2026-11-12T12:00:00Z"}]}'
+                    }
+                    return ('d'*40)
+                }
+                function script:Get-JobsRunnerPathSdkContext {
+                    return [pscustomobject]@{FlutterVersion='3.49.2';FlutterSource='fixture local metadata';SdkPath='fixture PATH SDK';Engine=('e'*40);DartVersion='3.12.1'}
+                }
                 function script:Write-JobsSdkRetryMessage {param($Message)$script:Events.Add('log:'+$Message)}
                 function script:Invoke-JobsSdkAcquireProcess {
                     param($Start,$TimeoutSeconds,$Label)
@@ -49,6 +61,14 @@ try {
             Assert-Context ($machine -ceq '{"frameworkVersion":"3.38.4"}') '版本日志不污染机器响应'
             Assert-Context ($events[0].StartsWith('log:') -and $events[-1].StartsWith('download:Flutter 3.38.4')) 'SDK版本上下文先于实际获取，重试标签含Flutter版本'
             $display=$events -join "`n"
+            Assert-Context ($display.Contains('官网当前最新 stable：Flutter 3.50.0 / Dart 3.13.0 / Engine '+('d'*40))) '官网stable来自当前指针且Engine按该发布提交读取'
+            Assert-Context ($display.Contains('官网发布日期：2026-11-12T12:00:00Z') -and $display.Contains('本次查询时间：')) '官网版本带来源日期和本次查询时间'
+            Assert-Context ($display.Contains('本机 PATH Flutter：Flutter 3.49.2') -and $display.Contains('项目声明 Flutter：3.38.4')) 'PATH与工程FVM版本保持分开'
+            & $module {$script:OfficialFailure=$true;$script:Events.Clear()}
+            & $module {param($Context)Write-JobsRunnerSdkContext $Context @('--version')} $context
+            $failedDisplay=(@(& $module {$script:Events.ToArray()}) -join "`n")
+            Assert-Context ($failedDisplay.Contains('官网当前最新 stable：未知') -and -not $failedDisplay.Contains('官网当前最新 stable：Flutter 3.50.0')) '官方查询失败不沿用上次成功版本冒充最新'
+            & $module {$script:OfficialFailure=$false;$script:Events.Clear()}
             Assert-Context ($display.Contains('目标内置 Dart SDK：未解析') -and -not $display.Contains('9.9.9') -and -not $display.Contains('3.0.0')) '未知目标Dart明确说明，不展示不可信旧版本'
             Assert-Context ($display.Contains('项目声明 Flutter：3.38.4') -and $display.Contains('运行平台 / 架构：') -and $display.Contains('目标 engine：'+('a'*40))) '终端日志包含身份及平台上下文'
             & $module {param($Flutter,$Project)Initialize-JobsRunnerDiscoverySdk $Flutter $Project} $flutter $project
@@ -82,6 +102,8 @@ try {
             & $module {
                 $script:RunEvents=New-Object 'Collections.Generic.List[string]'
                 $script:FailDiscovery=$false
+                $script:FailPreflight=$false
+                $script:FixturePreflight=@{Fixture='version-context-preflight'}
                 function script:Assert-JobsFlutterProject {param($Path)}
                 function script:Get-JobsRunnerProjectRoot {param($Path)return $Path}
                 function script:Get-JobsRunnerSession {param($Path)return $null}
@@ -96,17 +118,47 @@ try {
                     }
                     return '{"frameworkVersion":"3.38.4"}'
                 }
-                function script:Select-JobsRunnerDevice {param($Flutter,$Project)$script:RunEvents.Add('devices');return $null}
+                # 本测试只核对阶段衔接；假 Flutter 不进入真实 SDK 路径／宿主体检。
+                function script:Get-JobsRunnerPreflight {
+                    param($Flutter,$Project)
+                    if($Flutter-cne'selected-project-flutter.exe'-or-not[IO.Directory]::Exists($Project)){throw '体检阶段没有收到当前夹具SDK和工程'}
+                    $script:RunEvents.Add('preflight')
+                    return $script:FixturePreflight
+                }
+                function script:Write-JobsRunnerPreflight {
+                    param($Report)
+                    if(-not[object]::ReferenceEquals($Report,$script:FixturePreflight)){throw '展示必须接收本轮体检报告'}
+                    $script:RunEvents.Add('preflight-write')
+                }
+                function script:Assert-JobsRunnerPreflight {
+                    param($Report,[string]$Platform)
+                    if(-not[object]::ReferenceEquals($Report,$script:FixturePreflight)-or$Platform){throw '初次体检必须校验本轮报告，不能伪造已选平台'}
+                    if($script:RunEvents[-1]-cne'preflight-write'){throw '体检报告必须先展示再校验'}
+                    $script:RunEvents.Add('preflight-assert')
+                    if($script:FailPreflight){throw 'fixture preflight blocked'}
+                }
+                function script:Select-JobsRunnerDevice {
+                    param($Flutter,$Project)
+                    if(-not[object]::ReferenceEquals($script:RunnerPreflight,$script:FixturePreflight)-or$script:RunEvents[-1]-cne'preflight-write'){throw '设备阶段必须复用已展示的本轮体检报告'}
+                    $script:RunEvents.Add('devices')
+                    return $null
+                }
                 function script:Start-JobsRunnerSession {$script:RunEvents.Add('UNEXPECTED_RUN');throw '不能启动业务'}
             }
             & $module {param($Project)Invoke-JobsFlutterRunAction $Project} $project
             $runEvents=@(& $module {$script:RunEvents.ToArray()})
-            Assert-Context (($runEvents-join'|')-ceq'--version --machine|precache --universal|devices') '实际运行入口先通用SDK，再枚举；取消设备不启动业务'
+            Assert-Context (($runEvents-join'|')-ceq'--version --machine|precache --universal|preflight|preflight-write|devices') '实际运行入口先通用SDK，再展示本轮体检并选择设备，所选平台准备后才作运行门禁'
+            Assert-Context ('UNEXPECTED_RUN'-cnotin$runEvents) '取消设备不进入运行宿主'
             & $module {$script:RunEvents.Clear();$script:FailDiscovery=$true}
             $stopped=$false
             try{& $module {param($Project)Invoke-JobsFlutterRunAction $Project} $project}catch{$stopped=$_.Exception.Message-ceq'fixture SDK acquisition cancelled'}
             $runEvents=@(& $module {$script:RunEvents.ToArray()})
-            Assert-Context ($stopped-and($runEvents-join'|')-ceq'--version --machine|precache --universal') '通用SDK失败/取消原样传播，不误报无设备也不进入业务'
+            Assert-Context ($stopped-and($runEvents-join'|')-ceq'--version --machine|precache --universal') '通用SDK失败/取消原样传播，不进入体检、设备查询或业务'
+            & $module {$script:RunEvents.Clear();$script:FailDiscovery=$false;$script:FailPreflight=$true}
+            $stopped=$false
+            try{& $module {param($Project)Invoke-JobsFlutterRunAction $Project} $project}catch{$stopped=$_.Exception.Message-ceq'fixture preflight blocked'}
+            $runEvents=@(& $module {$script:RunEvents.ToArray()})
+            Assert-Context (-not$stopped-and($runEvents-join'|')-ceq'--version --machine|precache --universal|preflight|preflight-write|devices') '首次体检缺项允许选定平台后直接准备，取消设备不运行业务'
         }finally{Remove-Module $module}
     }
     Write-Host ('PASS: SdkVersionContext.Tests.ps1 ('+$script:checks+' assertions; no Flutter/Dart/network)')

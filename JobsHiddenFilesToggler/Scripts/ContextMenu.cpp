@@ -15,6 +15,7 @@
 #include <string>
 #include "DesktopScope.h"
 #include "HiddenFilesMenu.h"
+#include "DesktopMenuOrder.h"
 
 const CLSID CLSID_JobsHiddenFilesToggler = {0xf92f7af9,0x65b6,0x41cb,{0xa6,0xd8,0x71,0x2f,0x01,0xf7,0x91,0x26}};
 static HMODULE moduleHandle;
@@ -81,8 +82,8 @@ public:
         const auto state = JobsHiddenFiles::ReadState();
         hasKnownState = state != JobsHiddenFiles::State::Unknown;
         desiredVisible = state == JobsHiddenFiles::State::Hidden;
-        const UINT stateFlag = state == JobsHiddenFiles::State::Unknown ? MF_GRAYED : MF_ENABLED;
-        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING | stateFlag, first, JobsHiddenFiles::ActionTitle(state))) return HRESULT_FROM_WIN32(GetLastError());
+        const UINT stateFlag = state == JobsHiddenFiles::State::Unknown ? MFS_DISABLED : MFS_ENABLED;
+        if (!JobsDesktopMenuOrder::Insert(menu, position, first, JobsDesktopMenuOrder::Rank::HiddenFiles, JobsHiddenFiles::ActionTitle(state), stateFlag)) return HRESULT_FROM_WIN32(GetLastError());
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
     }
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {

@@ -3,6 +3,37 @@
 # 只运行临时假构建；不调用 MSVC、不登记系统菜单、不启动后台宿主。
 [CmdletBinding()]
 param()
+# 源包装与已发布 flat 布局共用路径，兼容旧收据且不跟随包装目录链接。
+function Resolve-JobsScriptLayoutPath {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    if ([IO.Path]::GetExtension($Path) -notin @('.ps1','.cmd','.vbs')) { return $Path }
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        $directory = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('脚本包装不能是链接：' + $Path) }
+        return Join-Path $Path $directory.Name
+    }
+    return $Path
+}
+# 仅新源码包装压平到原发布名称；原有 SDK 资源包与 README 布局保持原意。
+function Convert-JobsReleaseLayoutRelativePath {
+    param([string]$Package, [string]$Relative)
+    $parts = @($Relative -split '[\\/]')
+    if ($parts.Count -lt 2) { return $Relative }
+    $last = $parts[$parts.Count - 1]
+    $parent = $parts[$parts.Count - 2]
+    if ($last -ceq 'README.md' -and [IO.Path]::GetExtension($parent) -in @('.ps1','.cmd','.vbs')) {
+        $sibling = Join-Path (Join-Path $Package (($parts[0..($parts.Count-2)]) -join '/')) $parent
+        if ((Test-Path -LiteralPath $sibling -PathType Leaf) -and ([IO.File]::ReadAllText($sibling) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) { return $null }
+    }
+    if ($last -ceq $parent -and [IO.Path]::GetExtension($last) -in @('.ps1','.cmd','.vbs')) {
+        $source = Join-Path $Package $Relative
+        if ((Test-Path -LiteralPath $source -PathType Leaf) -and ([IO.File]::ReadAllText($source) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) {
+            return (($parts[0..($parts.Count-2)]) -join '/')
+        }
+    }
+    return $Relative
+}
+
 # BEGIN JOBS_TERMINAL_STYLE_V1 - session-only colors; no profile or registry changes.
 function New-JobsTerminalStyleState {
     if ($PSVersionTable.PSVersion.Major -lt 5) { return @{ JobsTerminalPlainFallback = $true; Before = @{} } }
@@ -278,11 +309,11 @@ try {
     $env:LOCALAPPDATA = Join-Path $temp 'LocalData'
     foreach ($name in @('JobsFlutterRunner', 'JobsFlutterTools')) {
         $package = Join-Path $temp ('Sources/' + $name)
-        $manifest = Get-Content -LiteralPath (Join-Path $root ($name + '/Extension.json')) -Raw | ConvertFrom-Json
+        $manifest = Get-Content -LiteralPath (Join-Path $root ($name + '/Extension.json')) -Raw -Encoding UTF8 | ConvertFrom-Json
         Write-Fixture (Join-Path $package 'Extension.json') ($manifest | ConvertTo-Json -Depth 8)
-        Write-Fixture (Join-Path $package 'Scripts/PackageInstaller.psm1') (Get-Content -LiteralPath (Join-Path $root ($name + '/Scripts/PackageInstaller.psm1')) -Raw)
+        Write-Fixture (Join-Path $package 'Scripts/PackageInstaller.psm1') (Get-Content -LiteralPath (Join-Path $root ($name + '/Scripts/PackageInstaller.psm1')) -Raw -Encoding UTF8)
         if ($name -eq 'JobsFlutterTools') {
-            Write-Fixture (Join-Path $package 'Scripts/FeatureActions.psm1') (Get-Content -LiteralPath (Join-Path $root 'JobsFlutterTools/Scripts/FeatureActions.psm1') -Raw)
+            Write-Fixture (Join-Path $package 'Scripts/FeatureActions.psm1') (Get-Content -LiteralPath (Join-Path $root 'JobsFlutterTools/Scripts/FeatureActions.psm1') -Raw -Encoding UTF8)
         }
         $module = Import-Module (Join-Path $package 'Scripts/PackageInstaller.psm1') -PassThru -Force -DisableNameChecking
         $modules += $module
@@ -300,7 +331,7 @@ param($SourceRoot, $OutputRoot)
 [IO.File]::WriteAllText((Join-Path $OutputRoot 'native.obj'), 'intermediate')
 [IO.File]::WriteAllText((Join-Path $OutputRoot 'native.rsp'), 'compiler-response')
 '@
-            Write-Fixture (Join-Path $release 'Scripts/Build.ps1') ($fakeBuild.Replace('__DLL__', $dll))
+            Write-Fixture (Resolve-JobsScriptLayoutPath (Join-Path $release 'Scripts/Build.ps1')) ($fakeBuild.Replace('__DLL__', $dll))
             & $module { param($Path, $Release, $Route) Build-JobsPackageNativeRelease -PackagePath $Path -ReleasePath $Release -DeploymentMode $Route } $package $release $route
             $buildPath = & $module { $script:LastBuildPath }
             $runtimePaths = @(('bin/' + $dll), 'bin/JobsFlutterRunnerHost.exe')
@@ -325,7 +356,7 @@ param($SourceRoot, $OutputRoot)
                     Assert-Runtime ((Get-FileHash -LiteralPath (Join-Path $release $relative)).Hash -eq $hashes[$relative]) ($name + ' 独立清理保留运行产物：' + $relative)
                 }
                 # 有 DLL 而缺 EXE 时不能假绿；正在使用的旧宿主保持原样。
-                Write-Fixture (Join-Path $release 'Scripts/Build.ps1') (($fakeBuild.Replace('__DLL__', $dll)) -replace "(?m)^.*JobsFlutterRunnerHost.exe.*(?:\r?\n|$)", '')
+                Write-Fixture (Resolve-JobsScriptLayoutPath (Join-Path $release 'Scripts/Build.ps1')) (($fakeBuild.Replace('__DLL__', $dll)) -replace "(?m)^.*JobsFlutterRunnerHost.exe.*(?:\r?\n|$)", '')
                 $rejected = $false
                 try { & $module { param($Path, $Release) Build-JobsPackageNativeRelease -PackagePath $Path -ReleasePath $Release -DeploymentMode installed } $package $release } catch { $rejected = $true }
                 Assert-Runtime $rejected ($name + ' 缺失后台宿主时阻断部署')
@@ -334,8 +365,13 @@ param($SourceRoot, $OutputRoot)
         }
     }
     # 执行联合包真实 C# 构建尾段，仅把 csc 换成临时假编译器；检查 OutputRoot 写入边界。
-    $buildText = Get-Content -LiteralPath (Join-Path $root 'JobsFlutterTools/Scripts/Build.ps1') -Raw
+    $buildText = Get-Content -LiteralPath (Resolve-JobsScriptLayoutPath (Join-Path $root 'JobsFlutterTools/Scripts/Build.ps1')) -Raw -Encoding UTF8
+    $bodyStart = $buildText.IndexOf('# BEGIN JOBS_TERMINAL_STYLE_ORIGINAL_BODY')
+    $bodyEnd = $buildText.LastIndexOf('# END JOBS_TERMINAL_STYLE_ORIGINAL_BODY')
+    Assert-Runtime ($bodyStart -ge 0 -and $bodyEnd -gt $bodyStart) '联合包构建正文具有可隔离的明确边界'
+    $buildText = $buildText.Substring($bodyStart, $bodyEnd - $bodyStart)
     $tailStart = $buildText.IndexOf("`n", $buildText.IndexOf('$csc = '))
+    Assert-Runtime ($buildText.IndexOf('$csc = ') -ge 0 -and $tailStart -ge 0) '联合包构建正文保留真实 C# 编译尾段'
     $tail = $buildText.Substring($tailStart + 1)
     $compiler = Join-Path $temp 'FakeCsc.ps1'
     Write-Fixture $compiler @'

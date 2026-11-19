@@ -19,13 +19,13 @@
 
 ---
 
-**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。任务开始前关闭或取消面板不会启动操作；卸载保留日志、备份、运行文件和工具。
 
 ## 🔥 <span id="前言">前言</span>
 
 **最低支持系统：Windows 10 64 位（x64）。** 这是当前最低支持目标；具体最低 build 尚未锁定，完整实机兼容性仍待验证。最低基线不等于所有功能已经实测通过。
 
-> 独立 [**Windows**](https://www.microsoft.com/windows) 扩展。系统桌面空白右键 → `Android 模拟器检测与修复` → 可见终端，处理 [**Android Emulator**](https://developer.android.com/studio/run/emulator) 的 `INSTALL_FAILED_INSUFFICIENT_STORAGE`。安装菜单不修复设备；点击后先展示用途与影响，回车才开始。双击 `Run.cmd` 使用相同内置核心，无须父工程、兄弟包或 JobsCommand。
+> 独立 [**Windows**](https://www.microsoft.com/windows) 扩展。系统桌面空白右键 → `Android 模拟器检测与修复` → 可见终端，处理 [**Android Emulator**](https://developer.android.com/studio/run/emulator) 的 `INSTALL_FAILED_INSUFFICIENT_STORAGE`。安装菜单不修复设备；点击后先展示用途与影响，回车才开始。双击 `Run.cmd/Run.cmd` 使用相同内置核心，无须父工程、兄弟包或 JobsCommand。
 
 | 场景 | 操作及结果 |
 | --- | --- |
@@ -36,10 +36,14 @@
 
 **系统兼容性：** 当前目标为 [**Windows**](https://www.microsoft.com/windows) 10 / 11 图形桌面，要求系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) 5.1 Desktop、.NET 与 STA；各系统版本和架构仍待实机验收，未锁定统一最低 build。XP / Vista / Windows 8 不支持当前入口；Windows 7 SP1 / 8.1 即使安装 [**WMF 5.1**](https://www.microsoft.com/en-us/download/details.aspx?id=54616)（要求 .NET Framework 4.5+），也只满足部分运行时前提；本包及当前原生菜单安装不在这两个旧系统的支持范围。Windows 11 使用“显示更多选项”或 `Shift+F10`；x86 / ARM64 均未获全功能实机兼容保证。
 
-**本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。Android Emulator 本机运行及容量调整按 AMD64（x64）Windows 10 / 11 宿主验收，Windows ARM / 32 位不作支持承诺；只读 ADB 检查通过不代表宿主能启动模拟器。虚拟机菜单验证与真实 AVD 加速、停机、备份及扩容验收分开；模拟器完整业务在符合官方要求的物理机验证。`Run.cmd` 无须菜单编译器。
+**本包依赖与测试范围：** 安装原生菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK 及与 Explorer 一致的架构工具；缺失即停止。源码中的 x86 / ARM64 分支不等于已支持，纯 32 位宿主还存在 `ProgramFiles(x86)` 工具定位风险。Android Emulator 本机运行及容量调整按 AMD64（x64）Windows 10 / 11 宿主验收，Windows ARM / 32 位不作支持承诺；只读 ADB 检查通过不代表宿主能启动模拟器。虚拟机菜单验证与真实 AVD 加速、停机、备份及扩容验收分开；模拟器完整业务在符合官方要求的物理机验证。`Run.cmd/Run.cmd` 无须菜单编译器。
 
 
 **面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
+
+**管理面板关闭：** 空闲关闭时选择退到系统托盘或完全退出，默认回车为托盘、Esc 保留原窗；安装／卸载／构建清理进行中关闭直接后台，不询问、不终止任务。完工仍驻留，从托盘双击或“显示管理面板”恢复同一窗口；忙碌时不能完全退出。
+
+**整行选择：** 点击复选框、图标、功能文字、普通状态区或该功能行空白，仅切换该项一次，保留原 Tab／Space 复选框操作及勾选事件。任务执行中及不可用项禁止切换；失败日志链接和独立按钮优先执行自身动作，不连带勾选。组标题拖动、分组按钮和组尾空白不算功能行；移动、离开、滚动或触控滑动会取消本次点击候选，不接管原生滚动。选择本身不执行安装、卸载或清理，原默认空选、主题／语言切换保留勾选及持久化规则不变。
 
 **两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
 
@@ -64,7 +68,7 @@ powershell.exe `
   -NoLogo `
   -NoProfile `
   -ExecutionPolicy Bypass `
-  -File ./Scripts/RepairAndroidSimulator.ps1 `
+  -File ./Scripts/RepairAndroidSimulator.ps1/RepairAndroidSimulator.ps1 `
   -Check
 ```
 
@@ -75,7 +79,7 @@ powershell.exe `
   -NoLogo `
   -NoProfile `
   -ExecutionPolicy Bypass `
-  -File ./Scripts/RepairAndroidSimulator.ps1 `
+  -File ./Scripts/RepairAndroidSimulator.ps1/RepairAndroidSimulator.ps1 `
   -Serial emulator-5554 `
   -AppId com.example.app `
   -ThresholdMB 1200 `
@@ -110,8 +114,8 @@ powershell.exe `
 | 文件 / 路径 | 职责 |
 | --- | --- |
 | `Manage.cmd` | 本包独立安装 / 卸载。 |
-| `Run.cmd` | 无须安装菜单的独立运行，参数传给相同核心。 |
-| `Scripts/RepairAndroidSimulator.ps1` / `Action.psm1` | 内置自述、只读、身份检查与修复流程。 |
+| `Run.cmd/Run.cmd` | 无须安装菜单的独立运行，参数传给相同核心。 |
+| `Scripts/RepairAndroidSimulator.ps1/RepairAndroidSimulator.ps1` / `Action.psm1` | 内置自述、只读、身份检查与修复流程。 |
 | `Scripts/ContextMenu.cpp` / `DesktopScope.h` | 原生桌面空白门禁，不在 Explorer 内运行 SDK。 |
 | `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\android-simulator-repair\logs` | 本功能状态日志；只读检查不创建。 |
 | 同级 `backups` / `releases` | 当前用户菜单注册状态备份与版本化发布文件。 |
@@ -121,13 +125,13 @@ powershell.exe `
 
 ## 五、<span id="verification">验证与实机边界</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-[`AndroidSimulatorRepairer.Tests.ps1`](../Tests/AndroidSimulatorRepairer.Tests.ps1) 使用假 ADB / CIM 和隔离 AVD 文件验证设备过滤、身份伪装、只读无写入、精确卸载、失败传播、路径与容量保护、停机先于修改、完整备份和配置保留。架构 / Catalog 检查独立复制交付与只注册桌面 handler；所有 PowerShell 源码使用 UTF-8 BOM 并通过 Parser。
+[`AndroidSimulatorRepairer.Tests.ps1`](../Tests/AndroidSimulatorRepairer.Tests.ps1/AndroidSimulatorRepairer.Tests.ps1) 使用假 ADB / CIM 和隔离 AVD 文件验证设备过滤、身份伪装、只读无写入、精确卸载、失败传播、路径与容量保护、停机先于修改、完整备份和配置保留。架构 / Catalog 检查独立复制交付与只注册桌面 handler；所有 PowerShell 源码使用 UTF-8 BOM 并通过 Parser。
 
 2026-10-23 本地验证：新业务 96、Architecture 499、Catalog 47、ActionModules 120、C++ 桌面门禁 9 断言通过；16 个现行包基础设施一致。Windows CI 已接入本业务回归和本包 MSVC 构建检查，但未推送触发。
 
 macOS 的 PowerShell 7 夹具与纯 C++ 门禁验证不能替代 Windows PowerShell 5.1、MSVC 编译、Explorer 桌面菜单及真实 Emulator 扩容。没有在本机安装 / 注册本功能，也没有操作真实 Android 设备；Windows 实机与实际 userdata 迁移仍待目标电脑验收。
 
-管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs/Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 
 
@@ -142,5 +146,10 @@ macOS 的 PowerShell 7 夹具与纯 C++ 门禁验证不能替代 Windows PowerSh
 > 验证范围：已完成 PowerShell 语法、参数／退出与隔离生命周期核验；Windows 原生控制台的显示、按键与 `Ctrl+C` 实机验证尚未完成。
 
 <!-- JOBS_TERMINAL_STYLE_V1:END -->
+
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [Manage.vbs](./Manage.vbs/README.md)、[Run.cmd](./Run.cmd/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

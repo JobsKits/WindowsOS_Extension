@@ -1,12 +1,12 @@
 ﻿# StartVirtualDevice.ps1 | JobsFlutterRunner
 # Created by Jobs on 2026年11月12日，星期四.
-# 启动已有虚拟设备；环境获取与一次启动分开，不创建、重置或替换设备。
+# 按系统复用已有虚拟设备；集成菜单末尾提供新建，环境准备与一次启动分开。
 
 function Select-JobsRunnerTextChoice {
     param([string]$Title, [string[]]$Items, [switch]$Back)
     while ($true) {
-        Write-Host $Title
-        for ($index=0; $index -lt $Items.Count; $index++) { Write-Host (('{0}  {1}' -f ($index+1), $Items[$index])) }
+        Write-JobsRunnerDisplayText $Title
+        for ($index=0; $index -lt $Items.Count; $index++) { Write-JobsRunnerDisplayText (('{0}  {1}' -f ($index+1), $Items[$index])) }
         $prompt = '输入序号；q 取消'
         if ($Back) { $prompt += '；b / ← 返回上一层' }
         $value = Read-JobsRunnerInput $prompt
@@ -14,7 +14,7 @@ function Select-JobsRunnerTextChoice {
         if ($Back -and $value -in @('b','B','←','返回')) { return [pscustomobject]@{Kind='Back';Index=-1} }
         $number=0
         if ([int]::TryParse($value,[ref]$number) -and $number -ge 1 -and $number -le $Items.Count) { return [pscustomobject]@{Kind='Selected';Index=$number-1} }
-        Write-Host '未选择有效项目；可重选、返回或取消。' -ForegroundColor Yellow
+        Write-JobsRunnerDisplayText '未选择有效项目；可重选、返回或取消。' -ForegroundColor Yellow
     }
 }
 
@@ -100,7 +100,7 @@ function Initialize-JobsRunnerVirtualAndroid {
     $listing=Invoke-JobsAndroidTool $java $tools 'sdkmanager' @('--list','--channel=0',('--sdk_root='+$sdk)) -IncludeStandardError
     $updates=@(Get-JobsRunnerAndroidStableUpdates $listing)
     if ($updates.Count) {
-        Write-Host ('更新当前 Android SDK 的正式启动组件：'+($updates -join '、')+'；来源：https://dl.google.com/android/repository/')
+        Write-JobsRunnerDisplayText ('更新当前 Android SDK 的正式启动组件：'+($updates -join '、')+'；来源：https://dl.google.com/android/repository/')
         Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root='+$sdk),'--licenses') -Interactive
         [void](Invoke-JobsAndroidTool $java $tools 'sdkmanager' (@('--install','--channel=0',('--sdk_root='+$sdk))+$updates) -Interactive)
         $remaining=Invoke-JobsAndroidTool $java $tools 'sdkmanager' @('--list','--channel=0',('--sdk_root='+$sdk)) -IncludeStandardError
@@ -195,20 +195,20 @@ function Initialize-JobsRunnerAndroidAvdImage {
     $java=Get-JobsAndroidJava
     $tools=Get-JobsAndroidHealthyTools $Sdk $java
     $package=$relative.Replace('/',';')
-    Write-Host ('补齐原AVD确切镜像：'+$package+'；来源：https://dl.google.com/android/repository/')
+    Write-JobsRunnerDisplayText ('补齐原AVD确切镜像：'+$package+'；来源：https://dl.google.com/android/repository/')
     Invoke-JobsAndroidTool $java $tools 'sdkmanager' @(('--sdk_root='+$Sdk),'--licenses') -Interactive
     [void](Invoke-JobsAndroidTool $java $tools 'sdkmanager' @('--install','--channel=0',('--sdk_root='+$Sdk),$package) -Interactive)
     if (-not[IO.File]::Exists((Join-Path $path 'package.xml')) -or -not[IO.File]::Exists((Join-Path $path 'system.img'))) { throw '原AVD镜像获取后复检失败，未创建设备。' }
 }
 
 function Start-JobsRunnerExistingAndroid {
-    param([string]$Flutter, [string]$Project)
+    param([string]$Flutter, [string]$Project, [switch]$AllowCreate)
     $snapshot=Get-JobsRunnerTaskEnvironmentSnapshot @('PATH','JAVA_HOME','ANDROID_HOME','ANDROID_SDK_ROOT')
     try {
         $sdk=Initialize-JobsRunnerVirtualAndroid $Project
         $emulator=Join-Path $sdk 'emulator/emulator.exe'
         $names=@(Get-JobsRunnerAvds $emulator $Project)
-        if (-not $names.Count) { Write-Host '暂无已有 Android 模拟器；可返回后另选“新建设备”。'; return [pscustomobject]@{Kind='Back'} }
+        if (-not $names.Count -and -not $AllowCreate) { Write-JobsRunnerDisplayText '暂无已有 Android 虚拟设备。'; return [pscustomobject]@{Kind='Back'} }
         $identities=@{}; $identityErrors=@{}
         foreach ($listedName in $names) {
             if ($identities.ContainsKey($listedName) -or $identityErrors.ContainsKey($listedName)) { throw 'AVD清单名称不唯一，未启动。' }
@@ -230,9 +230,14 @@ function Start-JobsRunnerExistingAndroid {
                 $identityErrors[$listedName]=$_.Exception.Message
             }
         }
-        $selection=Select-JobsRunnerChoice '启动Android模拟器' ($names+@('返回上一层')) -Back
+        $lastItem = if ($AllowCreate) { '新建 Android 虚拟设备' } else { '返回上一层' }
+        $selection=Select-JobsRunnerChoice 'Android 虚拟设备' ($names+@($lastItem)) -Back
         if ($null -eq $selection) { return $null }
-        if ($selection.Kind -ceq 'Back' -or $selection.Index -ge $names.Count) { return [pscustomobject]@{Kind='Back'} }
+        if ($selection.Kind -ceq 'Back') { return [pscustomobject]@{Kind='Back'} }
+        if ($selection.Index -ge $names.Count) {
+            if ($AllowCreate) { return New-JobsRunnerReadySimulator Android $Flutter $Project $sdk }
+            return [pscustomobject]@{Kind='Back'}
+        }
         $name=$names[$selection.Index]
         if ($name -cnotin @(Get-JobsRunnerAvds $emulator $Project)) { throw '所选 AVD 已消失，未创建替代设备。' }
         if (-not $identities.ContainsKey($name)) { throw ('所选AVD在列出时无法核验实例身份：'+$identityErrors[$name]) }
@@ -316,7 +321,7 @@ function Set-JobsRunnerHarmonyInstanceSdk {
     $backup=$Identity.Config+'.jobs-backup-'+$token
     $temporary=$Identity.Config+'.jobs-stage-'+$token
     [IO.File]::WriteAllBytes($backup,$bytes)
-    Write-Host ('所选鸿蒙实例SDK配置备份：'+$backup)
+    Write-JobsRunnerDisplayText ('所选鸿蒙实例SDK配置备份：'+$backup)
     try {
         [IO.File]::WriteAllText($temporary,$text,(New-Object Text.UTF8Encoding($bytes.Length -ge 3 -and $bytes[0] -eq 239 -and $bytes[1] -eq 187 -and $bytes[2] -eq 191)))
         if ((Get-FileHash $Identity.Config -Algorithm SHA256).Hash -cne $Identity.Hash) { throw '备份后实例配置发生并发变化，未替换。' }
@@ -332,7 +337,7 @@ function Initialize-JobsRunnerHarmonyImage {
     if ($Identity.ImageRoot) { $arguments+=@('-imageRoot',$Identity.ImageRoot) }
     $available=@(Invoke-JobsRunnerHarmonyCore $Module 'Get-JobsHarmonyAvailableImages' @($Emulator) | Where-Object {$_.DeviceType -ieq $Identity.DeviceType -and $_.OsVersion -ceq $Identity.Version})
     if ($available.Count -ne 1) { throw '原鸿蒙实例的确切Release镜像不可获取，未换用其它镜像或重建设备。' }
-    Write-Host ('补齐原实例确切Release镜像：'+$Identity.DeviceType+' · '+$Identity.Version+'；来源：官方Emulator。')
+    Write-JobsRunnerDisplayText ('补齐原实例确切Release镜像：'+$Identity.DeviceType+' · '+$Identity.Version+'；来源：官方Emulator。')
     [void](Invoke-JobsSdkAcquire -Label '原鸿蒙实例镜像' -Operation {
         Invoke-JobsRunnerHarmonyCore $Module 'Invoke-JobsHarmonyInteractive' @($Emulator,$arguments)
         $verified=@(Invoke-JobsRunnerHarmonyCore $Module 'Get-JobsHarmonyImages' @($Emulator) | Where-Object {$_.DeviceType -ieq $Identity.DeviceType -and $_.OsVersion -ceq $Identity.Version})
@@ -366,13 +371,13 @@ function Get-JobsRunnerHarmonyTarget {
 # 官方-update刷新机型目录，不是CLT二进制升级；只能在运行时help确认能力后使用。
 function Update-JobsRunnerHarmonyCatalog {
     param($Module,[string]$Emulator,[string]$Help)
-    Write-Host '官方Windows正式CLT已核验；机型目录刷新与CLT二进制更新分别处理，不改变已有实例系统版本。'
+    Write-JobsRunnerDisplayText '官方Windows正式CLT已核验；机型目录刷新与CLT二进制更新分别处理，不改变已有实例系统版本。'
     if($Help -match '(?<![A-Za-z0-9_-])-screenProfileList(?![A-Za-z0-9_-])' -and $Help -match '(?<![A-Za-z0-9_-])-update(?![A-Za-z0-9_-])') {
         [void](Invoke-JobsSdkAcquire -Label '官方Emulator机型目录刷新' -Operation {
             $output=Invoke-JobsRunnerHarmonyCore $Module 'Invoke-JobsHarmonyQuery' @($Emulator,@('-screenProfileList','-deviceType','phone','-details','-update'))
             if($output-match'(?i)\[(fail|error)\]'){throw '官方机型目录刷新失败，保留工具输出并停止。'}
         })
-    } else {Write-Host '当前Emulator未在help公开机型目录刷新能力；保留已核验兼容工具，不猜测升级参数。'}
+    } else {Write-JobsRunnerDisplayText '当前Emulator未在help公开机型目录刷新能力；保留已核验兼容工具，不猜测升级参数。'}
 }
 
 function Resolve-JobsRunnerHarmonyToolRoot {
@@ -384,11 +389,11 @@ function Resolve-JobsRunnerHarmonyToolRoot {
     try{$public=Get-JobsRunnerHarmonyPublicRelease}
     catch [Management.Automation.PipelineStoppedException]{throw}
     catch [OperationCanceledException]{throw}
-    catch{Write-Host ('官方公开兼容Release未能验证：'+$_.Exception.Message) -ForegroundColor Yellow}
+    catch{Write-JobsRunnerDisplayText ('官方公开兼容Release未能验证：'+$_.Exception.Message) -ForegroundColor Yellow}
     $minimum=if($public){$public.Version}else{''}
     $healthy=$root-and(Test-JobsPrepareToolFiles $root)-and[IO.File]::Exists((Join-Path $root 'emulator/Emulator.exe'))
     if($public-and$current-and[version]$current-ge[version]$public.Version-and$healthy){
-        Write-Host ('本机CLT '+$current+' 满足官方公开兼容Release '+$public.Version+'，继续能力复检；无需获取下载授权。')
+        Write-JobsRunnerDisplayText ('本机CLT '+$current+' 满足官方公开兼容Release '+$public.Version+'，继续能力复检；无需获取下载授权。')
     }else{
         $package=Wait-JobsRunnerHarmonyOfficialUpdate $minimum
         if($null-eq$package){return $null}
@@ -420,7 +425,7 @@ function Initialize-JobsRunnerVirtualHarmony {
 }
 
 function Start-JobsRunnerExistingHarmony {
-    param([string]$Flutter,[string]$Project)
+    param([string]$Flutter,[string]$Project,[switch]$AllowCreate)
     $snapshot=Get-JobsRunnerTaskEnvironmentSnapshot @('PATH','JAVA_HOME','FLUTTER_ROOT','TOOL_HOME','DEVECO_STUDIO_HOME','DEVECO_SDK_HOME','OHOS_SDK_HOME','FVM_CACHE_PATH','FVM_FLUTTER_URL','FVM_USE_GIT_CACHE')
     try {
         $environment=Initialize-JobsRunnerVirtualHarmony $Flutter $Project
@@ -428,7 +433,7 @@ function Start-JobsRunnerExistingHarmony {
         if($null-ne$environment.PSObject.Properties['Kind']-and$environment.Kind-ceq'Back'){return $environment}
         $module=$environment.Module; $tools=$environment.Tools; $emulator=$environment.Emulator
         $instances=@(Invoke-JobsRunnerHarmonyCore $module 'Get-JobsHarmonyInstances' @($emulator))
-        if (-not $instances.Count) { Write-Host '暂无已有鸿蒙模拟器；可返回后另选“新建设备”。'; return [pscustomobject]@{Kind='Back'} }
+        if (-not $instances.Count -and -not $AllowCreate) { Write-JobsRunnerDisplayText '暂无已有 Harmony 虚拟设备。'; return [pscustomobject]@{Kind='Back'} }
         $identities=@{}; $identityErrors=@{}
         foreach ($listed in $instances) {
             if ($identities.ContainsKey($listed.name) -or $identityErrors.ContainsKey($listed.name)) { throw '鸿蒙实例清单名称不唯一，未启动。' }
@@ -450,9 +455,14 @@ function Start-JobsRunnerExistingHarmony {
                 $identityErrors[$listed.name]=$_.Exception.Message
             }
         }
-        $selection=Select-JobsRunnerChoice '启动鸿蒙模拟器' (@($instances | ForEach-Object {$_.name})+@('返回上一层')) -Back
+        $lastItem = if ($AllowCreate) { '新建 Harmony 虚拟设备' } else { '返回上一层' }
+        $selection=Select-JobsRunnerChoice 'Harmony 虚拟设备' (@($instances | ForEach-Object {$_.name})+@($lastItem)) -Back
         if ($null -eq $selection) { return $null }
-        if ($selection.Kind -ceq 'Back' -or $selection.Index -ge $instances.Count) { return [pscustomobject]@{Kind='Back'} }
+        if ($selection.Kind -ceq 'Back') { return [pscustomobject]@{Kind='Back'} }
+        if ($selection.Index -ge $instances.Count) {
+            if ($AllowCreate) { return New-JobsRunnerReadySimulator Harmony $Flutter $Project }
+            return [pscustomobject]@{Kind='Back'}
+        }
         $instance=$instances[$selection.Index]
         if (-not $identities.ContainsKey($instance.name)) { throw ('所选鸿蒙实例在列出时无法核验身份：'+$identityErrors[$instance.name]) }
         $identity=$identities[$instance.name]

@@ -31,14 +31,30 @@ try {
     $installed=& $library {
         param($Destination)
         Import-JobsSdkDownloadRoute
+        $script:FixtureArchitecture=if($env:PROCESSOR_ARCHITECTURE-ceq'ARM64'){'arm64'}else{'x64'}
+        $script:FixtureArchive='new-'+$script:FixtureArchitecture+'.zip'
+        $script:FixtureSha256=if($script:FixtureArchitecture-ceq'arm64'){'c'*64}else{'b'*64}
+        $script:FixtureArchiveRequests=New-Object 'Collections.Generic.List[string]'
         function script:Receive-JobsSdkWebFile {
             param($Uri,$Destination,$TimeoutSeconds,$ExpectedSha256)
             if($Uri.EndsWith('releases_windows.json')){
-                [IO.File]::WriteAllText($Destination,('{"base_url":"https://storage.googleapis.com/flutter_infra_release/releases","current_release":{"stable":"new"},"releases":[{"hash":"old","channel":"stable","version":"3.20.0","dart_sdk_arch":"x64","archive":"stable/windows/old.zip","sha256":"'+('a'*64)+'"},{"hash":"new","channel":"stable","version":"3.99.0","dart_sdk_arch":"x64","archive":"stable/windows/new.zip","sha256":"'+('b'*64)+'"}]}'))
-            }else{if(-not$Uri.EndsWith('/new.zip')-or$ExpectedSha256-cne('b'*64)){throw 'requested stable并未使用current_release和对应SHA'};[IO.File]::WriteAllText($Destination,'fake archive')}
+                $releases=@()
+                foreach($architecture in @('x64','arm64')){
+                    $releases+=[ordered]@{hash='old';channel='stable';version='3.20.0';dart_sdk_arch=$architecture;archive=('stable/windows/old-'+$architecture+'.zip');sha256=('a'*64)}
+                    $releases+=[ordered]@{hash='new';channel='stable';version='3.99.0';dart_sdk_arch=$architecture;archive=('stable/windows/new-'+$architecture+'.zip');sha256=$(if($architecture-ceq'arm64'){'c'*64}else{'b'*64})}
+                }
+                $metadata=[ordered]@{base_url='https://storage.googleapis.com/flutter_infra_release/releases';current_release=@{stable='new'};releases=$releases}
+                [IO.File]::WriteAllText($Destination,($metadata|ConvertTo-Json -Depth 6))
+            }else{
+                if(-not$Uri.EndsWith('/'+$script:FixtureArchive)-or$ExpectedSha256-cne$script:FixtureSha256){throw 'requested stable并未使用当前架构的current_release归档和对应SHA'}
+                $script:FixtureArchiveRequests.Add($Uri)
+                [IO.File]::WriteAllText($Destination,'fake archive')
+            }
         }
         function script:Expand-Archive {param($LiteralPath,$DestinationPath)$path=Join-Path $DestinationPath 'flutter/bin/flutter.bat';[void][IO.Directory]::CreateDirectory((Split-Path -Parent $path));[IO.File]::WriteAllText($path,'fixture')}
-        Install-JobsFlutterSdk $Destination stable
+        $result=Install-JobsFlutterSdk $Destination stable
+        if($script:FixtureArchiveRequests.Count-ne1){throw 'SDK安装必须只获取一次当前架构的精确归档'}
+        return $result
     } (Join-Path $temporary 'install')
     Assert-Integration ([IO.File]::Exists((Join-Path $installed 'bin/flutter.bat'))) 'JobsCommand稳定版获取使用精确新归档且只在完整后发布'
     Remove-Module $library

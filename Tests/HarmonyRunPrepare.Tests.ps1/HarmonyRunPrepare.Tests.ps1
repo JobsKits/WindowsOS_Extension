@@ -69,7 +69,7 @@ function Invoke-PrepareTests {
                 $published=&$module {&$script:JobsPrepareCore.Harmony {$script:Published}}
                 if($revisionChanged){Assert-Prepare ($failed-and$null-eq$published) 'SDK实际commit改变时不发布项目绑定'}
                 else{
-                    Assert-Prepare (-not$failed-and$selected.Flutter-like'*/candidate/bin/flutter.bat') '真实自动选版函数通过闭包复用SDK管理器，无交互总入口'
+                    Assert-Prepare (-not$failed-and([string]$selected.Flutter).Replace('\','/')-like'*/candidate/bin/flutter.bat') '真实自动选版函数通过闭包复用SDK管理器，无交互总入口'
                     Assert-Prepare ($published.UserSetting-ceq'keep'-and$published.flutter-ceq('custom_jobs_ohos_'+('a'*40))) '自动绑定仍保留用户已有FVM配置字段'
                     &$module {
                         function script:Invoke-JobsRunnerReadOnlyTool {return 'hap help'}
@@ -83,7 +83,7 @@ function Invoke-PrepareTests {
                 &$module {Remove-Module $script:JobsPrepareCore.Harmony}
                 Remove-Module $module
             }
-            foreach($scenario in @('success','openharmony','plugins','license','identity','impostor','health')){
+            foreach($scenario in @('success','openharmony','environment-only','plugins','license','identity','impostor','health')){
                 $module=New-Module -ScriptBlock {
                     param($Helper,$Entry,$Scenario)
                     Set-StrictMode -Version 2.0
@@ -106,12 +106,14 @@ function Invoke-PrepareTests {
                 $beforeHome=[Environment]::GetEnvironmentVariable('TOOL_HOME','Process')
                 $beforeJava=[Environment]::GetEnvironmentVariable('JAVA_HOME','Process')
                 $failed=$false;$result=$null
-                try{$result=&$module {param($Project)Invoke-JobsPrepareHarmonyPipeline 'original-flutter' $Project 'USB\VID_12D1&PID_1101\original-phone'} $project}catch{$failed=$true}
+                try{$result=&$module {param($Project)Invoke-JobsPrepareHarmonyPipeline 'original-flutter' $Project 'USB\VID_12D1&PID_1101\original-phone' -EnvironmentOnly:($script:Scenario-ceq'environment-only')} $project}catch{$failed=$true}
                 $calls=@(&$module {$script:Calls.ToArray()})
                 Assert-Prepare ([Environment]::GetEnvironmentVariable('TOOL_HOME','Process')-ceq$beforeHome-and[Environment]::GetEnvironmentVariable('JAVA_HOME','Process')-ceq$beforeJava) '成功、失败和许可取消均精确恢复父进程环境'
                 Assert-Prepare (@($calls|Where-Object{$_-ceq'sdk'}).Count-eq1) '准备失败不会整体重放SDK或项目发布阶段'
                 Assert-Prepare (($calls-join'|')-notmatch'(^|\|)(run|.*imageList|.*create.*avd|.*-start)(\||$)') '环境准备不启动应用、创建模拟器或下载镜像'
-                if($scenario-in@('success','openharmony')){
+                if($scenario-ceq'environment-only'){
+                    Assert-Prepare (-not$failed-and$result.Flutter-ceq'prepared-flutter'-and$result.DeviceId-ceq''-and($calls-join'|')-notmatch'wait:') '独立环境准备完成SDK工具平台依赖后返回，不要求或启动任何设备'
+                }elseif($scenario-in@('success','openharmony')){
                     Assert-Prepare (-not$failed-and$result.DeviceId-ceq'original-phone'-and$result.DiagnosticKey-ceq'USB\VID_12D1&PID_1101\original-phone'-and$result.Flutter-ceq'prepared-flutter') '成功返回新SDK及原设备，不改选其它HDC目标'
                     Assert-Prepare ($result.Environment.TOOL_HOME-ceq'prepared-tools'-and$result.Environment.JAVA_HOME-ceq'prepared-java') '返回环境只用于后续当前运行子进程'
                     Assert-Prepare (($calls-join'|')-ceq'core|sdk|precache --universal|tools|platform|precache --ohos|pub get|plugins|install|--sync|health|wait:original-phone') 'SDK、CLT、平台、Flutter/原生依赖和复检按依赖顺序仅执行一次'

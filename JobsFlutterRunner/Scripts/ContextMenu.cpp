@@ -12,6 +12,7 @@
 #include <iterator>
 #include <new>
 #include "FlutterProject.h"
+#include "FlutterRunTarget.h"
 
 const CLSID CLSID_JobsFlutterRunner = {0x239d7884,0x83c5,0x4d66,{0xab,0x0c,0x14,0xa2,0x66,0x7d,0xcd,0x61}};
 static HMODULE moduleHandle;
@@ -59,6 +60,15 @@ static std::wstring Quote(const std::wstring& value) {
     result.append(slashes * 2, L'\\');
     return result + L"\"";
 }
+static bool IsDartTarget(const std::wstring& path) {
+    if (path.empty() || PathIsUNCW(path.c_str())) return false;
+    return !JobsFlutter::DartRunProject(path, IsPlainPath(path, false), [](const std::wstring& directory) {
+        const auto pubspec = directory + L"\\pubspec.yaml";
+        if (GetFileAttributesW(pubspec.c_str()) != INVALID_FILE_ATTRIBUTES) return true;
+        const DWORD error = GetLastError();
+        return error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND;
+    }, IsProject).empty();
+}
 class Menu final : public IShellExtInit, public IContextMenu {
     std::atomic<ULONG> references;
     std::wstring target;
@@ -98,12 +108,13 @@ public:
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
-        if ((flags & CMF_DEFAULTONLY) || first > last || !IsProject(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
-        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING, first, L"▶️ 从终端运行 Flutter 项目")) return HRESULT_FROM_WIN32(GetLastError());
+        if ((flags & CMF_DEFAULTONLY) || first > last || (!IsProject(target) && !IsDartTarget(target))) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
+        const auto label = IsDartTarget(target) ? L"▶️ 从终端运行 Flutter Demo" : L"▶️ 从终端运行 Flutter 项目";
+        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING, first, label)) return HRESULT_FROM_WIN32(GetLastError());
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
     }
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {
-        if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) != 0 || !IsProject(target)) return E_INVALIDARG;
+        if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) != 0 || (!IsProject(target) && !IsDartTarget(target))) return E_INVALIDARG;
         wchar_t modulePath[32768];
         if (!GetModuleFileNameW(moduleHandle, modulePath, 32768)) return E_FAIL;
         std::wstring folder(modulePath);

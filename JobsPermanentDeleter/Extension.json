@@ -1,0 +1,12 @@
+{
+  "Id": "permanent-delete",
+  "Name": "JobsPermanentDeleter",
+  "Label": "永久删除（不进回收站）",
+  "Description": "直接删除所选文件或文件夹；确认框左红确认、右蓝取消，默认取消，删除后无法从回收站恢复。",
+  "DirectoryOnly": false,
+  "Console": false,
+  "InfrastructureOverrides": [
+    "PackageInstaller.psm1",
+    "Invoke.ps1"
+  ]
+}

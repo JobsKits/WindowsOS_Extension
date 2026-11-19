@@ -17,7 +17,7 @@
 
 ---
 
-**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。关闭或取消面板不执行；卸载保留日志、备份、运行文件和工具。
+**管理操作：** 本目录以 `Manage.cmd` 为轻量启动入口，只唤起 GUI 后结束本次脚本；先在面板选择安装 / 更新或卸载。在面板确认安装 / 更新或卸载后立即执行，无二次终端确认。任务开始前关闭或取消面板不会启动操作；卸载保留日志、备份、运行文件和工具。
 
 ## 🔥 <span id="前言">前言</span>
 
@@ -31,10 +31,14 @@
 | 显示（`Hidden=1`） | 🙈 隐藏文件 | 将当前用户 `Hidden` 写为 DWORD `2`。 |
 | 读取失败、类型错误或值无效 | ⚠️ 隐藏文件状态不可用（置灰） | 不猜测状态，不启动切换。 |
 
-打开菜单只读取状态并固定该标题对应的显示或隐藏目标。点击后再次读取当前设置，只应用标题承诺的动作；如果外部已切换到目标状态，则不重复写入，不会把“显示文件”点成隐藏。同一用户的操作由串行锁保护。它控制当前账户的资源管理器显示偏好，会影响桌面和资源管理器视图，不修改文件自身的隐藏属性；独立 `Run.cmd` 保留反转当前状态的操作。
+打开菜单只读取状态并固定该标题对应的显示或隐藏目标。点击后再次读取当前设置，只应用标题承诺的动作；如果外部已切换到目标状态，则不重复写入，不会把“显示文件”点成隐藏。同一用户的操作由串行锁保护。它控制当前账户的资源管理器显示偏好，会影响桌面和资源管理器视图，不修改文件自身的隐藏属性；独立 `Run.cmd/Run.cmd` 保留反转当前状态的操作。
 
 
 **面板外观与语言：** 总面板和独立功能面板右上角均可选择“黑夜 / 白天 / 跟随系统”以及“简体中文 / 繁體中文 / བོད་ཡིག / English / 日本語 / Français / Español / Deutsch / Русский / 한국어 / 跟随系统”，默认均跟随系统，切换立即生效并保留当前勾选、任务和日志。窄窗或长文案放不下时，工具组移至标题下一行并保持右对齐；极窄窗口将主题、语言分两行，下拉控件右边缘对齐。选择保存在当前用户的 `%LOCALAPPDATA%\Jobs\WindowsExtension\panel-preferences.json`，下次打开自动恢复；保存失败在面板显示原因。跟随系统每秒检查应用主题和当前用户显示语言，繁体中文界面使用繁体、其它中文使用简体，其余已支持语种按系统语言匹配，未支持语言回退英文；Windows 显示语言通常须重新登录才生效。切换涵盖面板正文、功能说明、状态与动态计数、操作提示和辅助名称；藏文优先使用已安装 Microsoft Himalaya / Noto Sans Tibetan，日韩使用对应系统字体，缺失时回退。语言名称始终显示自称，图标、功能名和状态列独立，长文字换行；切换只影响管理面板，已安装右键菜单标题及后台工具的原始日志保持各自语言。共享完整译文以 `Scripts/ManagerPanelTranslations.json` 为编辑来源，发布时内嵌到同源面板模块，独立包无需访问兄弟目录或联网翻译。
+
+**管理面板关闭：** 空闲关闭时选择退到系统托盘或完全退出，默认回车为托盘、Esc 保留原窗；安装／卸载／构建清理进行中关闭直接后台，不询问、不终止任务。完工仍驻留，从托盘双击或“显示管理面板”恢复同一窗口；忙碌时不能完全退出。
+
+**整行选择：** 点击复选框、图标、功能文字、普通状态区或该功能行空白，仅切换该项一次，保留原 Tab／Space 复选框操作及勾选事件。任务执行中及不可用项禁止切换；失败日志链接和独立按钮优先执行自身动作，不连带勾选。组标题拖动、分组按钮和组尾空白不算功能行；移动、离开、滚动或触控滑动会取消本次点击候选，不接管原生滚动。选择本身不执行安装、卸载或清理，原默认空选、主题／语言切换保留勾选及持久化规则不变。
 
 **两种部署路线：** 源码管理面板默认使用“默认程序安装位置”，运行文件仍位于 `%LOCALAPPDATA%\Jobs\WindowsExtension\extensions\<功能ID>`。也可切换到“本地临时构建目录”，运行文件位于 `<功能包>\work\WindowsExtension\extensions\<功能ID>`；移走或清除该运行目录会使菜单失效。已部署副本的管理入口固定到自身真实路线，切换路线请从源码管理入口操作。菜单命令与 `deployment.json` 按当前路线定位配置，不依赖面板环境变量；提交失败恢复两侧状态。
 
@@ -48,7 +52,7 @@
 
 安装动态菜单需要已有 [**Visual Studio / Build Tools**](https://visualstudio.microsoft.com/visual-cpp-build-tools/) 的“使用 C++ 的桌面开发”、MSVC、Windows SDK，以及与资源管理器一致的架构工具。安装器使用系统 [**Windows PowerShell**](https://learn.microsoft.com/powershell/scripting/windows-powershell/overview) `5.1 Desktop` 与 STA，仅写当前用户菜单注册；不提权、不联网、不安装编译器。缺少依赖时在注册前停止。
 
-Windows 11 在“显示更多选项”中查看，也可使用 `Shift+F10` 打开经典菜单。每次重新右键都会读取当前设置并更新文字与 emoji。菜单业务在后台执行，不打开终端；[Run.cmd](./Run.cmd) 可在未安装菜单时独立执行同一切换，也会立即改变当前用户偏好。
+Windows 11 在“显示更多选项”中查看，也可使用 `Shift+F10` 打开经典菜单。每次重新右键都会读取当前设置并更新文字与 emoji。菜单业务在后台执行，不打开终端；[Run.cmd](./Run.cmd/Run.cmd) 可在未安装菜单时独立执行同一切换，也会立即改变当前用户偏好。
 
 ## 二、<span id="scope">设置与刷新边界</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
@@ -64,14 +68,14 @@ Windows 11 在“显示更多选项”中查看，也可使用 `Shift+F10` 打�
 | --- | --- |
 | `Extension.json` | 独立包身份 `hidden-files-toggle` 与安装说明。 |
 | `Manage.cmd` | 本包安装和卸载，不切换显示偏好。 |
-| `Run.cmd` | 未安装菜单时独立切换当前用户隐藏文件显示。 |
+| `Run.cmd/Run.cmd` | 未安装菜单时独立切换当前用户隐藏文件显示。 |
 | [Scripts](./Scripts/README.md) | 动态桌面菜单、隐藏文件状态切换、刷新和安装事务。 |
 
 本包运行目录、安装备份与日志按独立标识保存在当前用户本地应用数据的 `Jobs/WindowsExtension/extensions/hidden-files-toggle/` 中，不依赖相邻功能包或总目录的运行代码。
 
-[HiddenFiles.Tests.ps1](../Tests/HiddenFiles.Tests.ps1)使用内存状态和 Windows 临时注册表夹具核对状态解析、切换、失败边界与独立包；[HiddenFilesMenuProbe.cpp](../Tests/HiddenFilesMenuProbe.cpp)核对动态标题与桌面门禁。隔离验证不修改当前用户真实隐藏文件设置；MSVC、Explorer 右键展示及刷新仍须真实 Windows 验收。
+[HiddenFiles.Tests.ps1](../Tests/HiddenFiles.Tests.ps1/HiddenFiles.Tests.ps1)使用内存状态和 Windows 临时注册表夹具核对状态解析、切换、失败边界与独立包；[HiddenFilesMenuProbe.cpp](../Tests/HiddenFilesMenuProbe.cpp)核对动态标题与桌面门禁。隔离验证不修改当前用户真实隐藏文件设置；MSVC、Explorer 右键展示及刷新仍须真实 Windows 验收。
 
-管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
+管理安装 / 卸载时双击 `Manage.cmd`，它只通过 WScript 唤起 GUI，随后立即结束本次脚本；不在 CMD 中编译、安装或等待输入。也可直接双击 `Manage.vbs/Manage.vbs` 进入同一面板。每个选项显示等待、执行中、完成或失败，底部实时滚动标准输出和错误，可选中复制或点击“复制全部日志”；无可靠百分比时显示执行中，总体显示完成项数。运行期间等当前事务结束后关闭，完整管理日志位于系统临时目录 `JobsExtensionManager-<运行编号>.log`。
 
 
 
@@ -86,5 +90,10 @@ Windows 11 在“显示更多选项”中查看，也可使用 `Shift+F10` 打�
 > 验证范围：已完成 PowerShell 语法、参数／退出与隔离生命周期核验；Windows 原生控制台的显示、按键与 `Ctrl+C` 实机验证尚未完成。
 
 <!-- JOBS_TERMINAL_STYLE_V1:END -->
+
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [Manage.vbs](./Manage.vbs/README.md)、[Run.cmd](./Run.cmd/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
 
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>

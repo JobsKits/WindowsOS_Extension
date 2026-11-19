@@ -22,6 +22,8 @@ pwsh -NoProfile -File ./UninstallResults.Tests.ps1
 
 测试仅写本轮临时目录并在退出时清理，不修改用户配置、菜单、系统主题或语言。PowerShell 跨平台回归与 Windows 原生 WinForms 控件尺寸、Explorer 菜单、真实安装 / 卸载分开验收。无需卸载只表达当前路线无需处理，不代表扫描或清除了另一位置安装及历史运行文件。
 
+同源校验通过既有 `Resolve-JobsScriptLayoutPath` 解析源码同名包装与旧平铺入口，比较真实脚本文件摘要，不把包装目录交给 `Get-FileHash`；状态、计数和真实失败断言保持原标准。
+
 
 
 <!-- JOBS_TERMINAL_STYLE_V1:BEGIN -->

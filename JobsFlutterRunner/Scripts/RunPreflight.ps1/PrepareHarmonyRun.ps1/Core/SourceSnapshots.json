@@ -3,62 +3,74 @@
     {
       "source": "JobsFlutterTools/Scripts/HarmonySdk.psm1",
       "target": "Core/HarmonySdk.psm1",
-      "sha256": "82169ae524453de5727b068f54745f3a43fcc861660553ff06d1ae7a943bdd11"
+      "sha256": "d89b4197d90ea6f9533850806068b39421663b4a728c060e7201dbf4a1b86c3d",
+      "targetSha256": "f2c1c70d718a30b862958131ee222e2d2e117555a7a5ed0427d8ca5e0dcc834c"
     },
     {
-      "source": "JobsFlutterTools/Scripts/SdkDownloadOutput.ps1",
-      "target": "Core/SdkDownloadOutput.ps1",
-      "sha256": "853eb30acee5a5f0776424795e669a5e721b688388e23d83c67ba5de0af0df42"
+      "source": "JobsFlutterTools/Scripts/SdkDownloadOutput.ps1/SdkDownloadOutput.ps1",
+      "target": "Core/SdkDownloadOutput.ps1/SdkDownloadOutput.ps1",
+      "sha256": "e7d44c32376ffb82d49bf0aeffc72b09965942e1106dbabba99ce60cffe3c019",
+      "targetSha256": "e7d44c32376ffb82d49bf0aeffc72b09965942e1106dbabba99ce60cffe3c019"
     },
     {
       "source": "JobsFlutterTools/Scripts/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1",
       "target": "Core/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1",
-      "sha256": "2120f7388bc61192547c818ac22b1d4634b801f4eab369830c6320abc15d8156"
+      "sha256": "bb413507ba94445eb69c134e0a57ea5052cf5f25b410efec15eedc18c2006f49",
+      "targetSha256": "bb413507ba94445eb69c134e0a57ea5052cf5f25b410efec15eedc18c2006f49"
     },
     {
       "source": "JobsFlutterTools/Scripts/SdkDownloadRoute.ps1/README.md",
       "target": "Core/SdkDownloadRoute.ps1/README.md",
-      "sha256": "40e9a1cb727434978184543bf14fe80692a64ecda961589186904c26d04292bf"
+      "sha256": "5b0f07501efb74f4ac03bdae06e0bf7124dfb2899e571e5f004755bd24907b70",
+      "targetSha256": "5b0f07501efb74f4ac03bdae06e0bf7124dfb2899e571e5f004755bd24907b70"
     },
     {
       "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Extension.json",
       "target": "Core/Actions/sdk-manage/Extension.json",
-      "sha256": "7fd3b639f88ea657104a5cdfbb178bac34183a1e3f2962b16967dadd5926be25"
+      "sha256": "7fd3b639f88ea657104a5cdfbb178bac34183a1e3f2962b16967dadd5926be25",
+      "targetSha256": "7fd3b639f88ea657104a5cdfbb178bac34183a1e3f2962b16967dadd5926be25"
     },
     {
       "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/Action.psm1",
       "target": "Core/Actions/sdk-manage/Scripts/Action.psm1",
-      "sha256": "59beca09fa3fbec18c1569afb91da46f20f24844179421ff2a18b7716cb7c2d5"
+      "sha256": "3ef29f469639adc1f5f7073b3586f8de5a1cb472267e4b3be826bdec5e19c165",
+      "targetSha256": "3ef29f469639adc1f5f7073b3586f8de5a1cb472267e4b3be826bdec5e19c165"
     },
     {
       "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/Common.psm1",
       "target": "Core/Actions/sdk-manage/Scripts/Common.psm1",
-      "sha256": "76f994dfd89e7333005d3ae74ac2c4f447a96897c38ca0fcea5881e121ef73e7"
+      "sha256": "76f994dfd89e7333005d3ae74ac2c4f447a96897c38ca0fcea5881e121ef73e7",
+      "targetSha256": "76f994dfd89e7333005d3ae74ac2c4f447a96897c38ca0fcea5881e121ef73e7"
     },
     {
-      "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/SdkDownloadOutput.ps1",
-      "target": "Core/Actions/sdk-manage/Scripts/SdkDownloadOutput.ps1",
-      "sha256": "853eb30acee5a5f0776424795e669a5e721b688388e23d83c67ba5de0af0df42"
+      "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/SdkDownloadOutput.ps1/SdkDownloadOutput.ps1",
+      "target": "Core/Actions/sdk-manage/Scripts/SdkDownloadOutput.ps1/SdkDownloadOutput.ps1",
+      "sha256": "e7d44c32376ffb82d49bf0aeffc72b09965942e1106dbabba99ce60cffe3c019",
+      "targetSha256": "e7d44c32376ffb82d49bf0aeffc72b09965942e1106dbabba99ce60cffe3c019"
     },
     {
       "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1",
       "target": "Core/Actions/sdk-manage/Scripts/SdkDownloadRoute.ps1/SdkDownloadRoute.ps1",
-      "sha256": "2120f7388bc61192547c818ac22b1d4634b801f4eab369830c6320abc15d8156"
+      "sha256": "bb413507ba94445eb69c134e0a57ea5052cf5f25b410efec15eedc18c2006f49",
+      "targetSha256": "bb413507ba94445eb69c134e0a57ea5052cf5f25b410efec15eedc18c2006f49"
     },
     {
       "source": "JobsFlutterTools/Scripts/Actions/sdk-manage/Scripts/SdkDownloadRoute.ps1/README.md",
       "target": "Core/Actions/sdk-manage/Scripts/SdkDownloadRoute.ps1/README.md",
-      "sha256": "40e9a1cb727434978184543bf14fe80692a64ecda961589186904c26d04292bf"
+      "sha256": "5b0f07501efb74f4ac03bdae06e0bf7124dfb2899e571e5f004755bd24907b70",
+      "targetSha256": "5b0f07501efb74f4ac03bdae06e0bf7124dfb2899e571e5f004755bd24907b70"
     },
     {
       "source": "JobsHarmonySimulatorCreator/Scripts/Common.psm1",
       "target": "Core/Common.psm1",
-      "sha256": "76f994dfd89e7333005d3ae74ac2c4f447a96897c38ca0fcea5881e121ef73e7"
+      "sha256": "76f994dfd89e7333005d3ae74ac2c4f447a96897c38ca0fcea5881e121ef73e7",
+      "targetSha256": "76f994dfd89e7333005d3ae74ac2c4f447a96897c38ca0fcea5881e121ef73e7"
     },
     {
-      "source": "JobsHarmonySimulatorCreator/Scripts/HarmonyTools.ps1",
-      "target": "Core/HarmonyTools.ps1",
-      "sha256": "354983a3a4d85011ce422d1390c31677977ba748bcb3045a57e77e0a15e5c8fa"
+      "source": "JobsHarmonySimulatorCreator/Scripts/HarmonyTools.ps1/HarmonyTools.ps1",
+      "target": "Core/HarmonyTools.ps1/HarmonyTools.ps1",
+      "sha256": "210e0ea0965d423713233ec6796b060469e1431ee771d55cf450d3b5fc822ddc",
+      "targetSha256": "6cdb425d392131424e4e333e1f51a0554dfd316eb11ff37b0a5710c4f3411bd6"
     }
   ],
   "extracted": {
@@ -84,5 +96,5 @@
       "Expand-JobsSetupZip"
     ]
   },
-  "adaptation": "Core/HarmonySdk.psm1 仅增加就近 Common.psm1 导入；HarmonyTools.ps1 仅将镜像下载说明改为当前流程 tools-only；其余完整快照字节不变。"
+  "adaptation": "保留相对 Common 导入、tools-only 及 SDK RequireCompletion/官方来源边界；source/target 均记录当前可维护源码包装路径，各自摘要区分有意适配。发布仍由资源生成器保持旧 flat ABI。当前键盘菜单及显示 primitive 按本轮标准同步。"
 }

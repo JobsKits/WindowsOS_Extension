@@ -12,6 +12,7 @@
 #include <iterator>
 #include <new>
 #include "FlutterProject.h"
+#include "FlutterRunTarget.h"
 #include "FlutterToolsMenu.h"
 
 const CLSID CLSID_JobsFlutterTools = {0x55c8c7a9,0x8625,0x4af0,{0x85,0x98,0xdf,0xa9,0x75,0x06,0x4f,0x0c}};
@@ -103,6 +104,15 @@ static bool IsHarmonyProject(const std::wstring& path) {
         IsPlainPath(path + L"\\ohos\\build-profile.json5", false) &&
         IsPlainPath(path + L"\\ohos\\oh-package.json5", false);
 }
+static bool IsDartTarget(const std::wstring& path) {
+    if (path.empty() || PathIsUNCW(path.c_str())) return false;
+    return !JobsFlutter::DartRunProject(path, IsPlainPath(path, false), [](const std::wstring& directory) {
+        const auto pubspec = directory + L"\\pubspec.yaml";
+        if (GetFileAttributesW(pubspec.c_str()) != INVALID_FILE_ATTRIBUTES) return true;
+        const DWORD error = GetLastError();
+        return error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND;
+    }, IsProject).empty();
+}
 static std::wstring Quote(const std::wstring& value) {
     std::wstring result = L"\"";
     size_t slashes = 0;
@@ -154,9 +164,15 @@ public:
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
-        if ((flags & CMF_DEFAULTONLY) || first > last || last - first + 1 < JobsFlutterTools::Count || !IsProject(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
+        if ((flags & CMF_DEFAULTONLY) || first > last || last - first + 1 < JobsFlutterTools::Count || (!IsProject(target) && !IsDartTarget(target))) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
         JobsFlutterTools::Selection selected;
         if (!ReadSelection(selected)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
+        if (IsDartTarget(target)) {
+            const unsigned run = JobsFlutterTools::ActionIndex(L"run");
+            if (run >= JobsFlutterTools::Count || !selected[run]) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
+            if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING, first + run, L"▶️ 从终端运行 Flutter Demo")) return E_FAIL;
+            return MAKE_HRESULT(SEVERITY_SUCCESS, 0, run + 1);
+        }
         std::array<HMENU, JobsFlutterTools::GroupCount> groups{};
         std::array<bool, JobsFlutterTools::GroupCount> attached{};
         const auto cleanup = [&]() {
@@ -210,10 +226,11 @@ public:
     }
 
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {
-        if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) >= JobsFlutterTools::Count || !IsProject(target)) return E_INVALIDARG;
+        if (!info || HIWORD(info->lpVerb) || LOWORD(info->lpVerb) >= JobsFlutterTools::Count || (!IsProject(target) && !IsDartTarget(target))) return E_INVALIDARG;
         JobsFlutterTools::Selection selected;
         std::wstring folder;
         const unsigned index = LOWORD(info->lpVerb);
+        if (IsDartTarget(target) && index != JobsFlutterTools::ActionIndex(L"run")) return E_ACCESSDENIED;
         if (!ReadSelection(selected, &folder) || !selected[index]) return E_ACCESSDENIED;
         if (!JobsFlutterTools::IsActionAvailable(index, IsHarmonyProject(target))) {
             MessageBoxW(info->hwnd,

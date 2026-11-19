@@ -1,6 +1,37 @@
 ﻿# SDK 获取前的当前任务网络选路；仅供随包脚本载入，不修改系统或持久配置。
 # Created by Jobs on 2026年11月4日，星期三.
 param([string]$RunTool,[string]$RunDirectory,[string]$RunArgumentsBase64)
+# 源包装与已发布 flat 布局共用路径，兼容旧收据且不跟随包装目录链接。
+function Resolve-JobsScriptLayoutPath {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    if ([IO.Path]::GetExtension($Path) -notin @('.ps1','.cmd','.vbs')) { return $Path }
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        $directory = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('脚本包装不能是链接：' + $Path) }
+        return Join-Path $Path $directory.Name
+    }
+    return $Path
+}
+# 仅新源码包装压平到原发布名称；原有 SDK 资源包与 README 布局保持原意。
+function Convert-JobsReleaseLayoutRelativePath {
+    param([string]$Package, [string]$Relative)
+    $parts = @($Relative -split '[\\/]')
+    if ($parts.Count -lt 2) { return $Relative }
+    $last = $parts[$parts.Count - 1]
+    $parent = $parts[$parts.Count - 2]
+    if ($last -ceq 'README.md' -and [IO.Path]::GetExtension($parent) -in @('.ps1','.cmd','.vbs')) {
+        $sibling = Join-Path (Join-Path $Package (($parts[0..($parts.Count-2)]) -join '/')) $parent
+        if ((Test-Path -LiteralPath $sibling -PathType Leaf) -and ([IO.File]::ReadAllText($sibling) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) { return $null }
+    }
+    if ($last -ceq $parent -and [IO.Path]::GetExtension($last) -in @('.ps1','.cmd','.vbs')) {
+        $source = Join-Path $Package $Relative
+        if ((Test-Path -LiteralPath $source -PathType Leaf) -and ([IO.File]::ReadAllText($source) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) {
+            return (($parts[0..($parts.Count-2)]) -join '/')
+        }
+    }
+    return $Relative
+}
+
 
 # BEGIN JOBS_TERMINAL_STYLE_V1 - session-only colors; no profile or registry changes.
 function New-JobsTerminalStyleState {
@@ -473,7 +504,7 @@ function script:Get-JobsFlutterSdkRoute {
     }
 
     if($policy.IsStorage-and-not$policy.ExplicitStorage-and$policy.Kind-in@('archive','release-metadata')-and-not$ExpectedSha256){
-        $segments=$policy.Original.AbsolutePath.TrimStart('/').Split(@('/'),2)
+        $segments=$policy.Original.AbsolutePath.TrimStart('/').Split([char[]]'/', 2, [StringSplitOptions]::None)
         $metadataUri='https://storage.googleapis.com/storage/v1/b/'+[Uri]::EscapeDataString($segments[0])+'/o/'+[Uri]::EscapeDataString($segments[1])+'?fields=size,md5Hash,contentType,generation'
         foreach($proxy in $policy.Proxies){$requests+=[pscustomobject]@{Uri=$metadataUri;Proxy=$proxy;Kind='object-metadata'}}
     }
@@ -653,10 +684,55 @@ function script:Get-JobsSdkProcessRouteTarget {
         if(-not$dartReady){$object='dart-sdk-windows-'+$arch+'.zip';$transport='windows-native'}
         elseif($arguments-match'\bprecache\b'){
             $cacheSource=Read-JobsSdkRouteLocalText (Join-Path $sdk 'packages/flutter_tools/lib/src/flutter_cache.dart')
-            if($arguments-match'--android\b'-and$cacheSource.Contains('android-arm-profile/windows-x64.zip')){$object='android-arm-profile/windows-x64.zip'}
+            if($arguments-match'--universal\b'-and$cacheSource.Contains("'sky_engine'")){
+                # 只检查本次通用缓存；健康 SDK 不为菜单设备刷新强制联网。
+                $ready=(Read-JobsSdkRouteLocalText (Join-Path $sdk 'bin/cache/flutter_sdk.stamp'))-ceq$engine
+                foreach($relative in @('bin/cache/pkg/sky_engine','bin/cache/artifacts/engine/common/flutter_patched_sdk','bin/cache/artifacts/engine/common/flutter_patched_sdk_product',('bin/cache/artifacts/engine/windows-'+$arch))){
+                    $ready=$ready-and[IO.Directory]::Exists((Join-Path $sdk $relative))
+                }
+                if($cacheSource.Contains("'flutter_gpu'")){$ready=$ready-and[IO.Directory]::Exists((Join-Path $sdk 'bin/cache/pkg/flutter_gpu'))}
+                foreach($name in @('material_fonts','gradle_wrapper')){
+                    $expected=Read-JobsSdkRouteLocalText (Join-Path $sdk ('bin/internal/'+$name+'.version'))
+                    $ready=$ready-and[bool]$expected-and(Read-JobsSdkRouteLocalText (Join-Path $sdk ('bin/cache/'+$name+'.stamp')))-ceq$expected-and[IO.Directory]::Exists((Join-Path $sdk ('bin/cache/artifacts/'+$name)))
+                }
+                foreach($relative in @('bin/cache/artifacts/gradle_wrapper/gradlew','bin/cache/artifacts/gradle_wrapper/gradlew.bat','bin/cache/artifacts/gradle_wrapper/gradle/wrapper/gradle-wrapper.jar')){
+                    $ready=$ready-and[IO.File]::Exists((Join-Path $sdk $relative))
+                }
+                if($cacheSource.Contains('class FontSubsetArtifacts')){
+                    $ready=$ready-and(Read-JobsSdkRouteLocalText (Join-Path $sdk 'bin/cache/font-subset.stamp'))-ceq$engine-and[IO.File]::Exists((Join-Path $sdk ('bin/cache/artifacts/engine/windows-'+$arch+'/font-subset.exe')))
+                }
+                if($cacheSource.Contains('class FlutterEngineStamp')){
+                    $ready=$ready-and(Read-JobsSdkRouteLocalText (Join-Path $sdk 'bin/cache/engine_stamp.stamp'))-ceq$engine-and[IO.File]::Exists((Join-Path $sdk 'bin/cache/engine_stamp.json'))
+                }
+                # Pub与宿主工具同属通用准备；缺失时不能以stamp冒充无需下载。
+                foreach($relative in @('bin/cache/pkg/sky_engine/pubspec.yaml',('bin/cache/artifacts/engine/windows-'+$arch+'/flutter_tester.exe'))){
+                    $ready=$ready-and[IO.File]::Exists((Join-Path $sdk $relative))
+                }
+                if($cacheSource.Contains("'flutter_gpu'")){$ready=$ready-and[IO.File]::Exists((Join-Path $sdk 'bin/cache/pkg/flutter_gpu/pubspec.yaml'))}
+                try{
+                    if($cacheSource.Contains('class FlutterEngineStamp')){
+                        $info=(Read-JobsSdkRouteLocalText (Join-Path $sdk 'bin/cache/engine_stamp.json'))|ConvertFrom-Json
+                        $ready=$ready-and$info.git_revision-ceq$engine
+                    }
+                    $configPath=Join-Path $sdk 'packages/flutter_tools/.dart_tool/package_config.json'
+                    $config=(Read-JobsSdkRouteLocalText $configPath)|ConvertFrom-Json
+                    $ready=$ready-and$config.configVersion-eq2-and@($config.packages).Count-gt0
+                    $baseUri=[Uri]::new([IO.Path]::GetFullPath($configPath));$seen=@{}
+                    foreach($package in @($config.packages)){
+                        if(-not$package.name-or$seen.ContainsKey([string]$package.name)-or-not$package.rootUri-or[string]$package.rootUri-match'[\x00-\x20]'){$ready=$false;break}
+                        $seen[[string]$package.name]=$true
+                        $packageUri=[Uri]::new($baseUri,[string]$package.rootUri)
+                        if(-not$packageUri.IsFile-or($packageUri.Host-and$packageUri.Host-ne'localhost')-or$packageUri.Query-or$packageUri.Fragment-or-not[IO.File]::Exists((Join-Path $packageUri.LocalPath 'pubspec.yaml'))){$ready=$false;break}
+                    }
+                }catch{$ready=$false}
+                if($ready){return $null}
+                $object='sky_engine.zip'
+            }
+            elseif($arguments-match'--universal\b'){$object='dart-sdk-windows-'+$arch+'.zip';$transport='windows-native'}
+            elseif($arguments-match'--android\b'-and$cacheSource.Contains('android-arm-profile/windows-x64.zip')){$object='android-arm-profile/windows-x64.zip'}
             elseif($arguments-match'--web\b'-and$cacheSource.Contains('flutter-web-sdk.zip')){$object='flutter-web-sdk.zip'}
             elseif($arguments-match'--windows\b'-and$cacheSource.Contains('windows-$arch-debug/windows-$arch-flutter.zip')){$object='windows-'+$arch+'-debug/windows-'+$arch+'-flutter.zip'}
-            elseif($arguments-notmatch'--(?:android|web|windows|ohos)\b'-and$cacheSource.Contains('android-arm-profile/windows-x64.zip')){$object='android-arm-profile/windows-x64.zip'}
+            elseif($arguments-notmatch'--(?:android|web|windows|ohos|universal)\b'-and$cacheSource.Contains('android-arm-profile/windows-x64.zip')){$object='android-arm-profile/windows-x64.zip'}
         }
         if($object-and$dartReady-and$arguments-match'\bprecache\b'){
             $stamp='';$payload=''
@@ -913,7 +989,7 @@ function script:Invoke-JobsSdkRouteEntry {
     catch{[Console]::Error.WriteLine((Protect-JobsSdkRouteText $_.Exception.Message));exit 1}
 }
 
-if($RunTool){. (Join-Path (Split-Path -Parent $PSScriptRoot) 'SdkDownloadOutput.ps1')}
+if($RunTool){. (Resolve-JobsScriptLayoutPath (Join-Path (Split-Path -Parent $PSScriptRoot) 'SdkDownloadOutput.ps1'))}
 Invoke-JobsSdkRouteEntry $RunTool $RunDirectory $RunArgumentsBase64
 
 # END JOBS_TERMINAL_STYLE_ORIGINAL_BODY

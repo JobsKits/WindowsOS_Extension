@@ -43,7 +43,10 @@ try {
         function script:Receive-JobsHarmonyToolArchive {
             param($Package, $Destination)
             $script:Downloads++
-            if ($script:FailDownload) { throw 'fixture download failure' }
+            if ($script:FailDownload) {
+                [IO.File]::WriteAllText($Destination, 'partial fixture download')
+                throw 'fixture download failure'
+            }
             Copy-Item -LiteralPath $script:FixtureArchive -Destination $Destination
         }
         function script:Assert-JobsHarmonyCapabilities {
@@ -89,14 +92,32 @@ try {
     $link = New-FixtureZip -Symlink
     $metadata = [pscustomobject]@{Size=(Get-Item -LiteralPath $link).Length;Sha256=(Get-FileHash -LiteralPath $link -Algorithm SHA256).Hash}
     Assert-ToolsThrows { & $module { param($File,$Dest,$Package) Expand-JobsHarmonyToolArchive $File $Dest $Package } $link (Join-Path $temp 'symlink') $metadata } '符号链接'
+    $publishedHashes = @{}
+    foreach ($file in Get-ChildItem -LiteralPath $toolsDirectory -Directory -Filter 'clt-*' | ForEach-Object { Get-ChildItem -LiteralPath $_.FullName -File -Recurse }) {
+        $publishedHashes[$file.FullName] = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+    }
+    $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
     & $module { $script:FailProbe = $true }
     Assert-ToolsThrows { & $module { Install-JobsHarmonyTools } } 'incompatible'
-    Assert-Tools (@(Get-ChildItem -LiteralPath $toolsDirectory -Force -Filter '.install-*').Count -eq 0) 'Failed probe cleans staging'
+    $probeStages = @(Get-ChildItem -LiteralPath $toolsDirectory -Directory -Force -Filter '.install-*')
+    Assert-Tools ($probeStages.Count -eq 1) 'Failed probe retains exactly its isolated staging directory'
+    $probeEmulator = Join-Path $probeStages[0].FullName 'extract/command-line-tools/emulator/Emulator.exe'
+    Assert-Tools ([IO.File]::Exists($probeEmulator) -and [IO.File]::ReadAllText($probeEmulator) -ceq 'fixture') 'Failed capability probe preserves extracted evidence without publishing it'
     Assert-Tools (@(Get-ChildItem -LiteralPath $toolsDirectory -Directory -Filter 'clt-*').Count -eq 2) 'Failed probe never publishes'
     $env:HARMONY_CLT_ARCHIVE = $null
     & $module { $script:FailProbe = $false; $script:FailDownload = $true }
     Assert-ToolsThrows { & $module { Install-JobsHarmonyTools } } 'download failure'
-    Assert-Tools (@(Get-ChildItem -LiteralPath $toolsDirectory -Force -Filter '.install-*').Count -eq 0) 'Download failure cleans staging'
+    $downloadStages = @(Get-ChildItem -LiteralPath $toolsDirectory -Directory -Force -Filter '.install-*')
+    $newStages = @($downloadStages | Where-Object { $_.FullName -cne $probeStages[0].FullName })
+    Assert-Tools ($downloadStages.Count -eq 2 -and $newStages.Count -eq 1) 'Download failure retains one new staging directory and preserves previous evidence'
+    $partialArchive = Join-Path $newStages[0].FullName 'tools.zip'
+    Assert-Tools ([IO.File]::ReadAllText($partialArchive) -ceq 'partial fixture download') 'Interrupted archive bytes are retained for diagnosis or safe resumption'
+    Assert-Tools ([IO.File]::Exists($probeEmulator) -and -not [IO.Directory]::Exists((Join-Path $newStages[0].FullName 'extract'))) 'Download failure does not alter previous evidence or extract incomplete bytes'
+    Assert-Tools (@(Get-ChildItem -LiteralPath $toolsDirectory -Directory -Filter 'clt-*').Count -eq 2) 'Download failure never publishes another managed tool'
+    foreach ($path in $publishedHashes.Keys) {
+        Assert-Tools ([IO.File]::Exists($path) -and (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ceq $publishedHashes[$path]) 'Failures preserve every published tool file byte for byte'
+    }
+    Assert-Tools ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash -ceq $archiveHash) 'Local input archive remains unchanged after failures'
     Assert-Tools ([IO.File]::Exists($installed)) 'Failures preserve existing tools'
     Write-Host ('PASS: HarmonySimulatorBootstrap.Tests.ps1 (' + $script:assertions + ' assertions)')
 } finally {

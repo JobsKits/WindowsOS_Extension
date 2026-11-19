@@ -1,0 +1,5 @@
+LIBRARY JobsFileVisibilityContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE
+    JobsSetFileVisibility

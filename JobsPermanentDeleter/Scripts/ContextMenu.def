@@ -1,0 +1,5 @@
+LIBRARY JobsPermanentDeleterContextMenu
+EXPORTS
+    DllGetClassObject PRIVATE
+    DllCanUnloadNow PRIVATE
+    JobsConfirmPermanentDelete

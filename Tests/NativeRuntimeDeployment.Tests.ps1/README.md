@@ -44,7 +44,7 @@ pwsh -NoLogo -NoProfile -File "./NativeRuntimeDeployment.Tests.ps1"
 powershell.exe -NoLogo -NoProfile -File ".\NativeRuntimeDeployment.Tests.ps1"
 ```
 
-脚本无参数、无交互；运行后直接执行隔离断言，标准输出显示结果，断言失败抛出异常并返回非零。未创建独立日志文件，需要留档时由调用方捕获标准输出与标准错误。
+脚本无参数、无交互；运行后直接执行隔离断言，标准输出显示结果，断言失败抛出异常并返回非零。清单 JSON 和随包脚本按 UTF-8 读取，不依赖 Windows PowerShell 5.1 的系统代码页。未创建独立日志文件，需要留档时由调用方捕获标准输出与标准错误。
 
 ## 三、<span id="isolation">临时夹具与验证边界</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 

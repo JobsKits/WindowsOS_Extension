@@ -34,7 +34,7 @@
 
 ## 一、<span id="usage">操作方式</span> <a href="#前言" style="font-size:17px; color:green;"><b>🔼</b></a> <a href="#🔚" style="font-size:17px; color:green;"><b>🔽</b></a>
 
-1、双击 [Manage.cmd](./Manage.cmd)，或直接打开 [Manage.vbs](./Manage.vbs)，在 GUI 选择“安装 / 更新”、勾选“创建脚本快捷入口”，点击操作按钮。默认空选，取消、关闭和空选不安装、不卸载。
+1、双击 [Manage.cmd](./Manage.cmd)，或直接打开 [Manage.vbs](./Manage.vbs/Manage.vbs)，在 GUI 选择“安装 / 更新”、勾选“创建脚本快捷入口”，点击操作按钮。默认空选，空选或在任务开始前取消、关闭不会启动安装／卸载。
 
 2、对单个 `.cmd`、`.bat`、`.ps1` 文件夹右键。该目录须真实存在，内部须含完全同名的普通脚本；目录与脚本均不接受重解析点。普通文件、空白处、多选、不合格目录均不显示此项。Windows 11 可能位于“显示更多选项”内。
 
@@ -50,7 +50,7 @@
 
 运行需要 Windows PowerShell 5.1、系统 .NET / WinForms；安装原生菜单还需要 Visual Studio / Build Tools 的“使用 C++ 的桌面开发”、MSVC 和 Windows SDK，包含 Explorer 对应架构（x86 / x64 / ARM64）的编译工具。缺失时停止注册并提示补齐。业务不依赖 Python、Node.js 或 macOS zsh。
 
-完整保留本包的 `Manage.cmd`、`Manage.vbs`、`Extension.json` 和 `Scripts/` 即可独立复制管理。路径从入口及功能包自身解析，不依赖源码仓库、开发机绝对路径或启动工作目录。管理面板只处理当前 Windows 用户，保持主题、语言、逐项状态、实时日志和安装 / 卸载双向入口；不要求管理员启动整个面板，不改变永久执行策略。
+完整保留本包的 `Manage.cmd`、`Manage.vbs/Manage.vbs`、`Extension.json` 和 `Scripts/` 即可独立复制管理。路径从入口及功能包自身解析，不依赖源码仓库、开发机绝对路径或启动工作目录。管理面板只处理当前 Windows 用户，保持主题、语言、逐项状态、实时日志和安装 / 卸载双向入口；不要求管理员启动整个面板，不改变永久执行策略。
 
 安装将本包运行副本保存到当前用户本地应用数据目录下的 `Jobs/WindowsExtension/command-shortcut-create`，编译对应架构原生菜单 DLL，备份并写入本功能的当前用户注册项。卸载核验所有权后仅移除本功能菜单登记，保留备份、日志、原脚本及已创建的快捷入口。安装后的源码副本可独立运行，源码目录移走不影响已装菜单。
 
@@ -68,7 +68,7 @@
 | 文件 / 目录 | 职责 |
 | --- | --- |
 | [Extension.json](./Extension.json) | 功能标识、名称、目录限制、GUI运行标记和安装器覆盖声明 |
-| [Manage.cmd](./Manage.cmd)、[Manage.vbs](./Manage.vbs) | 启动独立 GUI，不承载业务创建 |
+| [Manage.cmd](./Manage.cmd)、[Manage.vbs](./Manage.vbs/Manage.vbs) | 启动独立 GUI，不承载业务创建 |
 | [Scripts](./Scripts/README.md) | 原生菜单、脚本生成、十语主题对话框及管理基础设施 |
 | [Tests](./Tests/README.md) | 临时目录行为测试和原生菜单资格过滤测试 |
 
@@ -102,4 +102,13 @@ flowchart TD
 
 按 [测试说明](./Tests/README.md) 运行临时目录行为及原生资格测试，并用 [参数专项测试](./Tests/NamedParameterTests.ps1/README.md) 核验命名参数、别名、开关、空字符串、剩余参数和保留名称冲突边界，不写注册表、不重启 Explorer，也不执行原始批处理业务。PowerShell 核心逻辑可在兼容 PowerShell 环境隔离验证；MSVC DLL、Explorer 真实菜单、WinForms 十语 / 主题和 `cmd.exe` 参数及代码页行为仍须 Windows 原生核验，不能以 macOS 上的语法或隔离测试代替。
 
+
+<!-- JOBS_SOURCE_SCRIPT_PACKAGES -->
+**同名脚本包：** [Manage.vbs](./Manage.vbs/README.md)。源码路径与发布目录的 flat 资源名分开维护。
+<!-- /JOBS_SOURCE_SCRIPT_PACKAGES -->
+
 <a id="🔚" href="#前言" style="font-size:17px; color:green; font-weight:bold;">我是有底线的➤点我回到首页</a>
+
+**管理面板关闭：** 空闲关闭时选择退到系统托盘或完全退出，默认回车为托盘、Esc 保留原窗；安装／卸载／构建清理进行中关闭直接后台，不询问、不终止任务。完工仍驻留，从托盘双击或“显示管理面板”恢复同一窗口；忙碌时不能完全退出。
+
+**整行选择：** 点击复选框、图标、功能文字、普通状态区或该功能行空白，仅切换该项一次，保留原 Tab／Space 复选框操作及勾选事件。任务执行中及不可用项禁止切换；失败日志链接和独立按钮优先执行自身动作，不连带勾选。组标题拖动、分组按钮和组尾空白不算功能行；移动、离开、滚动或触控滑动会取消本次点击候选，不接管原生滚动。选择本身不执行安装、卸载或清理，原默认空选、主题／语言切换保留勾选及持久化规则不变。

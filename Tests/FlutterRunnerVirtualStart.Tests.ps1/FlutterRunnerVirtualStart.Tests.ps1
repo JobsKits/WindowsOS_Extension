@@ -147,7 +147,16 @@ function Test-VirtualMetadataAndMenuBoundaries {
                 Assert-Virtual (@($state.Timeouts|Where-Object{$_-ne20}).Count-eq0) '每次原生HTTP请求均20秒有界，不重放业务安装或启动'
                 if($scenario-in@('timeout','task-timeout')){Assert-Virtual ($answer.Version-ceq'6.1.1.300') 'PS7 timeout后仍经真实Release正文解析，忽略Emulator版本'}
                 if($scenario-eq'429'){Assert-Virtual ($state.Sleeps-eq4) 'HTTP429按Retry-After分片等待并可取消'}
-                if($scenario-eq'dns'){Assert-Virtual ($state.Headers.Count-eq2-and$state.Headers[0]['X-HD-SERIALNO']-cne$state.Headers[1]['X-HD-SERIALNO']) '目录/URL原生重试重新生成官方请求头'}
+                if($scenario-eq'dns'){
+                    Assert-Virtual ($state.Headers.Count-eq2-and-not[object]::ReferenceEquals($state.Headers[0],$state.Headers[1])) ('目录/URL原生重试使用独立官方请求头对象；count='+$state.Headers.Count)
+                    foreach($header in $state.Headers){
+                        $date=[DateTime]::MinValue;$serial=[long]0
+                        $originValid=$header['Origin']-ceq'https://developer.huawei.com'
+                        $dateValid=[DateTime]::TryParseExact([string]$header['X-HD-DATE'],'yyyyMMddTHHmmssZ',[Globalization.CultureInfo]::InvariantCulture,([Globalization.DateTimeStyles]::AssumeUniversal-bor[Globalization.DateTimeStyles]::AdjustToUniversal),[ref]$date)
+                        $serialValid=[long]::TryParse([string]$header['X-HD-SERIALNO'],[Globalization.NumberStyles]::None,[Globalization.CultureInfo]::InvariantCulture,[ref]$serial)-and$serial-gt0
+                        Assert-Virtual ($originValid-and$dateValid-and$serialValid) ('每次官方请求头的来源、UTC日期和正Int64序号有效；origin='+$originValid+'; utc='+$dateValid+'; serial='+$serialValid)
+                    }
+                }
             }elseif($scenario-in@('auth','html')) {
                 Assert-Virtual (-not$failed-and$answer.State-ceq'Blocked'-and$state.Calls-eq1-and$state.Sleeps-eq0) ($scenario+'授权/HTML响应立即未就绪，不网络重试')
             }elseif($scenario-in@('cancel-request','cancel-backoff')) {
@@ -200,6 +209,7 @@ $providerCalls=@($replacementBranches[0].FindAll({param($node)
 },$true))
 Assert-Virtual ($providerCalls.Count-eq0) '对象替换夹具只使用已知绝对路径，不调用Split-Path Provider'
 [void][IO.Directory]::CreateDirectory($temporary)
+$primaryFailure=$false
 try {
     foreach($relative in @('JobsFlutterRunner/Scripts/Action.psm1','JobsFlutterTools/Scripts/Actions/run/Scripts/Action.psm1')) {
         $path=Join-Path $root $relative
@@ -649,6 +659,7 @@ try {
         try {
             $expectedEntries=@($archiveDirectories|ForEach-Object{'command-line-tools/'+$_+'/'})+@($archiveFiles|ForEach-Object{'command-line-tools/'+$_})
             Assert-Virtual ($zip.Entries.Count-eq$expectedEntries.Count) '正向ZIP保留全部真实文件与空SDK目录'
+            $archiveMemberNames=@($zip.Entries|ForEach-Object{$_.FullName})
             $seenEntries=[Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
             foreach($entry in $zip.Entries){
                 Assert-Virtual (-not$entry.FullName.Contains('\')-and$entry.FullName-cin$expectedEntries-and$seenEntries.Add($entry.FullName)) ('正向ZIP成员使用唯一标准斜杠路径：'+$entry.FullName)
@@ -668,14 +679,34 @@ try {
         $module=Import-Module $path -Force -PassThru -DisableNameChecking
         $snapshot=&$module {Get-JobsRunnerTaskEnvironmentSnapshot @('LOCALAPPDATA')}
         try {
-            $env:LOCALAPPDATA=Join-Path $temporary ('cache-'+[guid]::NewGuid().ToString('N'))
+            # 外层已用GUID隔离；单调断言计数为两份运行器分配各自短缓存，避免正向夹具意外跨过MAX_PATH。
+            $env:LOCALAPPDATA=Join-Path $temporary ('c'+$script:Checks)
             $prepare=Join-Path (Split-Path -Parent $path) 'RunPreflight.ps1/PrepareHarmonyRun.ps1/PrepareHarmonyRun.ps1'
+            $assertStageBudget={param([bool]$Value,[string]$Message)Assert-Virtual $Value $Message}
             $installed=&$module {
-                param($Entry,$Package)
+                param($Entry,$Package,$Members,$AssertStageBudget)
                 . $Entry
                 $script:JobsPrepareCore=Import-JobsPrepareCore
+                if([Environment]::OSVersion.Platform-eq[PlatformID]::Win32NT){
+                    # 只评估真实安装器的路径表达式，不复制stage常量或执行安装步骤。
+                    $statements=${function:Install-JobsRunnerOfficialHarmonyTools}.Ast.Body.EndBlock.Statements
+                    $tokenRules=@($statements|Where-Object{$_-is[Management.Automation.Language.AssignmentStatementAst]-and$_.Left.Extent.Text-ceq'$token'})
+                    $stageRules=@($statements|Where-Object{$_-is[Management.Automation.Language.AssignmentStatementAst]-and$_.Left.Extent.Text-ceq'$stage'})
+                    $expandRules=@($statements|Where-Object{$_-is[Management.Automation.Language.PipelineAst]-and$_.Extent.Text-like'*Expand-JobsHarmonyToolArchive*'})
+                    &$AssertStageBudget ($tokenRules.Count-eq1-and$stageRules.Count-eq1-and$expandRules.Count-eq1) '正向侧装路径预算定位唯一真实token/stage/解压调用'
+                    $expandCall=$expandRules[0].PipelineElements[0]
+                    &$AssertStageBudget ($expandCall.CommandElements.Count-eq5) '正向侧装路径预算使用真实解压目标参数'
+                    $root=&$script:JobsPrepareCore.Tools {Get-JobsHarmonyToolsHome}
+                    $token=&([scriptblock]::Create($tokenRules[0].Right.Extent.Text))
+                    $stage=&([scriptblock]::Create($stageRules[0].Right.Extent.Text))
+                    $extract=&([scriptblock]::Create($expandCall.CommandElements[-2].Extent.Text))
+                    $stagePaths=@($Members|ForEach-Object{Join-Path $extract $_.Replace('/',[IO.Path]::DirectorySeparatorChar)})
+                    $stagePaths+=Join-Path $stage $Package.Name
+                    $longestStagePath=@($stagePaths|Sort-Object {$_.Length} -Descending)[0]
+                    &$AssertStageBudget ($longestStagePath.Length-lt260) ('正向侧装夹具的最长普通API路径必须小于260字符：length='+$longestStagePath.Length+'; path='+$longestStagePath)
+                }
                 Install-JobsRunnerOfficialHarmonyTools $Package
-            } $prepare $package
+            } $prepare $package $archiveMemberNames $assertStageBudget
             Assert-Virtual ([IO.Directory]::Exists($installed)-and(&$module {param($Root)Get-JobsRunnerHarmonyToolVersion $Root} $installed)-ceq'6.1.1.300') '完整官方元数据/本地归档正向侧装经真实hash/安全解压/实际版本复检'
             Assert-Virtual ([IO.File]::Exists($archive)-and[IO.Directory]::Exists($content)) '侧装保留原归档及既有安装，不覆盖来源'
         } finally {&$module {param($Snapshot)Restore-JobsRunnerTaskEnvironment $Snapshot} $snapshot}
@@ -683,4 +714,20 @@ try {
 
     }
     Write-Host ('PASS: FlutterRunnerVirtualStart ('+$script:Checks+' assertions; no real downloads or device/app start)')
-} finally {if([IO.Directory]::Exists($temporary)){[IO.Directory]::Delete($temporary,$true)}}
+} catch {
+    $primaryFailure=$true
+    [Console]::Error.WriteLine('VirtualStart fixture primary failure:')
+    [Console]::Error.WriteLine($_.Exception.ToString())
+    [Console]::Error.WriteLine($_.InvocationInfo.PositionMessage)
+    [Console]::Error.WriteLine($_.ScriptStackTrace)
+    throw
+} finally {
+    try {if([IO.Directory]::Exists($temporary)){[IO.Directory]::Delete($temporary,$true)}}
+    catch {
+        [Console]::Error.WriteLine('VirtualStart fixture cleanup failure:')
+        [Console]::Error.WriteLine($_.Exception.ToString())
+        [Console]::Error.WriteLine($_.InvocationInfo.PositionMessage)
+        [Console]::Error.WriteLine($_.ScriptStackTrace)
+        if(-not$primaryFailure){throw}
+    }
+}

@@ -5,11 +5,484 @@
 
 
 # Jobs enter-choice emphasis is display-only; input and business decisions stay with callers.
+
+# 源包装与已发布 flat 布局共用路径，兼容旧收据且不跟随包装目录链接。
+# JOBS_FZF_SELECTION_CORE_V1_BEGIN
+# 将选择器诊断交给当前业务日志，先剥离控制码并脱敏展示地址。
+# JOBS_WINGET_NECESSARY_NATIVE_V1_BEGIN
+# 按Windows原生argv规则保留参数边界，不通过命令字符串求值。
+function ConvertTo-JobsWingetNativeArgument {
+    param([AllowNull()][AllowEmptyString()][string]$Value)
+    if ($null -eq $Value) { $Value = '' }
+    if ($Value.IndexOf([char]0) -ge 0) { throw '参数不能包含空字符。' }
+    $quoted = New-Object Text.StringBuilder
+    [void]$quoted.Append('"')
+    $slashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq [char]92) { $slashes++; continue }
+        if ($character -eq [char]34) {
+            [void]$quoted.Append([char]92, (2 * $slashes + 1))
+            [void]$quoted.Append([char]34)
+        } else {
+            if ($slashes -gt 0) { [void]$quoted.Append([char]92, $slashes) }
+            [void]$quoted.Append($character)
+        }
+        $slashes = 0
+    }
+    if ($slashes -gt 0) { [void]$quoted.Append([char]92, (2 * $slashes)) }
+    [void]$quoted.Append('"')
+    return $quoted.ToString()
+}
+# 隔离原生工具健康探针并限制单次时长，不改父进程环境。
+function Invoke-JobsWingetNativeProbe {
+    param([string]$Executable, [string[]]$NativeArguments, [string[]]$InputLines = @(), [switch]$Probe)
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $Executable
+    $start.Arguments = (@($NativeArguments | ForEach-Object { ConvertTo-JobsWingetNativeArgument $_ }) -join ' ')
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $false
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = [bool]$Probe
+    $start.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)
+    if ($Probe) { $start.StandardErrorEncoding = New-Object Text.UTF8Encoding($false) }
+    foreach ($key in @('FZF_DEFAULT_OPTS', 'FZF_DEFAULT_OPTS_FILE', 'FZF_DEFAULT_COMMAND')) { [void]$start.EnvironmentVariables.Remove($key) }
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    try {
+        [void]$process.Start()
+        $outputTask = $process.StandardOutput.ReadToEndAsync()
+        $errorTask = if ($Probe) { $process.StandardError.ReadToEndAsync() } else { $null }
+        $inputWriter = New-Object IO.StreamWriter($process.StandardInput.BaseStream, (New-Object Text.UTF8Encoding($false)))
+        $inputWriter.NewLine = "`n"
+        try { foreach ($line in $InputLines) { $inputWriter.WriteLine($line) } } finally { $inputWriter.Dispose() }
+        if ($Probe) {
+            if (-not $process.WaitForExit(10000)) {
+                $process.Kill(); $process.WaitForExit()
+                return [pscustomobject]@{ Code = 124; Lines = @(); Error = '原生工具健康探针超时（10 秒）。' }
+            }
+        } else { $process.WaitForExit() }
+        $output = $outputTask.GetAwaiter().GetResult()
+        $errorText = if ($errorTask) { $errorTask.GetAwaiter().GetResult() } else { '' }
+        $lines = @()
+        if ($output.Length -gt 0) { $lines = @($output.Replace("`r`n", "`n").TrimEnd([char]10) -split "`n") }
+        return [pscustomobject]@{ Code = $process.ExitCode; Lines = $lines; Error = $errorText }
+    } finally {
+        try { if ($process.Id -gt 0 -and -not $process.HasExited) { $process.Kill(); $process.WaitForExit() } } catch { }
+        $process.Dispose()
+    }
+}
+# 只刷新当前进程的原生工具路径，不持久化环境变更。
+function Update-JobsWingetNativePath {
+    param([string]$ExecutableDirectory)
+    $parts = New-Object 'Collections.Generic.List[string]'
+    $separator = [IO.Path]::PathSeparator
+    foreach ($value in @($ExecutableDirectory, [Environment]::GetEnvironmentVariable('Path', 'User'), [Environment]::GetEnvironmentVariable('Path', 'Machine'), $env:Path)) {
+        foreach ($part in @(([string]$value) -split [regex]::Escape([string]$separator))) {
+            if (-not [string]::IsNullOrWhiteSpace($part) -and -not $parts.Contains($part)) { $parts.Add($part) }
+        }
+    }
+    $env:Path = $parts -join [string]$separator
+}
+# 只读发现当前用户已注册且能够运行的WinGet。
+function Find-JobsNativeWinget {
+    $command = Get-Command 'winget.exe' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    $candidates = @()
+    if ($command) { $candidates += $command.Source }
+    if ($env:LOCALAPPDATA) { $candidates += Join-Path $env:LOCALAPPDATA 'Microsoft/WindowsApps/winget.exe' }
+    foreach ($candidate in @($candidates | Select-Object -Unique)) {
+        if (-not [IO.File]::Exists($candidate)) { continue }
+        try { $probe = Invoke-JobsWingetNativeProbe $candidate @('--version') -Probe; if ($probe.Code -eq 0) { return $candidate } } catch [Management.Automation.PipelineStoppedException] { throw } catch { }
+    }
+    return $null
+}
+# 仅必需安装分支准备当前用户App Installer，一次打开官方界面并等待复检。
+function Get-JobsNativeRequiredWinget {
+    $winget = Find-JobsNativeWinget
+    if ($winget) { return $winget }
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '当前不是 Windows，未调用 App Installer 或安装 Windows 依赖。' }
+    Write-JobsWingetNativeStatus '本次需要 Windows 原生 App Installer/winget；仅注册当前用户已有组件，不接受许可或修改系统策略。'
+    $registration = Get-Command Add-AppxPackage -ErrorAction SilentlyContinue
+    if ($registration -and $registration.Parameters.ContainsKey('RegisterByFamilyName')) {
+        try { Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction Stop } catch { Write-JobsWingetNativeStatus ('App Installer 注册未就绪：' + $_.Exception.Message) }
+        $winget = Find-JobsNativeWinget
+        if ($winget) { Update-JobsWingetNativePath ([IO.Path]::GetDirectoryName($winget)); return $winget }
+    }
+    Write-JobsWingetNativeStatus '官方 App Installer：https://apps.microsoft.com/detail/9NBLGGH4NNS1；将打开一次官方页面。请按系统要求完成安装/许可，本入口持续复检并续行，Ctrl+C 停止等待。'
+    Start-Process -FilePath 'ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1' -ErrorAction Stop | Out-Null
+    while ($true) {
+        Update-JobsWingetNativePath
+        $winget = Find-JobsNativeWinget
+        if ($winget) { return $winget }
+        Write-JobsWingetNativeStatus '等待官方 App Installer 安装和当前用户注册；不会重复打开窗口，Ctrl+C 取消。'
+        Start-Sleep -Seconds 3
+    }
+}
+# 将原生包管理诊断安全送往业务展示与纯文本日志。
+function Write-JobsWingetNativeStatus {
+    [CmdletBinding()]
+    param([string]$Text)
+    $plain=$Text -replace '\x1b\][^\x07]*(?:\x07|\x1b\\)', '' -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+    $plain=$plain -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@' -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]' -replace '(?im)((?:token|password|secret|authorization)\s*[:=]\s*)\S+', '$1[已省略]'
+    foreach($name in @('Write-JobsFvmMessage','Write-JobsSetupMessage','Write-JobsWorkerMessage','Write-JobsStatus','Write-JobsLog')){
+        $writer=Get-Command $name -CommandType Function -ErrorAction SilentlyContinue
+        if($writer){&$writer $plain;return}
+    }
+    Write-Host $plain
+}
+# 捕获展示副本但保持原生stdin与许可交互；不传accept/disable，不自动接受许可或提升权限。
+function Invoke-JobsNativeWinget {
+    param([string]$Winget,[string[]]$Arguments)
+    $text=New-Object Collections.Generic.List[string];$saved=$ErrorActionPreference;$failure=$null;$PSNativeCommandUseErrorActionPreference=$false
+    try {
+        $ErrorActionPreference='Continue';$global:LASTEXITCODE=-1
+        &$Winget @Arguments 2>&1|ForEach-Object {$line=[string]$_;$text.Add($line);try{Write-JobsWingetNativeStatus $line -ErrorAction Stop}catch{$failure=$_.Exception;throw}}
+        $code=$LASTEXITCODE
+    }finally{$ErrorActionPreference=$saved}
+    if($failure){throw $failure}
+    return [pscustomobject]@{Code=$code;Text=($text-join"`n")}
+}
+# 只对必要工具的临时获取故障持续重试，取消和确定阻塞立即停止。
+function Invoke-JobsNativeWingetRetry {
+    param([string]$Winget,[string[]]$Arguments)
+    $delay=1
+    while($true){
+        $result=Invoke-JobsNativeWinget $Winget $Arguments
+        if($result.Code-in@(129,130,137,143,1223,1602,-1073741510,-2147023673)){throw(New-Object OperationCanceledException('本人已取消原生包管理操作。'))}
+        if($result.Code-in@(3010,1641)){throw '包管理器要求重启，请本人处理后继续；不会自动重启。'}
+        if($result.Code-eq0){return $result}
+        $plain=$result.Text -replace '\x1b\][^\x07]*(?:\x07|\x1b\\)', '' -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+        $plain=$plain -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@' -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]' -replace '(?im)((?:token|password|secret|authorization)\s*[:=]\s*)\S+', '$1[已省略]'
+        if($plain-match'(?i)permission|access.denied|no.space|disk.full|hash|checksum|certificate|unauthor|license|agreement|unsupported|not.supported|unknown.command|unrecognized|no.applicable|no.package|no.installed.package|not.found|already.installed|no.available.upgrade|requires?.*reboot|权限|拒绝|空间不足|许可|协议|不支持|未知命令|无法找到|找不到|没有找到|不存在|无适用|已安装|需要重启') {throw ('原生包管理遇到明确阻塞，退出码 '+$result.Code+'：'+$plain)}
+        Write-JobsWingetNativeStatus ('包管理网络获取失败；'+$delay+'秒后沿当前流程重试，Ctrl+C停止。')
+        Start-Sleep -Seconds $delay;$delay=[Math]::Min(30,$delay*2)
+    }
+}
+# JOBS_WINGET_NECESSARY_NATIVE_V1_END
+
+# 将选择器诊断送往当前业务日志，剥离控制码并隐藏敏感地址。
+function Write-JobsFzfStatus {
+    [CmdletBinding()]
+    param([string]$Text)
+    $plain = $Text -replace '\x1b\][^\x07]*(?:\x07|\x1b\\)', '' -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+    $plain = $plain -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@' -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]'
+    foreach ($name in @('Write-JobsHarmonyMessage', 'Write-JobsPackagerMessage', 'Write-JobsFvmMessage', 'Write-JobsSetupMessage', 'Write-JobsMigrationMessage', 'Write-JobsRollbackMessage', 'Write-JobsLog', 'Write-JobsEnterChoiceText')) {
+        $writer = Get-Command $name -CommandType Function -ErrorAction SilentlyContinue
+        if ($writer) { & $writer $plain; return }
+    }
+    Write-Host $plain
+}
+# 复用现有 Windows argv 引号规则，不通过命令字符串求值。
+function ConvertTo-JobsFzfArgument {
+    param([AllowNull()][AllowEmptyString()][string]$Value)
+    if ($null -eq $Value) { $Value = '' }
+    if ($Value.IndexOf([char]0) -ge 0) { throw '参数不能包含空字符。' }
+    $quoted = New-Object Text.StringBuilder
+    [void]$quoted.Append('"')
+    $slashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq [char]92) { $slashes++; continue }
+        if ($character -eq [char]34) {
+            [void]$quoted.Append([char]92, (2 * $slashes + 1))
+            [void]$quoted.Append([char]34)
+        } else {
+            if ($slashes -gt 0) { [void]$quoted.Append([char]92, $slashes) }
+            [void]$quoted.Append($character)
+        }
+        $slashes = 0
+    }
+    if ($slashes -gt 0) { [void]$quoted.Append([char]92, (2 * $slashes)) }
+    [void]$quoted.Append('"')
+    return $quoted.ToString()
+}
+# 仅清理本次启动的 fzf；探针有单次上限，交互沿原终端运行，不改父进程环境。
+function Invoke-JobsFzfProcess {
+    param([string]$Executable, [string[]]$NativeArguments, [string[]]$InputLines = @(), [switch]$Probe)
+    $start = New-Object Diagnostics.ProcessStartInfo
+    $start.FileName = $Executable
+    $start.Arguments = (@($NativeArguments | ForEach-Object { ConvertTo-JobsFzfArgument $_ }) -join ' ')
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $false
+    $start.RedirectStandardInput = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = [bool]$Probe
+    $start.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)
+    if ($Probe) { $start.StandardErrorEncoding = New-Object Text.UTF8Encoding($false) }
+    foreach ($key in @('FZF_DEFAULT_OPTS', 'FZF_DEFAULT_OPTS_FILE', 'FZF_DEFAULT_COMMAND')) { [void]$start.EnvironmentVariables.Remove($key) }
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = $start
+    try {
+        [void]$process.Start()
+        $outputTask = $process.StandardOutput.ReadToEndAsync()
+        $errorTask = if ($Probe) { $process.StandardError.ReadToEndAsync() } else { $null }
+        $inputWriter = New-Object IO.StreamWriter($process.StandardInput.BaseStream, (New-Object Text.UTF8Encoding($false)))
+        $inputWriter.NewLine = "`n"
+        try { foreach ($line in $InputLines) { $inputWriter.WriteLine($line) } } finally { $inputWriter.Dispose() }
+        if ($Probe) {
+            if (-not $process.WaitForExit(10000)) {
+                $process.Kill(); $process.WaitForExit()
+                return [pscustomobject]@{ Code = 124; Lines = @(); Error = 'fzf 健康探针超时（10 秒）。' }
+            }
+        } else { $process.WaitForExit() }
+        $output = $outputTask.GetAwaiter().GetResult()
+        $errorText = if ($errorTask) { $errorTask.GetAwaiter().GetResult() } else { '' }
+        $lines = @()
+        if ($output.Length -gt 0) { $lines = @($output.Replace("`r`n", "`n").TrimEnd([char]10) -split "`n") }
+        return [pscustomobject]@{ Code = $process.ExitCode; Lines = $lines; Error = $errorText }
+    } finally {
+        try { if ($process.Id -gt 0 -and -not $process.HasExited) { $process.Kill(); $process.WaitForExit() } } catch { }
+        $process.Dispose()
+    }
+}
+# 检验真实路径、版本及实际单选/复选面板选项；不打开界面或获取依赖。
+function Test-JobsFzfPath {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not [IO.File]::Exists($Path)) { return $false }
+    try {
+        $version = Invoke-JobsFzfProcess $Path @('--version') -Probe
+        if ($version.Code -ne 0) { return $false }
+        $marker = '__JOBS_FZF_HEALTH__'
+        $probe = Invoke-JobsFzfProcess $Path @('--filter', $marker, '--no-multi', '--sync', '--layout=reverse', '--height=60%', '--border', '--delimiter', "`t", '--with-nth=2..', '--print-query', '--expect=left,space,enter', '--bind=up:up,down:down,tab:down,shift-tab:up,start:pos(1)') @("P`t$marker") -Probe
+        return ($probe.Code -eq 0 -and $probe.Lines.Count -gt 0 -and $probe.Lines[-1] -ceq "P`t$marker")
+    } catch [Management.Automation.PipelineStoppedException] { throw } catch { return $false }
+}
+# 发现当前和常见用户级安装位置，不因别名或损坏路径误判已经就绪。
+function Find-JobsFzf {
+    $candidates = New-Object 'Collections.Generic.List[string]'
+    foreach ($name in @('fzf.exe', 'fzf')) {
+        $command = Get-Command $name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($command) { $candidates.Add($command.Source) }
+    }
+    if ($env:LOCALAPPDATA) {
+        $candidates.Add((Join-Path $env:LOCALAPPDATA 'Microsoft/WinGet/Links/fzf.exe'))
+        $packages = Join-Path $env:LOCALAPPDATA 'Microsoft/WinGet/Packages'
+        if ([IO.Directory]::Exists($packages)) {
+            foreach ($directory in @(Get-ChildItem -LiteralPath $packages -Directory -Filter 'junegunn.fzf*' -ErrorAction SilentlyContinue)) {
+                foreach ($file in @(Get-ChildItem -LiteralPath $directory.FullName -File -Recurse -Filter 'fzf.exe' -ErrorAction SilentlyContinue)) { $candidates.Add($file.FullName) }
+            }
+        }
+    }
+    if ($env:USERPROFILE) { $candidates.Add((Join-Path $env:USERPROFILE 'scoop/shims/fzf.exe')) }
+    if ($env:ChocolateyInstall) { $candidates.Add((Join-Path $env:ChocolateyInstall 'bin/fzf.exe')) }
+    foreach ($candidate in @($candidates | Select-Object -Unique)) { if (Test-JobsFzfPath $candidate) { return $candidate } }
+    return $null
+}
+# 只刷新本次进程的工具搜索路径，不改写用户或系统 PATH。
+function Update-JobsProcessPath {
+    param([string]$ExecutableDirectory)
+    $parts = New-Object 'Collections.Generic.List[string]'
+    $separator = [IO.Path]::PathSeparator
+    foreach ($value in @($ExecutableDirectory, [Environment]::GetEnvironmentVariable('Path', 'User'), [Environment]::GetEnvironmentVariable('Path', 'Machine'), $env:Path)) {
+        foreach ($part in @(([string]$value) -split [regex]::Escape([string]$separator))) {
+            if (-not [string]::IsNullOrWhiteSpace($part) -and -not $parts.Contains($part)) { $parts.Add($part) }
+        }
+    }
+    $env:Path = $parts -join [string]$separator
+}
+# 查找当前用户已就绪的原生包管理器；只读调用不注册或安装组件。
+function Find-JobsWinget {
+    $command = Get-Command 'winget.exe' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    $candidates = @()
+    if ($command) { $candidates += $command.Source }
+    if ($env:LOCALAPPDATA) { $candidates += Join-Path $env:LOCALAPPDATA 'Microsoft/WindowsApps/winget.exe' }
+    foreach ($candidate in @($candidates | Select-Object -Unique)) {
+        if (-not [IO.File]::Exists($candidate)) { continue }
+        try { $probe = Invoke-JobsFzfProcess $candidate @('--version') -Probe; if ($probe.Code -eq 0) { return $candidate } } catch [Management.Automation.PipelineStoppedException] { throw } catch { }
+    }
+    return $null
+}
+# 必需依赖才恢复当前用户 App Installer 注册或打开一次官方安装界面，并在原流程等待就绪。
+function Get-JobsRequiredWinget {
+    $winget = Find-JobsWinget
+    if ($winget) { return $winget }
+    if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw '当前不是 Windows，未调用 App Installer 或安装 Windows 依赖。' }
+    Write-JobsFzfStatus '本次需要 Windows 原生 App Installer/winget；仅注册当前用户已有组件，不接受许可或修改系统策略。'
+    $registration = Get-Command Add-AppxPackage -ErrorAction SilentlyContinue
+    if ($registration -and $registration.Parameters.ContainsKey('RegisterByFamilyName')) {
+        try { Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ErrorAction Stop } catch { Write-JobsFzfStatus ('App Installer 注册未就绪：' + $_.Exception.Message) }
+        $winget = Find-JobsWinget
+        if ($winget) { Update-JobsProcessPath ([IO.Path]::GetDirectoryName($winget)); return $winget }
+    }
+    Write-JobsFzfStatus '官方 App Installer：https://apps.microsoft.com/detail/9NBLGGH4NNS1；将打开一次官方页面。请按系统要求完成安装/许可，本入口持续复检并续行，Ctrl+C 停止等待。'
+    Start-Process -FilePath 'ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1' -ErrorAction Stop | Out-Null
+    while ($true) {
+        Update-JobsProcessPath
+        $winget = Find-JobsWinget
+        if ($winget) { return $winget }
+        Write-JobsFzfStatus '等待官方 App Installer 安装和当前用户注册；不会重复打开窗口，Ctrl+C 取消。'
+        Start-Sleep -Seconds 3
+    }
+}
+# 调用原生包管理器处理精确包，保留许可交互；原输出仅经脱敏展示，不用作选择结果。
+function Invoke-JobsWingetPackage {
+    param([string]$Winget, [string]$Package, [ValidateSet('install','upgrade','repair')][string]$Mode = 'install')
+    $arguments = @($Mode, '--id', $Package, '--exact', '--source', 'winget', '--interactive')
+    if ($Package -ceq 'junegunn.fzf') { $arguments += @('--scope', 'user') }
+    $text = New-Object 'Collections.Generic.List[string]'
+    $previous = $ErrorActionPreference
+    $logFailure = $null
+    $PSNativeCommandUseErrorActionPreference = $false
+    try {
+        $ErrorActionPreference = 'Continue'
+        $global:LASTEXITCODE = -1
+        & $Winget @arguments 2>&1 | ForEach-Object { $line = [string]$_; $text.Add($line); try { Write-JobsFzfStatus $line -ErrorAction Stop } catch { $logFailure = $_.Exception; throw } }
+        $code = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $previous }
+    if ($logFailure) { throw $logFailure }
+    return [pscustomobject]@{ Code = $code; Text = $text -join "`n" }
+}
+# 选择流程才获取必需 fzf；健康环境直接复用，只读与取消不启动安装。
+function Ensure-JobsFzf {
+    param([switch]$CheckOnly)
+    $fzf = Find-JobsFzf
+    if ($fzf) { if (-not $CheckOnly) { Update-JobsProcessPath ([IO.Path]::GetDirectoryName($fzf)) }; return $fzf }
+    if ($CheckOnly) { throw 'fzf 路径、版本或所需选项尚未就绪；只读检查未安装或修复。' }
+    if ([Console]::IsInputRedirected -or [Console]::IsErrorRedirected) { throw '键盘选择需要真实交互终端；未获取依赖或执行业务。' }
+    Write-JobsFzfStatus '本次键盘选择需要健康 fzf；来源 https://github.com/microsoft/winget-pkgs（junegunn.fzf）。仅在缺失或损坏时获取，许可证仍由本人确认，Ctrl+C 可结束。'
+    $winget = Get-JobsRequiredWinget
+    $mode = 'install'
+    $existing = Get-Command 'fzf.exe', 'fzf' -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($existing) { $mode = 'repair' }
+    $attempt = 0; $delay = 1
+    while ($true) {
+        $attempt++
+        Write-JobsFzfStatus ("必需 fzf：$mode，第 $attempt 次；网络失败持续重试，不设总次数，Ctrl+C 结束。")
+        $result = Invoke-JobsWingetPackage $winget 'junegunn.fzf' $mode
+        if ($result.Code -in @(130, 1223, 1602, -1073741510, -2147023673)) { throw (New-Object OperationCanceledException('已取消 fzf 获取。')) }
+        if ($result.Code -eq 0) {
+            Update-JobsProcessPath
+            $fzf = Find-JobsFzf
+            if ($fzf) { Update-JobsProcessPath ([IO.Path]::GetDirectoryName($fzf)); Write-JobsFzfStatus ('fzf 已通过当前进程复检：' + $fzf); return $fzf }
+            if ($mode -eq 'install') { $mode = 'repair'; Write-JobsFzfStatus '安装返回成功但选项复检失败，在同一流程尝试官方精确修复。'; continue }
+            throw 'fzf 安装及官方修复后仍未通过实际选项复检；保留原错误，未进入业务。'
+        }
+        if ($result.Text -match '(?i)permission|access.denied|no.space|disk.full|hash|checksum|certificate|unauthor|license|agreement|unsupported|not.supported|unknown.command|unrecognized|no.applicable|not.found|权限|拒绝|空间不足|许可|协议|不支持|未知命令|无法找到|无适用') {
+            $safeFailure = $result.Text -replace '\x1b\][^\x07]*(?:\x07|\x1b\\)', '' -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+            $safeFailure = $safeFailure -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@' -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]'
+            throw ('必需 fzf 遇到确定的权限、许可、包或版本阻塞，退出码 ' + $result.Code + '；未继续业务。' + [Environment]::NewLine + $safeFailure)
+        }
+        Write-JobsFzfStatus ("fzf 获取失败，退出码 $($result.Code)；$delay 秒后继续本次流程。")
+        Start-Sleep -Seconds $delay
+        $delay = [Math]::Min(30, $delay * 2)
+    }
+}
+# 单选与复选使用同一键盘表面；操作行独立解析，空选不回退为高亮对象。
+function Select-JobsFzfItems {
+    param([string]$Title, [object[]]$Items, [switch]$Multiple, [switch]$Child, [switch]$RequireConfirmation, [hashtable]$State = $null)
+    if ($Items.Count -eq 0) { return [pscustomobject]@{ Action = 'empty'; Items = @() } }
+    if ($Items.Count -eq 1 -and -not $Multiple -and -not $RequireConfirmation) { return [pscustomobject]@{ Action = 'selected'; Items = @($Items[0]) } }
+    if ([Console]::IsInputRedirected -or [Console]::IsOutputRedirected -or [Console]::IsErrorRedirected) { throw '键盘菜单需要完整交互终端；未安装依赖或继续业务。' }
+    $environment = [Environment]::GetEnvironmentVariables('Process')
+    foreach ($key in $environment.Keys) { if ([string]$key -match '^(?i:SOURCE_?TREE)') { throw 'Sourcetree 动作进程不能等待菜单；请按已声明的终端入口或明确参数执行。' } }
+    $fzf = Ensure-JobsFzf
+    $selected = New-Object 'Collections.Generic.HashSet[int]'
+    $query = ''; $position = 1
+    if ($null -ne $State) {
+        if ($State.ContainsKey('Query')) { $query = [string]$State.Query }
+        if ($State.ContainsKey('Position')) { $position = [Math]::Max(1, [int]$State.Position) }
+        if ($State.ContainsKey('Checked')) {
+            foreach ($savedIndex in @($State.Checked)) {
+                if ([int]$savedIndex -ge 0 -and [int]$savedIndex -lt $Items.Count) { [void]$selected.Add([int]$savedIndex) }
+            }
+        }
+    }
+    while ($true) {
+        $rows = New-Object 'Collections.Generic.List[string]'
+        $rows.Add("C`t× 取消本轮")
+        if ($Child) { $rows.Add("B`t← 返回上一层") }
+        if ($Multiple) {
+            $rows.Add("K`t确认已勾选（$($selected.Count) 项）")
+            $rows.Add("A`t全选本轮全部项目")
+            $rows.Add("Z`t清空已勾选")
+        }
+        for ($index = 0; $index -lt $Items.Count; $index++) {
+            $display = ([string]$Items[$index]) -replace '[\r\n\t]', ' '
+            if ($Multiple) { $display = $(if ($selected.Contains($index)) { '[✓] ' } else { '[ ] ' }) + $display }
+            $rows.Add("D$index`t$display")
+        }
+        $navigation = if ($Child) { '← 返回上一层' } else { '← 取消' }
+        $header = if ($Multiple) { "↑/↓ 或 Tab 导航；回车勾选/取消，空格确认；$navigation；操作行回车执行；Esc / Ctrl+C 取消" } else { "↑/↓ 或 Tab 导航；回车确认；$navigation；Esc / Ctrl+C 取消" }
+        $position = [Math]::Min($position, $rows.Count)
+        $arguments = @('--no-multi', '--sync', '--layout=reverse', '--height=60%', '--border', '--delimiter', "`t", '--with-nth=2..', '--print-query', '--expect=left,space,enter', ('--bind=up:up,down:down,tab:down,shift-tab:up,start:pos(' + $position + ')'), ('--prompt=' + $Title + ' > '), ('--header=' + $header), ('--query=' + $query))
+        if ($environment.Contains('NO_COLOR') -or $env:PLAIN_OUTPUT -eq '1' -or $env:TERM -ieq 'dumb') { $arguments += @('--color=bw', '--no-bold') }
+        $result = Invoke-JobsFzfProcess $fzf $arguments @($rows)
+        $lines = @($result.Lines)
+        $query = if ($lines.Count -gt 0) { [string]$lines[0] } else { '' }
+        $key = if ($lines.Count -gt 1) { [string]$lines[1] } else { '' }
+        if ($null -ne $State) { $State.Query = $query; $State.Checked = @($selected) }
+        if ($key -ceq 'left') { return [pscustomobject]@{ Action = $(if ($Child) { 'back' } else { 'cancel' }); Items = @() } }
+        if ($result.Code -in @(1, 130)) { return [pscustomobject]@{ Action = 'cancel'; Items = @() } }
+        if ($result.Code -ne 0) { throw ('fzf 选择失败，退出码：' + $result.Code) }
+        $record = if ($lines.Count -eq 3) { [string]$lines[2] } else { '' }
+        if (-not $rows.Contains($record)) { throw '选择结果不属于本轮显示清单，未执行业务。' }
+        $position = $rows.IndexOf($record) + 1
+        if ($null -ne $State) { $State.Position = $position }
+        $tag = ($record -split "`t", 2)[0]
+        if ($tag -ceq 'C') { return [pscustomobject]@{ Action = 'cancel'; Items = @() } }
+        if ($tag -ceq 'B') { return [pscustomobject]@{ Action = 'back'; Items = @() } }
+        if ($Multiple) {
+            if ($tag -ceq 'K' -or $key -ceq 'space') {
+                $chosen = @()
+                for ($index = 0; $index -lt $Items.Count; $index++) { if ($selected.Contains($index)) { $chosen += $Items[$index] } }
+                return [pscustomobject]@{ Action = $(if ($chosen.Count) { 'selected' } else { 'empty' }); Items = $chosen }
+            }
+            if ($tag -ceq 'A') { for ($index = 0; $index -lt $Items.Count; $index++) { [void]$selected.Add($index) }; if ($null -ne $State) { $State.Checked = @($selected) }; continue }
+            if ($tag -ceq 'Z') { $selected.Clear(); if ($null -ne $State) { $State.Checked = @() }; continue }
+        }
+        if ($tag -notmatch '^D([0-9]+)$') { throw '选择器返回无效操作行。' }
+        $index = [int]$Matches[1]
+        if (-not $Multiple) { return [pscustomobject]@{ Action = 'selected'; Items = @($Items[$index]) } }
+        if ($selected.Contains($index)) { [void]$selected.Remove($index) } else { [void]$selected.Add($index) }
+        if ($null -ne $State) { $State.Checked = @($selected) }
+    }
+}
+# JOBS_FZF_SELECTION_CORE_V1_END
+
+function Resolve-JobsScriptLayoutPath {
+    param([Parameter(Mandatory=$true)][string]$Path)
+    if ([IO.Path]::GetExtension($Path) -notin @('.ps1','.cmd','.vbs')) { return $Path }
+    if (Test-Path -LiteralPath $Path -PathType Container) {
+        $directory = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+        if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw ('脚本包装不能是链接：' + $Path) }
+        return Join-Path $Path $directory.Name
+    }
+    return $Path
+}
+# 仅新源码包装压平到原发布名称；原有 SDK 资源包与 README 布局保持原意。
+function Convert-JobsReleaseLayoutRelativePath {
+    param([string]$Package, [string]$Relative)
+    $parts = @($Relative -split '[\\/]')
+    if ($parts.Count -lt 2) { return $Relative }
+    $last = $parts[$parts.Count - 1]
+    $parent = $parts[$parts.Count - 2]
+    if ($last -ceq 'README.md' -and [IO.Path]::GetExtension($parent) -in @('.ps1','.cmd','.vbs')) {
+        $sibling = Join-Path (Join-Path $Package (($parts[0..($parts.Count-2)]) -join '/')) $parent
+        if ((Test-Path -LiteralPath $sibling -PathType Leaf) -and ([IO.File]::ReadAllText($sibling) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) { return $null }
+    }
+    if ($last -ceq $parent -and [IO.Path]::GetExtension($last) -in @('.ps1','.cmd','.vbs')) {
+        $source = Join-Path $Package $Relative
+        if ((Test-Path -LiteralPath $source -PathType Leaf) -and ([IO.File]::ReadAllText($source) -match '(?m)^(?:#|rem|\x27) JOBS_SOURCE_LAYOUT_ROOT_V1')) {
+            return (($parts[0..($parts.Count-2)]) -join '/')
+        }
+    }
+    return $Relative
+}
+# 核验真实控制台和颜色约束，重定向或SourceTree统一使用纯文本。
 function Test-JobsEnterChoiceColor {
-    if ((Test-Path Env:NO_COLOR) -or $env:TERM -ieq 'dumb' -or $env:PLAIN_OUTPUT -eq '1') { return $false }
-    $consoleType = [Console]
-    if ($null -eq $consoleType.GetProperty('IsInputRedirected') -or $null -eq $consoleType.GetProperty('IsOutputRedirected')) { return $false }
-    return ($Host.Name -ceq 'ConsoleHost' -and -not [Console]::IsInputRedirected -and -not [Console]::IsOutputRedirected)
+    param([Collections.IDictionary]$Capabilities = $null)
+    if ($null -eq $Capabilities) {
+        try {
+            $environment = [Environment]::GetEnvironmentVariables('Process')
+            $Capabilities = @{ HostName = $Host.Name; InputRedirected = [Console]::IsInputRedirected; OutputRedirected = [Console]::IsOutputRedirected;
+                               ErrorRedirected = [Console]::IsErrorRedirected; NoColorPresent = $environment.Contains('NO_COLOR');
+                               PlainOutput = $env:PLAIN_OUTPUT; Term = $env:TERM; Windows = ([Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT); VirtualTerminal = $false; SourceTree = ($env:IS_SOURCETREE_RUNTIME -eq '1') }
+            if ($null -ne $Host.UI.PSObject.Properties['SupportsVirtualTerminal']) { $Capabilities.VirtualTerminal = $Host.UI.SupportsVirtualTerminal }
+            foreach ($key in $environment.Keys) { if ([string]$key -match '^(?i:SOURCE_?TREE)') { $Capabilities.SourceTree = $true; break } }
+        } catch { return $false }
+    }
+    return ($Capabilities.HostName -eq 'ConsoleHost' -and -not $Capabilities.InputRedirected -and -not $Capabilities.OutputRedirected -and
+            -not $Capabilities.ErrorRedirected -and -not $Capabilities.NoColorPresent -and $Capabilities.PlainOutput -ne '1' -and
+            $Capabilities.Term -ine 'dumb' -and (-not [string]::IsNullOrEmpty($Capabilities.Term) -or ($Capabilities.Contains('Windows') -and $Capabilities.Windows)) -and -not $Capabilities.SourceTree -and $Capabilities.VirtualTerminal)
 }
 # Older hosts keep native colors without sending unsupported bold escape sequences.
 function Test-JobsEnterChoiceBold {
@@ -19,7 +492,7 @@ function Test-JobsEnterChoiceBold {
 # Separate ordinary question text from Enter and arbitrary-input options without changing words.
 function Get-JobsEnterChoiceParts {
     param([string]$Text)
-    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)'
+    $red = '(?:(?:\u8f93\u5165)?(?:\u4efb\u610f(?:\u975e\u7a7a)?(?:\u5b57\u7b26|\u5185\u5bb9|\u6587\u5b57|\u8f93\u5165)?|\u975e\u7a7a(?:\u8f93\u5165|\u5b57\u7b26|\u5185\u5bb9)?|(?:\u5176\u5b83|\u5176\u4ed6)(?:\u975e\u7a7a)?(?:\u8f93\u5165|\u5185\u5bb9|\u5b57\u7b26)?))|(?:any\s+(?:(?:other|non[- ]empty)\s+)?(?:input|text|characters?)|non[- ]empty\s+input)|(?:type\s+(?:anything|any\s+(?:characters?|text|input)))'
     $green = '(?:(?:\u76f4\u63a5|\u53ea\u9700|\u4ec5(?:\u9700)?|\u6309(?:\u4e0b)?|\u7a7a)?\s*\u56de\u8f66|(?:press\s+)?\bEnter\b(?!\s+(?:YES|REPAIR|CLEAN|CONTINUE)\b))'
     $pattern = '(?is)(?<red>(?:' + $red + ')[^;\uFF1B\r\n]*?(?=[;\uFF1B\r\n]|\z))|(?<green>(?:' + $green + ')[^;\uFF1B\r\n]*?(?=(?:' + $red + ')|[;\uFF1B\r\n]|\z))'
     $offset = 0
@@ -34,48 +507,200 @@ function Get-JobsEnterChoiceParts {
     if ($offset -lt $Text.Length) { [pscustomobject]@{ Text = $Text.Substring($offset); Color = '' } }
 }
 # Native host text remains plain in information streams and logs; bold control is console-only.
+# 仅在真实询问中突出主体和各类操作选项。
+function Get-JobsQuestionChoiceParts {
+    param([string]$Text)
+    $plain = [regex]::Replace($Text, '\x1b\[[0-9;]*m', '')
+    $questionBody = $true
+    foreach ($part in @(Get-JobsEnterChoiceParts $plain)) {
+        $isOption = $part.Color -eq 'Red' -or $part.Color -eq 'Green'
+        foreach ($token in [regex]::Matches($part.Text, '[^；;/|，,、？?：:=＝（）()\[\]【】\r\n]+|[；;/|，,、？?：:=＝（）()\[\]【】\r\n]')) {
+            $value = $token.Value
+            $separator = $value -match '^[；;/|，,、？?：:=＝（）()\[\]【】\r\n]$'
+            $color = ''
+            if (-not $separator -and -not [string]::IsNullOrWhiteSpace($value)) {
+                if ($isOption) { $color = $part.Color }
+                elseif ($questionBody) { $color = 'Cyan' }
+            }
+            [pscustomobject]@{ Text = $value; Color = $color }
+        }
+        if ($isOption) { $questionBody = $false }
+    }
+}
+# 识别展示地址边界，保留查询、编码与配对括号。
+function Get-JobsUrlRanges {
+    param([string]$Text)
+    $pattern = '[A-Za-z][A-Za-z0-9+.-]*://[^\s<>"''\x1b]+'
+    $punctuation = '，。；：！？、（）【】《》「」『』“”‘’'
+    $offset = 0
+    while ($offset -lt $Text.Length) {
+        $match = [regex]::Match($Text.Substring($offset), $pattern)
+        if (-not $match.Success) { break }
+        $start = $offset + $match.Index
+        $url = $match.Value
+        foreach ($mark in $punctuation.ToCharArray()) {
+            $at = $url.IndexOf($mark)
+            if ($at -ge 0) { $url = $url.Substring(0, $at) }
+        }
+        while ($url.Length) {
+            $last = $url.Substring($url.Length - 1, 1)
+            $unmatched = $false
+            foreach ($pair in @(@('(', ')'), @('[', ']'), @('{', '}'))) {
+                if ($last -eq $pair[1] -and ([regex]::Matches($url, [regex]::Escape($pair[1]))).Count -gt ([regex]::Matches($url, [regex]::Escape($pair[0]))).Count) { $unmatched = $true }
+            }
+            if ('. , ; : ! ?'.Split(' ') -contains $last -or $unmatched) { $url = $url.Substring(0, $url.Length - 1) }
+            else { break }
+        }
+        [pscustomobject]@{ Start = $start; End = $start + $url.Length }
+        $offset = $start + $url.Length
+    }
+}
+# 暂时遮蔽URL，避免询问分段误识别地址内的Enter。
+function Protect-JobsDisplayUrls {
+    param([string]$Text)
+    $builder = New-Object Text.StringBuilder
+    $tokens = New-Object 'Collections.Generic.List[object]'
+    $offset = 0; $number = 0
+    foreach ($range in @(Get-JobsUrlRanges $Text)) {
+        do { $number++; $token = [string][char]2 + 'U' + $number + [char]3 } while ($Text.Contains($token))
+        [void]$builder.Append($Text.Substring($offset, $range.Start - $offset)).Append($token)
+        $tokens.Add([pscustomobject]@{ Token = $token; Text = $Text.Substring($range.Start, $range.End - $range.Start) })
+        $offset = $range.End
+    }
+    [void]$builder.Append($Text.Substring($offset))
+    [pscustomobject]@{ Text = $builder.ToString(); Tokens = $tokens.ToArray() }
+}
+# 给可见地址标绿下划线，并恢复原SGR上下文。
+function Format-JobsUrlText {
+    param([AllowEmptyString()][string]$Text, [switch]$Color)
+    $control = '\x1b\][^\x1b\x07]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]'
+    $sgr = '\x1b\[[0-9;:]*m'
+    $value = [regex]::Replace($Text, $control, {
+        param($match)
+        if ($Color -and $match.Value -match ('^' + $sgr + '$')) { return $match.Value }
+        return ''
+    })
+    if (-not $Color) { return $value }
+    $styles = @{}; $visible = New-Object Text.StringBuilder; $offset = 0
+    foreach ($match in [regex]::Matches($value, $sgr)) {
+        [void]$visible.Append($value.Substring($offset, $match.Index - $offset))
+        $index = $visible.Length
+        if (-not $styles.ContainsKey($index)) { $styles[$index] = '' }
+        $styles[$index] += $match.Value
+        $offset = $match.Index + $match.Length
+    }
+    [void]$visible.Append($value.Substring($offset))
+    $plain = $visible.ToString(); $starts = @{}; $ends = @{}
+    foreach ($range in @(Get-JobsUrlRanges $plain)) { $starts[$range.Start] = $true; $ends[$range.End - 1] = $true }
+    $escape = [string][char]27; $active = ''; $inUrl = $false; $output = New-Object Text.StringBuilder
+    for ($index = 0; $index -le $plain.Length; $index++) {
+        if ($styles.ContainsKey($index)) {
+            $tokens = $styles[$index]; [void]$output.Append($tokens)
+            foreach ($match in [regex]::Matches($tokens, $sgr)) {
+                $token = $match.Value; $code = $token.Substring(2, $token.Length - 3)
+                $fields = $code.Split(';'); $reset = $code -eq ''
+                for ($item = 0; $item -lt $fields.Count; $item++) {
+                    if ($fields[$item] -eq '0') { $reset = $true }
+                    if (@('38', '48', '58') -contains $fields[$item] -and $item + 1 -lt $fields.Count) {
+                        if ($fields[$item + 1] -eq '2') { $item += 4 }
+                        elseif ($fields[$item + 1] -eq '5') { $item += 2 }
+                    }
+                }
+                if ($reset) { $active = '' }
+                $active += $token
+            }
+            if ($inUrl) { [void]$output.Append($escape + '[32;4m') }
+        }
+        if ($index -eq $plain.Length) { break }
+        if ($starts.ContainsKey($index)) { [void]$output.Append($escape + '[32;4m'); $inUrl = $true }
+        [void]$output.Append($plain[$index])
+        if ($ends.ContainsKey($index)) { [void]$output.Append($escape + '[0m' + $active); $inUrl = $false }
+    }
+    return $output.ToString()
+}
+# 按现行询问规则合成展示字符串，保持输入原文。
+function Format-JobsDisplayText {
+    param([AllowEmptyString()][string]$Text, [switch]$Question, [switch]$Color, [string]$BaseStyle = '')
+    if (-not $Color) { return (Format-JobsUrlText $Text) }
+    $plain = Format-JobsUrlText $Text
+    $protected = Protect-JobsDisplayUrls $plain
+    $parts = if ($Question) { @(Get-JobsQuestionChoiceParts $protected.Text) } else { @(Get-JobsEnterChoiceParts $protected.Text) }
+    $escape = [string][char]27
+    if (-not $Question -and @($parts | Where-Object { $_.Color }).Count -eq 0) {
+        $result = Format-JobsUrlText ($BaseStyle + $Text) -Color
+    } else {
+        $output = New-Object Text.StringBuilder
+        foreach ($part in $parts) {
+            $code = switch ($part.Color) { 'Red' { 31 } 'Green' { 32 } 'Cyan' { 36 } default { 0 } }
+            if ($code) { [void]$output.Append($escape + '[1;' + $code + 'm' + $part.Text + $escape + '[0m' + $BaseStyle) }
+            else { [void]$output.Append($BaseStyle + $part.Text) }
+        }
+        $formatted = $output.ToString()
+        foreach ($item in $protected.Tokens) { $formatted = $formatted.Replace($item.Token, $item.Text) }
+        $result = Format-JobsUrlText $formatted -Color
+    }
+    if ($BaseStyle) { $result += $escape + '[0m' }
+    return $result
+}
+# 按调用者明确指定的ConsoleColor计算临时展示色。
+function Get-JobsDisplayBaseStyle {
+    param([Collections.IDictionary]$Parameters)
+    $codes = @{ Black=30; DarkBlue=34; DarkGreen=32; DarkCyan=36; DarkRed=31; DarkMagenta=35; DarkYellow=33; Gray=37; DarkGray=90; Blue=94; Green=92; Cyan=96; Red=91; Magenta=95; Yellow=93; White=97 }
+    $style = ''; $escape = [string][char]27
+    if ($Parameters.ContainsKey('ForegroundColor')) { $style += $escape + '[' + $codes[[string]$Parameters.ForegroundColor] + 'm' }
+    if ($Parameters.ContainsKey('BackgroundColor')) { $style += $escape + '[' + ($codes[[string]$Parameters.BackgroundColor] + 10) + 'm' }
+    return $style
+}
+# 只在人类控制台渲染问句与URL，信息流和日志保持纯文本。
 function Write-JobsEnterChoiceText {
     [CmdletBinding()]
-    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ')
+    param([Parameter(Position=0)][AllowNull()][object]$Object, [switch]$NoNewline, [ConsoleColor]$ForegroundColor, [ConsoleColor]$BackgroundColor, [object]$Separator = ' ', [switch]$Question)
     $text = if ($Object -is [array]) { $Object -join [string]$Separator } else { [string]$Object }
-    if (-not (Test-JobsEnterChoiceColor)) {
-        Write-Host $Object -NoNewline:$NoNewline -Separator $Separator
-        return
-    }
-    $normal = @{}
-    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $normal.ForegroundColor = $ForegroundColor }
-    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $normal.BackgroundColor = $BackgroundColor }
-    foreach ($part in @(Get-JobsEnterChoiceParts $text)) {
-        if (-not $part.Color) { Write-Host $part.Text -NoNewline @normal; continue }
-        $bold = Test-JobsEnterChoiceBold
-        if ($bold) { [Console]::Write(([string][char]27) + '[1m') }
-        try { Write-Host $part.Text -ForegroundColor $part.Color -NoNewline }
-        finally { if ($bold) { [Console]::Write(([string][char]27) + '[0m') } }
-    }
-    if (-not $NoNewline) { Write-Host }
+    $plain = Format-JobsUrlText $text
+    if (-not (Test-JobsEnterChoiceColor)) { Write-Host $plain -NoNewline:$NoNewline; return }
+    $baseStyle = Get-JobsDisplayBaseStyle $PSBoundParameters
+    $rendered = Format-JobsDisplayText $text -Question:$Question -Color -BaseStyle $baseStyle
+    $message = New-Object Management.Automation.HostInformationMessage
+    $message.Message = $plain
+    $message.NoNewLine = [bool]$NoNewline
+    if ($PSBoundParameters.ContainsKey('ForegroundColor')) { $message.ForegroundColor = $ForegroundColor }
+    if ($PSBoundParameters.ContainsKey('BackgroundColor')) { $message.BackgroundColor = $BackgroundColor }
+    Write-Information -MessageData $message -Tags 'JobsDisplay' -InformationAction SilentlyContinue
+    [Console]::Write($rendered)
+    if (-not $NoNewline) { [Console]::WriteLine() }
 }
 # Delegate the original reader, including secure input and EOF behavior, after prompt display.
 function Read-JobsEnterChoiceHost {
     [CmdletBinding()]
     param([Parameter(Position=0)][string]$Prompt, [switch]$AsSecureString, [switch]$MaskInput)
-    if ($AsSecureString -or $MaskInput -or -not (Test-JobsEnterChoiceColor) -or @((Get-JobsEnterChoiceParts $Prompt) | Where-Object { $_.Color }).Count -eq 0) {
-        return (Read-Host @PSBoundParameters)
+    if (-not (Test-JobsEnterChoiceColor)) {
+        $plainArguments = @{}
+        foreach ($key in $PSBoundParameters.Keys) { $plainArguments[$key] = $PSBoundParameters[$key] }
+        if ($plainArguments.ContainsKey('Prompt')) { $plainArguments.Prompt = Format-JobsUrlText $Prompt }
+        return (Read-Host @plainArguments)
     }
-    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline
-    return (Read-Host)
+    Write-JobsEnterChoiceText ($Prompt + ': ') -NoNewline -Question
+    $readerArguments = @{}
+    foreach ($key in $PSBoundParameters.Keys) {
+        if ($key -ne 'Prompt') { $readerArguments[$key] = $PSBoundParameters[$key] }
+    }
+    return (Read-Host @readerArguments)
 }
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'Common.psm1') -DisableNameChecking
-. (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1')
+. (Resolve-JobsScriptLayoutPath (Join-Path $PSScriptRoot 'SdkDownloadOutput.ps1'))
 
+# 将版本管理诊断安全写入当前展示流与纯文本日志。
 function Write-JobsFvmMessage {
     param([string]$Message)
+    $Message = $Message -replace '\x1b\][^\x07]*(?:\x07|\x1b\\)', '' -replace '\x1b\[[0-?]*[ -/]*[@-~]', ''
+    $Message = $Message -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@' -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]' -replace '(?im)((?:token|password|secret|authorization)\s*[:=]\s*)\S+', '$1[已省略]'
     $safe = $Message -replace '(?i)([a-z][a-z0-9+.-]*://)[^\s/@]+@', '$1***@'
     $safe = $safe -replace '(?i)(https?://[^\s?#]+)[?#][^\s]*', '$1?[已省略]'
     $safe = $safe -replace '(?im)((?:token|password|secret|authorization)\s*[:=]\s*)\S+', '$1[已省略]'
-    Write-Host $safe
+    Write-JobsEnterChoiceText $safe
     $logs = Join-Path (Get-JobsInstallRoot) 'logs'
     [void][IO.Directory]::CreateDirectory($logs)
     if (-not (Get-Variable -Name FvmSessionLog -Scope Script -ErrorAction SilentlyContinue)) {
@@ -355,20 +980,29 @@ function Update-JobsFvmSessionPath {
     $paths += @((Join-Path $env:LOCALAPPDATA 'Microsoft/WinGet/Links'), (Join-Path $env:LOCALAPPDATA 'Programs/Git/cmd'))
     $env:PATH = (@($paths | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique) -join [IO.Path]::PathSeparator)
 }
-
+# 保留原单次确认，只获取所需Git或Chrome并在当前流程复检。
 function Install-JobsWingetTool {
-    param([string]$Id, [string]$Directory)
-    $winget = Find-JobsHealthyFvmTool 'winget.exe' @() $Directory
-    if (-not $winget) {
-        Write-JobsFvmMessage 'WinGet 不健康或缺失。请在 Microsoft Store 安装/更新 App Installer 后重开菜单；不继续下游安装。'
-        Start-Process -FilePath 'ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1'
-        throw '工具链阻塞在 WinGet/App Installer。'
-    }
-    Write-JobsFvmMessage "安装来源：WinGet 官方 winget 源；包：$Id；范围：当前用户。安装器可能联网。"
-    if ((Read-JobsEnterChoiceHost "缺少必需组件 $Id；回车安装，任意字符取消整个流程") -ne '') { throw '已取消必需组件安装。' }
-    $result = Invoke-JobsFvmTool $winget @('install', '--id', $Id, '--exact', '--source', 'winget', '--scope', 'user', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity') $Directory -Visible -TimeoutSeconds 1800
-    if ($result.ExitCode -ne 0) { throw "WinGet 安装失败：$Id（$($result.ExitCode)）。请修复此层后重试。" }
+    param([string]$Id,[string]$Directory)
+    if($Id-notin@('Git.Git','Google.Chrome')){throw ('未声明的必需工具：'+$Id)}
+    Write-JobsFvmMessage "安装来源：WinGet 官方 winget 源；包：$Id；范围：当前用户。仅本次必要分支获取，许可沿原生安装器。"
+    if((Read-JobsEnterChoiceHost "缺少必需组件 $Id；回车安装，任意字符取消整个流程")-cne''){throw(New-Object OperationCanceledException('已取消必需组件安装。'))}
+    $winget=Get-JobsNativeRequiredWinget
+    [void](Invoke-JobsNativeWingetRetry $winget @('install','--id',$Id,'--exact','--source','winget','--scope','user','--force','--interactive'))
     Update-JobsFvmSessionPath
+    Update-JobsWingetNativePath
+    if($Id-ceq'Git.Git'){
+        $candidates=@()
+        if($env:LOCALAPPDATA){$candidates+=Join-Path $env:LOCALAPPDATA 'Programs/Git/cmd/git.exe'}
+        if($env:ProgramFiles){$candidates+=Join-Path $env:ProgramFiles 'Git/cmd/git.exe'}
+        if(-not(Find-JobsHealthyFvmTool 'git.exe' $candidates $Directory)){throw 'Git安装后实际版本复检失败，未继续下游。'}
+    }else{
+        $ready=$false
+        foreach($root in @($env:LOCALAPPDATA,$env:ProgramFiles,${env:ProgramFiles(x86)})){
+            if(-not$root){continue};$chrome=Join-Path $root 'Google/Chrome/Application/chrome.exe'
+            if([IO.File]::Exists($chrome)-and[Diagnostics.FileVersionInfo]::GetVersionInfo($chrome).FileVersion-match'^\d+\.'){$ready=$true;break}
+        }
+        if(-not$ready){throw 'Chrome安装后文件版本复检失败，未继续下游。'}
+    }
 }
 
 function Read-JobsFvmWebJson {
@@ -432,7 +1066,7 @@ function Install-JobsStandaloneFvm {
     }
     finally { if ($complete -and (Test-Path -LiteralPath $stage)) { Remove-Item -LiteralPath $stage -Recurse -Force } elseif (Test-Path -LiteralPath $stage) { Write-JobsFvmMessage ('未完成 FVM 下载保留：' + $stage) } }
 }
-
+# 准备当前版本操作必需工具，健康安装复用并逐项复检。
 function Get-JobsFvmToolchain {
     param([string]$Directory, [string]$InspectionDirectory)
     $gitCandidates = @((Join-Path $env:LOCALAPPDATA 'Programs/Git/cmd/git.exe'))
@@ -442,9 +1076,7 @@ function Get-JobsFvmToolchain {
     if (-not $git) { throw 'Git 安装后二次体检失败，已停止。' }
     # 健康但原本不在 PATH 的 Git 必须让 FVM 子进程可见。
     $env:PATH = (Split-Path -Parent $git) + [IO.Path]::PathSeparator + $env:PATH
-    $fzf = Find-JobsHealthyFvmTool 'fzf.exe' @() $Directory
-    if (-not $fzf) { Install-JobsWingetTool 'junegunn.fzf' $Directory; $fzf = Find-JobsHealthyFvmTool 'fzf.exe' @() $Directory }
-    if (-not $fzf) { throw 'fzf 安装后二次体检失败，已停止。' }
+    $fzf = Ensure-JobsFzf
     $candidates = @('fvm.bat', 'fvm.cmd')
     $pointer = Join-Path (Get-JobsInstallRoot) 'tools/fvm-path.txt'
     if (Test-Path -LiteralPath $pointer -PathType Leaf) { $candidates += (Get-Content -LiteralPath $pointer -Raw -Encoding UTF8).Trim() }
@@ -531,35 +1163,15 @@ function Get-JobsFlutterReleaseChoices {
     if ($choices.Count -eq 0) { throw '没有可选择版本。请恢复网络后重新打开菜单。' }
     return $choices
 }
-
+# 保留版本查询与返回状态，默认取消并区分动作行与实际版本。
 function Select-JobsFlutterVersion {
-    param([string]$Fzf, [object[]]$Choices, [string]$Directory)
-    $start = New-Object Diagnostics.ProcessStartInfo
-    $start.FileName = $Fzf
-    $start.Arguments = '--no-multi --no-sort --reverse --border --prompt="Flutter SDK > " --header="输入搜索，↑↓选择，Enter确认，Esc取消；stable/beta/dev历史版本"'
-    $start.WorkingDirectory = $Directory
-    $start.UseShellExecute = $false
-    $start.RedirectStandardInput = $true
-    $start.RedirectStandardOutput = $true
-    $start.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)
-    $start.EnvironmentVariables.Remove('FZF_DEFAULT_OPTS')
-    $start.EnvironmentVariables.Remove('FZF_DEFAULT_OPTS_FILE')
-    $process = New-Object Diagnostics.Process
-    $process.StartInfo = $start
-    try {
-        [void]$process.Start()
-        $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes(($Choices.Label -join "`n") + "`n")
-        $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
-        $process.StandardInput.BaseStream.Close()
-        $output = $process.StandardOutput.ReadToEnd()
-        $process.WaitForExit()
-        if ($process.ExitCode -in @(1, 130)) { return $null }
-        if ($process.ExitCode -ne 0) { throw "fzf 选择失败（$($process.ExitCode)）。" }
-        $selection = @($Choices | Where-Object { $_.Label -ceq $output.TrimEnd("`r", "`n") })
-        if ($selection.Count -ne 1) { throw 'fzf 返回了未知选择，已停止。' }
-        return $selection[0]
-    }
-    finally { $process.Dispose() }
+    param([string]$Fzf, [object[]]$Choices, [string]$Directory, [hashtable]$State = $null)
+    $labels = @($Choices | ForEach-Object { [string]$_.Label })
+    $selection = Select-JobsFzfItems -Title 'Flutter SDK' -Items $labels -State $State
+    if ($selection.Action -cne 'selected') { return $null }
+    $choice = @($Choices | Where-Object { $_.Label -ceq $selection.Items[0] })
+    if ($choice.Count -ne 1) { throw 'fzf 返回了未知或不唯一的选择，已停止。' }
+    return $choice[0]
 }
 
 function Get-JobsProjectFvmConfig {
@@ -711,7 +1323,7 @@ namespace Jobs {
         if (Test-Path -LiteralPath $root) { Remove-Item -LiteralPath $root -Recurse -Force }
     }
 }
-
+# 选择版本后默认取消写入，确认后保留原SDK锁、备份和绑定事务。
 function Invoke-JobsFlutterVersionAction {
     param([string]$Directory)
     Assert-JobsFlutterProject $Directory
@@ -737,11 +1349,17 @@ function Invoke-JobsFlutterVersionAction {
         $chain = Get-JobsFvmToolchain $Directory $inspection
         $cached = @(Get-JobsFvmCachedVersions $chain.Fvm $inspection)
         $choices = @(Get-JobsFlutterReleaseChoices $cached $current)
-        $choice = Select-JobsFlutterVersion $chain.Fzf $choices $Directory
-        if ($null -eq $choice) { Write-JobsFvmMessage '已取消选择，项目未修改。'; return }
-        Write-JobsFvmMessage ("计划：{0} → {1}；{2}" -f $current, $choice.Version, $choice.Label)
-        Write-JobsFvmMessage '写入范围：当前根 .fvmrc（保留其它字段、关闭向父 Melos 同步）、.fvm/、可能的 .gitignore、.vscode/settings.json 和根 *.code-workspace；不获取项目 pub 依赖。未缓存版本将下载 SDK。'
-        if ((Read-JobsEnterChoiceHost '直接回车执行当前项目的安装/切换；输入任意字符后回车取消') -ne '') { Write-JobsFvmMessage '已取消，项目未修改。'; return }
+        $versionState = @{}
+        while ($true) {
+            $choice = Select-JobsFlutterVersion $chain.Fzf $choices $Directory -State $versionState
+            if ($null -eq $choice) { Write-JobsFvmMessage '已取消选择，项目未修改。'; return }
+            Write-JobsFvmMessage ("计划：{0} → {1}；{2}" -f $current, $choice.Version, $choice.Label)
+            Write-JobsFvmMessage '写入范围：当前根 .fvmrc（保留其它字段、关闭向父 Melos 同步）、.fvm/、可能的 .gitignore、.vscode/settings.json 和根 *.code-workspace；不获取项目 pub 依赖。未缓存版本将下载 SDK。'
+            $confirmation = Select-JobsFzfItems '确认当前项目安装/切换（默认取消）' @('应用以上准确版本与写入范围') -RequireConfirmation -Child:($choices.Count -gt 1)
+            if ($confirmation.Action -ceq 'back') { continue }
+            if ($confirmation.Action -cne 'selected') { Write-JobsFvmMessage '已取消，项目未修改。'; return }
+            break
+        }
         Assert-JobsFlutterProject $Directory
         Assert-JobsFvmWritePaths $Directory
         if ((Get-JobsFvmPreviewStamp $Directory) -cne $previewStamp) { throw '选版期间 pubspec.yaml 或 .fvmrc 已被修改，请重新打开菜单确认新状态；本次未写项目。' }

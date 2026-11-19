@@ -14,6 +14,7 @@
 #include <vector>
 #include <string>
 #include "DesktopScope.h"
+#include "DesktopMenuOrder.h"
 
 const CLSID CLSID_JobsAndroidSimulatorCreator = {0x9591d98b,0x3481,0x4e05,{0xbe,0x24,0x47,0x0f,0xcd,0xfd,0x0e,0x23}};
 static HMODULE moduleHandle;
@@ -74,7 +75,7 @@ public:
     }
     HRESULT STDMETHODCALLTYPE QueryContextMenu(HMENU menu, UINT position, UINT first, UINT last, UINT flags) override {
         if ((flags & CMF_DEFAULTONLY) || first > last || !IsDesktop(target)) return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 0);
-        if (!InsertMenuW(menu, position, MF_BYPOSITION | MF_STRING, first, L"📱 新建 Android 模拟器")) return HRESULT_FROM_WIN32(GetLastError());
+        if (!JobsDesktopMenuOrder::Insert(menu, position, first, JobsDesktopMenuOrder::Rank::CreateAndroid, L"📱 新建 Android 模拟器")) return HRESULT_FROM_WIN32(GetLastError());
         return MAKE_HRESULT(SEVERITY_SUCCESS, 0, 1);
     }
     HRESULT STDMETHODCALLTYPE InvokeCommand(CMINVOKECOMMANDINFO* info) override {
